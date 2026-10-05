@@ -2,10 +2,20 @@ defmodule JidoDelvetown.CycleTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.Agent
-  alias JidoDelvetown.{ProactiveParticipationCycle, ReactiveParticipationCycle}
+
+  alias JidoDelvetown.{
+    ProactiveParticipationCycle,
+    ReactiveParticipationCycle,
+    Repo,
+    ScanProgress
+  }
+
+  alias JidoDelvetown.Storage.ScanState
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
 
   setup do
+    Repo.delete_all(ScanState)
+
     keys = [
       :session_module,
       :transport,
@@ -196,6 +206,39 @@ defmodule JidoDelvetown.CycleTest do
     assert state.last_run.status == "proposed"
     assert_received {:decision, "join_useful_discussion", payload}
     assert payload.candidate.thread.post.text == "When should one process become two?"
+  end
+
+  test "a reactive cycle restores and advances one bounded notification page" do
+    assert {:ok, _scan} = ScanProgress.put_cursor("notifications", "cursor-1")
+
+    configure_reads(%{
+      "town.delve.notification.listNotifications" =>
+        {:ok, %{"cursor" => "cursor-2", "notifications" => []}}
+    })
+
+    assert {:ok, state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.status == "skipped"
+
+    assert_received {:appview_query, "town.delve.notification.listNotifications",
+                     %{cursor: "cursor-1", limit: 20}}
+
+    refute_received {:appview_query, "town.delve.notification.listNotifications", _params}
+    assert ScanProgress.get("notifications").cursor == "cursor-2"
+  end
+
+  test "an overlapping reactive trigger stops before protocol reads" do
+    assert {:ok, scan} = ScanProgress.claim("notifications")
+
+    assert {:ok, state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.status == "skipped"
+    assert state.last_run.summary =~ "skipped"
+    refute_received {:appview_query, _method, _params}
+
+    assert {:ok, _scan} = ScanProgress.release("notifications", scan.token)
   end
 
   defp context do

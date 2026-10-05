@@ -8,6 +8,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   alias JidoDelvetown.Actions.UpdateNotificationsSeen
   alias JidoDelvetown.Config
   alias JidoDelvetown.InteractionLedger
+  alias JidoDelvetown.ScanProgress
 
   @topic_limit 10
 
@@ -19,12 +20,29 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     result = result(cycle, decision, completed_at)
     {state, result} = maybe_mark_notifications_seen(state, cycle, result, completed_at)
 
-    with :ok <- InteractionLedger.record_cycle(cycle, decision, completed_at) do
+    with :ok <- InteractionLedger.record_cycle(cycle, decision, completed_at),
+         :ok <- finish_scan(cycle) do
       {:ok, finish_state(state, result, completed_at)}
     else
       {:error, reason} -> {:error, {:interaction_ledger_failed, reason}}
     end
   end
+
+  defp finish_scan(%{scan: %{name: name, token: token}} = cycle) do
+    result =
+      if cycle.status == "failed" do
+        ScanProgress.release(name, token)
+      else
+        ScanProgress.finish(name, token, Map.get(cycle.scan, :next_cursor))
+      end
+
+    case result do
+      {:ok, _scan} -> :ok
+      {:error, reason} -> {:error, {:scan_progress_failed, reason}}
+    end
+  end
+
+  defp finish_scan(_cycle), do: :ok
 
   defp normalize_decision(decision) when map_size(decision) > 0, do: decision
 

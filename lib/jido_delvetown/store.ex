@@ -68,9 +68,8 @@ defmodule JidoDelvetown.Store do
     {:reply, cursor, state}
   end
 
-  def handle_call({:put_cursor, nil}, _from, state), do: {:reply, :ok, state}
-
-  def handle_call({:put_cursor, cursor}, _from, state) when is_binary(cursor) do
+  def handle_call({:put_cursor, cursor}, _from, state)
+      when is_binary(cursor) or is_nil(cursor) do
     now = now()
 
     state.repo.insert_all(

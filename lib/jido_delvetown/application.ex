@@ -48,7 +48,19 @@ defmodule JidoDelvetown.Application do
            turn_timeout: 120_000,
            restart: :transient
          ) do
-      {:ok, _agent_server} -> :ok
+      {:ok, agent_server} -> ensure_schedule(agent_server)
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp ensure_schedule(agent_server) do
+    signal =
+      Jido.Signal.new!("jido.delvetown.schedule.ensure", %{},
+        source: "/jido_delvetown/application"
+      )
+
+    case Jido.AgentServer.call(agent_server, signal, timeout: 10_000) do
+      {:ok, _agent} -> :ok
       {:error, _reason} = error -> error
     end
   end

@@ -20,21 +20,47 @@ defmodule JidoDelvetown.Agent do
   @checkpoint_key_lookup Map.new(@checkpoint_keys, &{Atom.to_string(&1), &1})
   @operator_prompt JidoDelvetown.Personality.operator_prompt()
   @operator_model JidoDelvetown.Config.decision_model_input()
+  @schedule_job_id "delvetown-reactive-participation"
+  @schedule_cron "*/15 * * * *"
+  @schedule_generation 1
+  @schedule_signal Jido.Signal.new!(
+                     "jido.delvetown.reactive",
+                     %{mode: "normal"},
+                     source: "/jido_delvetown/cron"
+                   )
 
   use Jido.AI.Agent,
     name: "jido_delvetown",
     description: "Runs reactive and proactive Delvetown participation cycles."
 
   def id, do: @id
+  def schedule_job_id, do: @schedule_job_id
+  def schedule_cron, do: @schedule_cron
+  def schedule_generation, do: @schedule_generation
+
+  def schedule_signal, do: @schedule_signal
 
   @impl Jido.Agent
   def checkpoint(agent, _context) do
     with {:ok, state} <- agent.state |> Map.take(@checkpoint_fields) |> Jason.encode() do
-      {:ok, %{id: agent.id, state: state}}
+      {:ok,
+       %{
+         id: agent.id,
+         state: state,
+         scheduler: :erlang.term_to_binary(agent.state.scheduler)
+       }}
     end
   end
 
   @impl Jido.Agent
+  def restore(%{id: id, state: state, scheduler: scheduler}, _context)
+      when is_binary(state) and is_binary(scheduler) do
+    with {:ok, decoded} <- Jason.decode(state),
+         {:ok, scheduler} <- restore_scheduler(scheduler) do
+      new(id: id, state: decoded |> restore_checkpoint_keys() |> Map.put(:scheduler, scheduler))
+    end
+  end
+
   def restore(%{id: id, state: state}, _context) when is_binary(state) do
     with {:ok, decoded} <- Jason.decode(state) do
       new(id: id, state: restore_checkpoint_keys(decoded))
@@ -62,6 +88,12 @@ defmodule JidoDelvetown.Agent do
   end
 
   defp restore_checkpoint_keys(value), do: value
+
+  defp restore_scheduler(binary) do
+    {:ok, :erlang.binary_to_term(binary, [:safe])}
+  rescue
+    ArgumentError -> {:error, :invalid_scheduler_checkpoint}
+  end
 
   agent do
     schema Zoi.object(%{
@@ -92,14 +124,9 @@ defmodule JidoDelvetown.Agent do
 
     plugin Jido.Plugin.Scheduler,
       config: [
-        job_id: "delvetown-reactive-participation",
-        cron_expression: "*/15 * * * *",
-        signal:
-          Jido.Signal.new!(
-            "jido.delvetown.reactive",
-            %{mode: "normal"},
-            source: "/jido_delvetown/cron"
-          )
+        job_id: @schedule_job_id,
+        cron_expression: @schedule_cron,
+        signal: @schedule_signal
       ]
 
     ai :operator do
@@ -212,6 +239,9 @@ defmodule JidoDelvetown.Agent do
 
   routes do
     signal_source "/jido_delvetown"
+
+    route "jido.delvetown.schedule.ensure", JidoDelvetown.Actions.EnsureSchedule,
+      as: :ensure_schedule
 
     route "jido.delvetown.reactive", JidoDelvetown.ReactiveParticipationCycle,
       defaults: %{mode: "normal"},

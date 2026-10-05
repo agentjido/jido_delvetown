@@ -9,7 +9,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
         mode: Zoi.enum(["normal", "review"])
       })
 
-  alias JidoDelvetown.{Candidate, Config, Protocol}
+  alias JidoDelvetown.{Candidate, Config, Protocol, ScanProgress}
 
   @timeline_limit 5
   @processed_limit 200
@@ -22,13 +22,18 @@ defmodule JidoDelvetown.Actions.CollectContext do
     state = initial_state |> reset_budget() |> prune_history()
     started_at = now()
 
-    collect(kind, mode, state, started_at)
+    case ScanProgress.claim(scan_name(kind)) do
+      {:ok, scan} -> collect(kind, mode, state, started_at, scan)
+      {:error, :scan_in_progress} -> busy(kind, mode, state, started_at)
+      {:error, reason} -> failed(kind, mode, state, started_at, nil, reason)
+    end
   end
 
-  defp collect("reactive", mode, state, started_at) do
+  defp collect("reactive", mode, state, started_at, scan) do
     with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
          {:ok, notifications} <-
            Protocol.query("town.delve.notification.listNotifications", %{
+             cursor: scan.cursor,
              limit: Config.notification_limit()
            }) do
       {:ok,
@@ -37,38 +42,56 @@ defmodule JidoDelvetown.Actions.CollectContext do
          status: "ready",
          reads: 2,
          membership: Candidate.membership(membership),
-         notifications: Candidate.notifications(notifications)
+         notifications: Candidate.notifications(notifications),
+         scan: Map.put(scan, :next_cursor, response_cursor(notifications))
        })}
     else
-      {:error, reason} -> failed("reactive", mode, state, started_at, reason)
+      {:error, reason} -> failed("reactive", mode, state, started_at, scan, reason)
     end
   end
 
-  defp collect("proactive", mode, state, started_at) do
+  defp collect("proactive", mode, state, started_at, scan) do
     with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
          {:ok, timeline} <-
-           Protocol.query("town.delve.feed.getTimeline", %{limit: @timeline_limit}) do
+           Protocol.query("town.delve.feed.getTimeline", %{
+             cursor: scan.cursor,
+             limit: @timeline_limit
+           }) do
       {:ok,
        base("proactive", mode, state, started_at)
        |> Map.merge(%{
          status: "ready",
          reads: 2,
          membership: Candidate.membership(membership),
-         recent_posts: Candidate.posts(timeline)
+         recent_posts: Candidate.posts(timeline),
+         scan: Map.put(scan, :next_cursor, response_cursor(timeline))
        })}
     else
-      {:error, reason} -> failed("proactive", mode, state, started_at, reason)
+      {:error, reason} -> failed("proactive", mode, state, started_at, scan, reason)
     end
   end
 
-  defp failed(kind, mode, state, started_at, reason) do
+  defp failed(kind, mode, state, started_at, scan, reason) do
     {:ok,
      kind
      |> base(mode, state, started_at)
      |> Map.merge(%{
        status: "failed",
        stage: "context_read",
+       scan: scan,
        errors: [error_text(reason)]
+     })}
+  end
+
+  defp busy(kind, mode, state, started_at) do
+    {:ok,
+     kind
+     |> base(mode, state, started_at)
+     |> Map.merge(%{
+       status: "skipped",
+       stage: "scan_claim",
+       reason: "scan_in_progress",
+       defer?: true
      })}
   end
 
@@ -92,9 +115,19 @@ defmodule JidoDelvetown.Actions.CollectContext do
       defer?: false,
       decision: %{},
       effects: 0,
-      receipt: nil
+      receipt: nil,
+      scan: nil
     }
   end
+
+  defp scan_name("reactive"), do: "notifications"
+  defp scan_name("proactive"), do: "timeline"
+
+  defp response_cursor(response) when is_map(response) do
+    Map.get(response, :cursor) || Map.get(response, "cursor")
+  end
+
+  defp response_cursor(_response), do: nil
 
   defp reset_budget(state) do
     today = Date.utc_today() |> Date.to_iso8601()

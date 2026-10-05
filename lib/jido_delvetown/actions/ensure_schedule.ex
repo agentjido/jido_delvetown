@@ -1,0 +1,23 @@
+defmodule JidoDelvetown.Actions.EnsureSchedule do
+  @moduledoc false
+
+  use Jido.Action,
+    name: "delvetown_ensure_schedule",
+    schema: Zoi.object(%{})
+
+  alias Jido.Plugin.Scheduler
+  alias JidoDelvetown.Agent
+
+  @impl true
+  def run(_input, %{agent_state: state}) do
+    directive =
+      Scheduler.cron(
+        Agent.schedule_job_id(),
+        Agent.schedule_cron(),
+        Agent.schedule_signal(),
+        generation: Agent.schedule_generation()
+      )
+
+    {:ok, state, [directive]}
+  end
+end

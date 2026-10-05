@@ -96,6 +96,14 @@ defmodule JidoDelvetown.AgentTest do
     assert {:ok, first_agent} = Jido.start_agent(instance, saved)
     assert Jido.AgentServer.agent(first_agent).state.last_run == %{summary: "saved"}
 
+    schedule_signal =
+      Jido.Signal.new!("jido.delvetown.schedule.ensure", %{}, source: "/test")
+
+    assert {:ok, scheduled} = Jido.AgentServer.call(first_agent, schedule_signal)
+
+    assert scheduled.state.scheduler.cron[Agent.schedule_job_id()].cron_expression ==
+             Agent.schedule_cron()
+
     :ok = Supervisor.stop(first_instance)
 
     {:ok, second_instance} = Jido.start_link(options)
@@ -111,5 +119,8 @@ defmodule JidoDelvetown.AgentTest do
     assert restored.state.last_run == %{summary: "saved"}
     assert restored.state.budget == %{date: "2026-10-04", replies: 2, posts: 1}
     assert restored.state.proactive.recent_topics == ["OTP"]
+
+    assert restored.state.scheduler.cron[Agent.schedule_job_id()].cron_expression ==
+             Agent.schedule_cron()
   end
 end
