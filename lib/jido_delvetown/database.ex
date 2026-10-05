@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Database do
 
   use GenServer
 
-  alias JidoDelvetown.{Config, LegacyImporter, Repo}
+  alias JidoDelvetown.{Config, InteractionLedger, LegacyImporter, Repo}
 
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
@@ -12,9 +12,11 @@ defmodule JidoDelvetown.Database do
     path = Application.app_dir(:jido_delvetown, "priv/repo/migrations")
     _versions = Ecto.Migrator.run(Repo, path, :up, all: true)
 
-    case import_legacy_state() do
-      :ok -> {:ok, %{migration_path: path}}
-      {:error, reason} -> {:stop, {:legacy_import_failed, reason}}
+    with :ok <- import_legacy_state(),
+         {:ok, _count} <- InteractionLedger.recover_stale_claims(stale_after_ms: 0) do
+      {:ok, %{migration_path: path}}
+    else
+      {:error, reason} -> {:stop, {:database_initialization_failed, reason}}
     end
   end
 

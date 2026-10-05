@@ -7,6 +7,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
 
   alias JidoDelvetown.Actions.UpdateNotificationsSeen
   alias JidoDelvetown.Config
+  alias JidoDelvetown.InteractionLedger
 
   @topic_limit 10
 
@@ -18,7 +19,11 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     result = result(cycle, decision, completed_at)
     {state, result} = maybe_mark_notifications_seen(state, cycle, result, completed_at)
 
-    {:ok, finish_state(state, result, completed_at)}
+    with :ok <- InteractionLedger.record_cycle(cycle, decision, completed_at) do
+      {:ok, finish_state(state, result, completed_at)}
+    else
+      {:error, reason} -> {:error, {:interaction_ledger_failed, reason}}
+    end
   end
 
   defp normalize_decision(decision) when map_size(decision) > 0, do: decision
