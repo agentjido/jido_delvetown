@@ -85,7 +85,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert {:ok, second_state} = run_reactive(first_state)
     assert second_state.last_run.status == "acted"
 
-    assert_received {:decision, "answer_direct_request", payload}
+    assert_received {:decision, "continue_conversation", payload}
     refute payload.response_format.id == first_payload.response_format.id
     assert payload.candidate.memory.actor.contact_count == 1
     assert payload.candidate.memory.conversation.turn_count == 1

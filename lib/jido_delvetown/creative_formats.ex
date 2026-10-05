@@ -18,6 +18,11 @@ defmodule JidoDelvetown.CreativeFormats do
       "protocol_field_note",
       "failure_mode_question"
     ],
+    "continue_conversation" => [
+      "protocol_field_note",
+      "failure_mode_question",
+      "state_machine_sketch"
+    ],
     "join_useful_discussion" => [
       "failure_mode_question",
       "state_machine_sketch",

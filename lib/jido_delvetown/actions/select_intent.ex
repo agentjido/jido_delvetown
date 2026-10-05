@@ -8,6 +8,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   alias JidoDelvetown.{
     Candidate,
     Config,
+    ConversationPolicy,
     EngagementRanker,
     InteractionLedger,
     OptOut,
@@ -20,6 +21,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   @post_limit 1
   @actions %{
     "answer_direct_request" => ["reply", "skip"],
+    "continue_conversation" => ["reply", "skip"],
     "respond_to_new_follow" => ["acknowledge", "follow", "welcome", "skip"],
     "welcome_new_member" => ["welcome", "skip"],
     "join_useful_discussion" => ["reply", "like", "repost", "skip"],
@@ -44,6 +46,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       |> Enum.filter(&follow_candidate?(&1, state))
       |> rank(:follow, state)
 
+    follow_up = ConversationPolicy.evaluate(direct)
+
     cond do
       direct && opt_out?(direct) ->
         candidate = Map.put(direct, :opt_out?, OptOut.requested?(direct.text))
@@ -51,6 +55,13 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
       direct && state.budget.replies >= Config.daily_reply_limit() ->
         {:ok, select(cycle, "skip", direct, "reply_budget_exhausted", true)}
+
+      direct && match?({:skip, _reason}, follow_up) ->
+        {:skip, reason} = follow_up
+        {:ok, select(cycle, "skip", direct, reason)}
+
+      direct && follow_up == :continue ->
+        select_with_thread(cycle, "continue_conversation", direct)
 
       direct ->
         select_with_thread(cycle, "answer_direct_request", direct)

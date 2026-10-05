@@ -71,6 +71,18 @@ defmodule JidoDelvetown.Config do
     env_integer("DELVETOWN_MEMBER_MAX_AGE_HOURS", 24, 1, 24 * 30)
   end
 
+  def conversation_turn_limit do
+    env_integer("DELVETOWN_CONVERSATION_TURN_LIMIT", 4, 1, 100)
+  end
+
+  def conversation_max_age_hours do
+    env_integer("DELVETOWN_CONVERSATION_MAX_AGE_HOURS", 72, 1, 24 * 365)
+  end
+
+  def conversation_non_response_limit do
+    env_integer("DELVETOWN_CONVERSATION_NON_RESPONSE_LIMIT", 2, 1, 20)
+  end
+
   def write_enabled? do
     enabled?("DELVETOWN_WRITE_ENABLED")
   end

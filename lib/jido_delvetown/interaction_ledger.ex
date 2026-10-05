@@ -370,7 +370,7 @@ defmodule JidoDelvetown.InteractionLedger do
                 last_action: "reply",
                 last_action_at: action_at,
                 status: "active",
-                metadata: %{}
+                metadata: conversation_metadata(candidate)
               }
               |> repo.insert!()
 
@@ -382,7 +382,9 @@ defmodule JidoDelvetown.InteractionLedger do
                 last_record_uri: Map.get(candidate, :uri),
                 last_action: "reply",
                 last_action_at: action_at,
-                status: "active"
+                status: "active",
+                metadata:
+                  Map.merge(conversation.metadata || %{}, conversation_metadata(candidate))
               )
               |> repo.update!()
           end
@@ -392,6 +394,31 @@ defmodule JidoDelvetown.InteractionLedger do
       |> transaction_ok()
     else
       :ok
+    end
+  end
+
+  defp remember_conversation(candidate, %{reason: reason}, _decision, _at)
+       when reason in [
+              "actor_opt_out",
+              "conversation_closed",
+              "conversation_turn_limit",
+              "conversation_too_old",
+              "conversation_non_response_limit"
+            ] do
+    root_uri = get_in(candidate, [:root, :uri])
+
+    case if(is_binary(root_uri), do: Repo.get(Conversation, root_uri)) do
+      nil ->
+        :ok
+
+      conversation ->
+        conversation
+        |> Ecto.Changeset.change(status: "closed")
+        |> Repo.update()
+        |> case do
+          {:ok, _conversation} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
     end
   end
 
@@ -431,7 +458,16 @@ defmodule JidoDelvetown.InteractionLedger do
       last_record_uri: conversation.last_record_uri,
       last_action: conversation.last_action,
       last_action_at: iso8601(conversation.last_action_at),
-      status: conversation.status
+      status: conversation.status,
+      unanswered_follow_ups: Map.get(conversation.metadata || %{}, "unanswered_follow_ups", 0)
+    }
+  end
+
+  defp conversation_metadata(candidate) do
+    %{
+      "last_inbound_event_key" => Map.get(candidate, :event_key),
+      "last_inbound_record_uri" => Map.get(candidate, :uri),
+      "unanswered_follow_ups" => 0
     }
   end
 
