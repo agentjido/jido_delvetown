@@ -4,6 +4,7 @@ defmodule JidoDelvetown.Storage.AuditEvent do
   use Ecto.Schema
 
   schema "audit_events" do
+    field(:source_key, :string)
     field(:type, :string)
     field(:data, :map, default: %{})
     field(:occurred_at, :utc_datetime_usec)
