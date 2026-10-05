@@ -302,10 +302,17 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp processed?(state, id) do
     case state.notifications.processed[id] do
-      nil -> false
-      %{status: "failed"} -> false
-      %{status: "proposed"} -> not Config.write_enabled?()
-      _record -> true
+      nil ->
+        false
+
+      %{status: "failed"} ->
+        false
+
+      %{status: "proposed"} ->
+        not Config.write_enabled?() and not Config.dry_run_mark_actioned?()
+
+      _record ->
+        true
     end
   end
 

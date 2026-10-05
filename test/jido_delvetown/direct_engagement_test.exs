@@ -75,6 +75,22 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert Repo.get!(InteractionEvent, "notification:reply-repeat").attempt_count == 1
   end
 
+  test "simulation consumes an earlier pending proposal" do
+    notification = notification("reply-transition", "reply", "Can this proposal advance?")
+    configure_reactive(notification)
+    reply_decision()
+
+    assert {:ok, proposed_state} = run_reactive()
+    assert proposed_state.last_run.status == "proposed"
+    assert Repo.get!(InteractionEvent, "notification:reply-transition").state == "pending"
+
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+
+    assert {:ok, simulated_state} = run_reactive(proposed_state)
+    assert simulated_state.last_run.status == "simulated"
+    assert Repo.get!(InteractionEvent, "notification:reply-transition").state == "completed"
+  end
+
   test "a later turn includes actor and conversation memory" do
     System.put_env("DELVETOWN_WRITE_ENABLED", "true")
     reply_decision()
