@@ -374,6 +374,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
         .badge.active { background: var(--amber-deep); color: var(--amber); }
 
         .primary-grid,
+        .health-grid,
         .event-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -469,6 +470,42 @@ defmodule JidoDelvetownWeb.DashboardLive do
         }
 
         .budget-number span { color: var(--muted); font-size: 12px; }
+
+        .health-counts {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+
+        .health-count {
+          min-width: 0;
+          padding: 10px;
+          border: 1px solid var(--line);
+          border-radius: 9px;
+          background: var(--surface-raised);
+        }
+
+        .health-count strong {
+          display: block;
+          font-size: 20px;
+          line-height: 1.1;
+        }
+
+        .health-count span {
+          color: var(--muted);
+          font-size: 11px;
+          overflow-wrap: anywhere;
+        }
+
+        .subsection-title {
+          margin: 16px 0 8px;
+          color: var(--muted);
+          font-size: 12px;
+          font-weight: 760;
+          letter-spacing: 0.07em;
+          text-transform: uppercase;
+        }
 
         .event-list {
           display: grid;
@@ -603,7 +640,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
           .page-header { align-items: start; flex-direction: column; gap: 8px; }
           .refresh-note { text-align: left; }
           .state-rail { grid-template-columns: 1fr; }
-          .status-strip, .primary-grid, .event-grid, .about-content { grid-template-columns: 1fr; }
+          .status-strip, .primary-grid, .health-grid, .event-grid, .about-content { grid-template-columns: 1fr; }
           .status-item { border-right: 0; border-bottom: 1px solid var(--line); }
           .status-item:last-child { border-bottom: 0; }
           .planned-controls { grid-template-columns: 1fr; }
@@ -617,6 +654,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
           .switch-track { width: 60px; flex-basis: 60px; }
           .write-switch.on .switch-thumb { transform: translateX(22px); }
           .detail-grid { grid-template-columns: 1fr; gap: 9px; }
+          .health-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .event-title { align-items: start; flex-direction: column; gap: 2px; }
           .control-row { display: grid; grid-template-columns: 1fr; }
           .control-row button { width: 100%; }
@@ -804,6 +842,182 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </article>
       </section>
 
+      <section class="health-grid" aria-label="Durable memory and effect health">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">SQLite memory</p>
+              <h2>Interaction memory</h2>
+            </div>
+            <span class="badge safe">Read only</span>
+          </div>
+
+          <div class="health-counts" aria-label="Event counts by state">
+            <div :for={state <- event_states()} class="health-count">
+              <strong>{inspection_count(@inspection, [:events, :counts], state)}</strong>
+              <span>{state_label(state)} events</span>
+            </div>
+            <div class="health-count">
+              <strong>{inspection_count(@inspection, [:conversations, :counts], "active")}</strong>
+              <span>active conversations</span>
+            </div>
+          </div>
+
+          <h3 class="subsection-title">Recent actor contact</h3>
+          <p :if={inspection_list(@inspection, [:actors, :recent]) == []} class="empty">
+            No actor contact recorded.
+          </p>
+          <ol
+            :if={inspection_list(@inspection, [:actors, :recent]) != []}
+            class="event-list"
+          >
+            <li :for={actor <- inspection_list(@inspection, [:actors, :recent])} class="event-item">
+              <div class="event-title">
+                <strong>{actor_name(actor)}</strong>
+                <time>{display(map_value(actor, :last_interaction_at))}</time>
+              </div>
+              <p class="event-data">{actor_detail(actor)}</p>
+            </li>
+          </ol>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Idempotency</p>
+              <h2>Effect health</h2>
+            </div>
+            <span class={"badge #{effect_health_class(@inspection)}"}>
+              {effect_health_label(@inspection)}
+            </span>
+          </div>
+
+          <div class="health-counts" aria-label="Effect counts by state">
+            <div :for={state <- effect_states()} class="health-count">
+              <strong>{inspection_count(@inspection, [:effects, :counts], state)}</strong>
+              <span>{state_label(state)}</span>
+            </div>
+            <div class="health-count">
+              <strong>{inspection_value(@inspection, [:effects, :reconciled], 0)}</strong>
+              <span>reconciled</span>
+            </div>
+          </div>
+
+          <h3 class="subsection-title">Needs attention</h3>
+          <p :if={inspection_list(@inspection, [:effects, :attention]) == []} class="empty">
+            No reserved, uncertain, or failed effects.
+          </p>
+          <ol
+            :if={inspection_list(@inspection, [:effects, :attention]) != []}
+            class="event-list"
+          >
+            <li
+              :for={effect <- inspection_list(@inspection, [:effects, :attention])}
+              class="event-item"
+            >
+              <div class="event-title">
+                <strong>{display(map_value(effect, :kind, "effect"))}</strong>
+                <span class={"badge #{effect_state_class(effect)}"}>
+                  {state_label(map_value(effect, :status, "unknown"))}
+                </span>
+              </div>
+              <p class="event-data">{effect_detail(effect)}</p>
+            </li>
+          </ol>
+
+          <h3 class="subsection-title">Completed receipts</h3>
+          <p
+            :if={inspection_list(@inspection, [:effects, :completed_receipts]) == []}
+            class="empty"
+          >
+            No completed receipts recorded.
+          </p>
+          <ol
+            :if={inspection_list(@inspection, [:effects, :completed_receipts]) != []}
+            class="event-list"
+          >
+            <li
+              :for={effect <- inspection_list(@inspection, [:effects, :completed_receipts])}
+              class="event-item"
+            >
+              <div class="event-title">
+                <strong>{receipt_name(effect)}</strong>
+                <time>{display(map_value(effect, :completed_at))}</time>
+              </div>
+              <p class="event-data">{display(map_value(effect, :operation_key))}</p>
+            </li>
+          </ol>
+        </article>
+      </section>
+
+      <section class="health-grid" aria-label="SQLite progress and migration status">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Scan watermarks</h2>
+            <span class="count">{length(inspection_list(@inspection, [:scans]))} streams</span>
+          </div>
+          <p :if={inspection_list(@inspection, [:scans]) == []} class="empty">
+            No scan watermarks recorded.
+          </p>
+          <ol :if={inspection_list(@inspection, [:scans]) != []} class="event-list">
+            <li :for={scan <- inspection_list(@inspection, [:scans])} class="event-item">
+              <div class="event-title">
+                <strong>{display(map_value(scan, :name))}</strong>
+                <span class={"badge #{if map_value(scan, :lease_active?, false), do: "active", else: "idle"}"}>
+                  {if map_value(scan, :lease_active?, false), do: "Scan active", else: "Idle"}
+                </span>
+              </div>
+              <p class="event-data">
+                cursor={display(map_value(scan, :cursor))} · completed={display(
+                  map_value(scan, :last_completed_at)
+                )}
+              </p>
+            </li>
+          </ol>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Durable store</p>
+              <h2>SQLite status</h2>
+            </div>
+            <span class={"badge #{migration_class(@inspection)}"}>
+              {state_label(inspection_value(@inspection, [:sqlite, :migrations, :status], "unknown"))}
+            </span>
+          </div>
+          <p class="proposal-copy">{migration_detail(@inspection)}</p>
+
+          <h3 class="subsection-title">Legacy import</h3>
+          <p
+            :if={inspection_list(@inspection, [:sqlite, :legacy_imports]) == []}
+            class="empty"
+          >
+            No legacy import record. A new installation can use SQLite directly.
+          </p>
+          <ol
+            :if={inspection_list(@inspection, [:sqlite, :legacy_imports]) != []}
+            class="event-list"
+          >
+            <li
+              :for={legacy <- inspection_list(@inspection, [:sqlite, :legacy_imports])}
+              class="event-item"
+            >
+              <div class="event-title">
+                <strong>{display(map_value(legacy, :name))}</strong>
+                <span class="badge healthy">{state_label(map_value(legacy, :status, "unknown"))}</span>
+              </div>
+              <p class="event-data">{legacy_import_detail(legacy)}</p>
+            </li>
+          </ol>
+
+          <details :if={@inspection_error} class="technical-details">
+            <summary>Inspection error</summary>
+            <pre>{@inspection_error}</pre>
+          </details>
+        </article>
+      </section>
+
       <section class="event-grid" aria-label="Recent events">
         <article class="panel">
           <div class="panel-header">
@@ -895,6 +1109,8 @@ defmodule JidoDelvetownWeb.DashboardLive do
     status_result = safe_read(&JidoDelvetown.status/0)
     status = value_or_empty(status_result)
     events = safe_read(fn -> JidoDelvetown.recent_events(12) end) |> value_or_empty()
+    inspection_result = safe_read(fn -> JidoDelvetown.inspect_state(limit: 6) end)
+    inspection = value_or_empty(inspection_result)
     character = Personality.character()
     contract = character.extensions.delvetown
     now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -910,6 +1126,8 @@ defmodule JidoDelvetownWeb.DashboardLive do
       last_run: map_value(status, :last_run, %{}),
       workflow_events: list_value(events, :workflow),
       agent_events: list_value(events, :agent),
+      inspection: inspection,
+      inspection_error: error_text(inspection_result),
       character: %{
         name: character.name,
         mission: contract.mission,
@@ -974,6 +1192,106 @@ defmodule JidoDelvetownWeb.DashboardLive do
       value when is_list(value) -> value
       _value -> []
     end
+  end
+
+  defp inspection_value(inspection, path, default \\ nil)
+
+  defp inspection_value(value, [], _default), do: value
+
+  defp inspection_value(map, [key | rest], default) when is_map(map) do
+    case map_value(map, key, :missing) do
+      :missing -> default
+      value -> inspection_value(value, rest, default)
+    end
+  end
+
+  defp inspection_value(_value, _path, default), do: default
+
+  defp inspection_list(inspection, path) do
+    case inspection_value(inspection, path, []) do
+      value when is_list(value) -> value
+      _value -> []
+    end
+  end
+
+  defp inspection_count(inspection, path, state) do
+    inspection
+    |> inspection_value(path, %{})
+    |> map_value(state, 0)
+  end
+
+  defp event_states, do: ~w(pending claimed completed ignored failed)
+  defp effect_states, do: ~w(reserved uncertain completed permanent_failure)
+
+  defp state_label(value) do
+    value
+    |> display()
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
+
+  defp actor_name(actor) do
+    map_value(actor, :handle) || map_value(actor, :display_name) ||
+      display(map_value(actor, :did))
+  end
+
+  defp actor_detail(actor) do
+    contacts = map_value(actor, :contact_count, 0)
+    welcome = display(map_value(actor, :welcome_status, "not sent"))
+    opt_out = if map_value(actor, :opted_out?, false), do: " · opted out", else: ""
+    "#{contacts} contacts · welcome #{welcome}#{opt_out}"
+  end
+
+  defp effect_detail(effect) do
+    attempts = map_value(effect, :attempt_count, 0)
+    key = display(map_value(effect, :operation_key))
+    "#{key} · #{attempts} attempts"
+  end
+
+  defp receipt_name(effect) do
+    effect
+    |> map_value(:receipt, %{})
+    |> map_value(:uri, map_value(effect, :rkey, "completed effect"))
+    |> display()
+  end
+
+  defp effect_state_class(effect) do
+    case map_value(effect, :status) do
+      "permanent_failure" -> "attention"
+      "uncertain" -> "attention"
+      "reserved" -> "active"
+      _status -> "idle"
+    end
+  end
+
+  defp effect_health_label(inspection) do
+    if inspection_list(inspection, [:effects, :attention]) == [], do: "Healthy", else: "Review"
+  end
+
+  defp effect_health_class(inspection) do
+    if inspection_list(inspection, [:effects, :attention]) == [],
+      do: "healthy",
+      else: "attention"
+  end
+
+  defp migration_class(inspection) do
+    if inspection_value(inspection, [:sqlite, :migrations, :status]) == "current",
+      do: "healthy",
+      else: "attention"
+  end
+
+  defp migration_detail(inspection) do
+    applied = inspection_list(inspection, [:sqlite, :migrations, :applied]) |> length()
+    pending = inspection_list(inspection, [:sqlite, :migrations, :pending]) |> length()
+    "#{applied} migrations applied · #{pending} pending"
+  end
+
+  defp legacy_import_detail(legacy) do
+    counts = map_value(legacy, :counts, %{})
+    effects = map_value(counts, "effects", 0)
+    events = map_value(counts, "events", 0)
+    checkpoints = map_value(counts, "checkpoints", 0)
+    "#{effects} effects · #{events} events · #{checkpoints} checkpoints"
   end
 
   defp map_value(map, key, default \\ nil)

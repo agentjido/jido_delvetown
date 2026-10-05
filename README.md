@@ -100,7 +100,11 @@ the application with `iex -S mix`.
 
 The dashboard binds only to `127.0.0.1`. It shows the Agent runtime, session,
 schedule, write lock, budget, last Imp proposal, recent events, character, and
-public disclosure. It refreshes every three seconds.
+public disclosure. It also shows event state counts, recent actor contact,
+conversation counts, scan watermarks, effect health, safe receipt fields,
+SQLite migrations, and legacy import status. It refreshes every three seconds.
+The inspection view does not read raw Agent checkpoints, model context,
+credentials, actor profiles, or private scan lease tokens.
 
 The large write switch near the top reports `DELVETOWN_WRITE_ENABLED`. It is a
 disabled status control. It cannot change the setting or create a protocol
@@ -191,6 +195,9 @@ JidoDelvetown.run_reactive()
 JidoDelvetown.run_proactive()
 
 JidoDelvetown.recent_events()
+
+# Read the same bounded memory and effect health data as the dashboard.
+JidoDelvetown.inspect_state()
 ```
 
 Imp is a library, not a separate process. `iex -S mix` starts the Jido Agent.

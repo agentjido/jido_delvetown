@@ -3,6 +3,7 @@ defmodule JidoDelvetown do
 
   alias JidoDelvetown.Agent
   alias JidoDelvetown.Config
+  alias JidoDelvetown.Inspection
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Session
   alias JidoDelvetown.Store
@@ -42,6 +43,7 @@ defmodule JidoDelvetown do
 
   def disclosure, do: Personality.disclosure()
   def profile_disclosure, do: Personality.profile_disclosure()
+  def inspect_state(opts \\ []), do: Inspection.snapshot(opts)
 
   def join(invite_code \\ nil) do
     with true <- Config.write_enabled?() || {:error, :writes_disabled},

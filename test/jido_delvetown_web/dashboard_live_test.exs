@@ -16,6 +16,17 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "One reply proposed"
     assert html =~ "Policy score"
     assert html =~ "direct scored 138"
+    assert html =~ "Interaction memory"
+    assert html =~ "Recent actor contact"
+    assert html =~ "member.test"
+    assert html =~ "Effect health"
+    assert html =~ "Uncertain"
+    assert html =~ "at://receipt"
+    assert html =~ "Scan watermarks"
+    assert html =~ "notifications"
+    assert html =~ "SQLite status"
+    assert html =~ "3 migrations applied"
+    assert html =~ "dets-and-file-v1"
     assert html =~ "Run reactive review"
     assert html =~ "Approve human-in-the-loop post"
     assert html =~ "No action or approval handlers are installed"
@@ -110,6 +121,79 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
         }
       ],
       agent_events: [],
+      inspection: %{
+        events: %{
+          counts: %{
+            "pending" => 1,
+            "claimed" => 0,
+            "completed" => 4,
+            "ignored" => 2,
+            "failed" => 0
+          }
+        },
+        actors: %{
+          recent: [
+            %{
+              did: "did:plc:member",
+              handle: "member.test",
+              display_name: "Member",
+              last_interaction_at: "2026-10-05T11:58:00Z",
+              contact_count: 2,
+              welcome_status: "completed",
+              opted_out?: false
+            }
+          ]
+        },
+        conversations: %{counts: %{"active" => 1, "closed" => 0}},
+        scans: [
+          %{
+            name: "notifications",
+            cursor: "cursor-2",
+            lease_active?: false,
+            last_completed_at: "2026-10-05T11:59:00Z"
+          }
+        ],
+        effects: %{
+          counts: %{
+            "reserved" => 0,
+            "uncertain" => 1,
+            "completed" => 3,
+            "permanent_failure" => 0
+          },
+          reconciled: 1,
+          attention: [
+            %{
+              operation_key: "reply:pending",
+              kind: "reply",
+              status: "uncertain",
+              attempt_count: 1
+            }
+          ],
+          completed_receipts: [
+            %{
+              operation_key: "reply:complete",
+              rkey: "reply-rkey",
+              completed_at: "2026-10-05T11:57:00Z",
+              receipt: %{uri: "at://receipt", cid: "bafy"}
+            }
+          ]
+        },
+        sqlite: %{
+          migrations: %{
+            status: "current",
+            applied: ["20261005000000", "20261005000001", "20261005000002"],
+            pending: []
+          },
+          legacy_imports: [
+            %{
+              name: "dets-and-file-v1",
+              status: "complete",
+              counts: %{"effects" => 3, "events" => 2, "checkpoints" => 1}
+            }
+          ]
+        }
+      },
+      inspection_error: nil,
       character: %{
         name: "AgentJido",
         mission: "Make BEAM agent engineering easier to understand.",
