@@ -1,9 +1,19 @@
 defmodule JidoDelvetown.StoreAndTidTest do
   use ExUnit.Case, async: false
 
+  alias JidoDelvetown.Repo
   alias JidoDelvetown.Config
   alias JidoDelvetown.Store
+  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, ScanState}
   alias JidoDelvetown.Tid
+
+  setup do
+    Repo.delete_all(AuditEvent)
+    Repo.delete_all(Effect)
+    Repo.delete_all(InteractionEvent)
+    Repo.delete_all(ScanState)
+    :ok
+  end
 
   test "TIDs have the AT Protocol alphabet and increase" do
     first = Tid.generate()
@@ -15,20 +25,9 @@ defmodule JidoDelvetown.StoreAndTidTest do
   end
 
   test "the Store returns one record key for one effect key" do
-    path =
-      Path.join(
-        System.tmp_dir!(),
-        "jido_delvetown_store_#{System.unique_integer([:positive])}.dets"
-      )
-
     name = JidoDelvetown.StoreTestServer
-    table = JidoDelvetown.StoreTestTable
 
-    start_supervised!(
-      Supervisor.child_spec({Store, name: name, table: table, path: path}, id: make_ref())
-    )
-
-    on_exit(fn -> File.rm(path) end)
+    start_supervised!(Supervisor.child_spec({Store, name: name}, id: make_ref()))
 
     assert {:ok, first} = Store.reserve_effect("same", "town.delve.feed.like", name)
     assert {:ok, second} = Store.reserve_effect("same", "town.delve.feed.like", name)
@@ -39,38 +38,37 @@ defmodule JidoDelvetown.StoreAndTidTest do
     assert Store.counts(name) == %{reserved: 0, complete: 1, seen: 0}
   end
 
-  test "one configurable directory contains both local stores" do
-    previous = System.get_env("DELVETOWN_DATA_DIR")
+  test "configuration separates the database from migration-only legacy paths" do
+    previous_data_dir = System.get_env("DELVETOWN_DATA_DIR")
+    previous_database = System.get_env("DELVETOWN_DATABASE_PATH")
     data_dir = Path.join(System.tmp_dir!(), "jido_delvetown_data")
+    database_path = Path.join(data_dir, "runtime.sqlite3")
     System.put_env("DELVETOWN_DATA_DIR", data_dir)
+    System.put_env("DELVETOWN_DATABASE_PATH", database_path)
 
-    on_exit(fn -> restore_env("DELVETOWN_DATA_DIR", previous) end)
+    on_exit(fn ->
+      restore_env("DELVETOWN_DATA_DIR", previous_data_dir)
+      restore_env("DELVETOWN_DATABASE_PATH", previous_database)
+    end)
 
     assert Config.data_dir() == data_dir
+    assert Config.database_path() == database_path
     assert Config.checkpoint_path() == Path.join(data_dir, "jido_checkpoints")
-    assert Config.state_path() == Path.join(data_dir, "delvetown_state.dets")
+    assert Config.legacy_state_path() == Path.join(data_dir, "delvetown_state.dets")
 
     assert JidoDelvetown.Jido.__jido_persistence__() ==
              {Jido.Persistence.File, path: Config.checkpoint_path()}
   end
 
   test "event sequence continues after the Store restarts" do
-    path =
-      Path.join(
-        System.tmp_dir!(),
-        "jido_delvetown_events_#{System.unique_integer([:positive])}.dets"
-      )
-
     name = JidoDelvetown.EventStoreTestServer
-    table = JidoDelvetown.EventStoreTestTable
-    on_exit(fn -> File.rm(path) end)
 
-    {:ok, first_store} = Store.start_link(name: name, table: table, path: path)
+    {:ok, first_store} = Store.start_link(name: name)
     Process.unlink(first_store)
     assert :ok = Store.add_event(:first, %{}, name)
     GenServer.stop(first_store)
 
-    {:ok, second_store} = Store.start_link(name: name, table: table, path: path)
+    {:ok, second_store} = Store.start_link(name: name)
     Process.unlink(second_store)
     assert :ok = Store.add_event(:second, %{}, name)
 
@@ -80,6 +78,40 @@ defmodule JidoDelvetown.StoreAndTidTest do
            ] = Store.recent_events(name, 2)
 
     assert second_sequence == first_sequence + 1
+    GenServer.stop(second_store)
+  end
+
+  test "concurrent reservations keep one effect and one record key" do
+    name = JidoDelvetown.ConcurrentStoreTestServer
+
+    start_supervised!(Supervisor.child_spec({Store, name: name}, id: make_ref()))
+
+    effects =
+      1..20
+      |> Task.async_stream(
+        fn _index -> Store.reserve_effect("concurrent", "town.delve.feed.like", name) end,
+        max_concurrency: 20
+      )
+      |> Enum.map(fn {:ok, {:ok, effect}} -> effect end)
+
+    assert effects |> Enum.map(& &1.rkey) |> Enum.uniq() |> length() == 1
+    assert Repo.aggregate(Effect, :count, :operation_key) == 1
+  end
+
+  test "cursor and seen state remain after a Store restart" do
+    name = JidoDelvetown.ProgressStoreTestServer
+    {:ok, first_store} = Store.start_link(name: name)
+    Process.unlink(first_store)
+
+    assert :ok = Store.put_cursor("cursor-2", name)
+    assert :ok = Store.mark_seen("at://post/one", name)
+    GenServer.stop(first_store)
+
+    {:ok, second_store} = Store.start_link(name: name)
+    Process.unlink(second_store)
+    assert Store.cursor(name) == "cursor-2"
+    assert Store.seen?("at://post/one", name)
+    assert Store.counts(name).seen == 1
     GenServer.stop(second_store)
   end
 

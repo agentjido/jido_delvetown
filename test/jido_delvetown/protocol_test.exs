@@ -3,20 +3,21 @@ defmodule JidoDelvetown.ProtocolTest do
 
   alias JidoDelvetown.Actions.LikePost
   alias JidoDelvetown.Protocol
+  alias JidoDelvetown.Repo
   alias JidoDelvetown.Store
+  alias JidoDelvetown.Storage.{AuditEvent, Effect}
   alias JidoDelvetown.Test.FakeSession
   alias JidoDelvetown.Test.FakeTransport
 
   @test_store JidoDelvetown.TestStore
-  @test_table JidoDelvetown.TestStoreTable
 
   setup do
-    path =
-      Path.join(System.tmp_dir!(), "jido_delvetown_#{System.unique_integer([:positive])}.dets")
+    Repo.delete_all(AuditEvent)
+    Repo.delete_all(Effect)
 
     start_supervised!(
       Supervisor.child_spec(
-        {Store, name: @test_store, table: @test_table, path: path},
+        {Store, name: @test_store},
         id: make_ref()
       )
     )
@@ -40,7 +41,6 @@ defmodule JidoDelvetown.ProtocolTest do
     on_exit(fn ->
       restore_env(previous)
       restore_system_env("DELVETOWN_WRITE_ENABLED", old_write)
-      File.rm(path)
     end)
 
     :ok

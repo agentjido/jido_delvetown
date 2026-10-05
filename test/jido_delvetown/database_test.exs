@@ -46,5 +46,7 @@ defmodule JidoDelvetown.DatabaseTest do
     assert_raise Exqlite.Error, fn ->
       Repo.insert_all("effects", [%{row | operation_key: "test:two"}])
     end
+
+    Repo.query!("DELETE FROM effects WHERE operation_key = ?", ["test:one"])
   end
 end

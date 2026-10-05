@@ -1,9 +1,15 @@
 defmodule JidoDelvetown.Store do
-  @moduledoc "Durable local effect keys and audit events for the Delvetown agent."
+  @moduledoc "Durable SQLite state for the Delvetown agent."
 
   use GenServer
 
-  alias JidoDelvetown.Config
+  import Ecto.Query
+
+  alias JidoDelvetown.Repo
+  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, ScanState}
+
+  @notification_scan "notifications"
+  @seen_kinds ["seen", "legacy_seen"]
 
   def start_link(opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
@@ -35,132 +41,270 @@ defmodule JidoDelvetown.Store do
 
   @impl true
   def init(opts) do
-    path = Keyword.get(opts, :path, Config.state_path())
-    table = Keyword.get(opts, :table, __MODULE__)
-    :ok = path |> Path.dirname() |> File.mkdir_p()
-
-    case :dets.open_file(table, file: String.to_charlist(path), type: :set, auto_save: 500) do
-      {:ok, ^table} -> {:ok, %{table: table, event_sequence: latest_event_sequence(table)}}
-      {:error, reason} -> {:stop, {:dets_open_failed, reason}}
-    end
+    {:ok, %{repo: Keyword.get(opts, :repo, Repo)}}
   end
 
   @impl true
-  def handle_call(:cursor, _from, state), do: {:reply, lookup(state.table, :cursor), state}
+  def handle_call(:cursor, _from, state) do
+    cursor =
+      case state.repo.get(ScanState, @notification_scan) do
+        %ScanState{cursor: cursor} -> cursor
+        nil -> nil
+      end
+
+    {:reply, cursor, state}
+  end
+
   def handle_call({:put_cursor, nil}, _from, state), do: {:reply, :ok, state}
 
   def handle_call({:put_cursor, cursor}, _from, state) when is_binary(cursor) do
-    {:reply, insert(state.table, {:cursor, cursor}), state}
+    now = now()
+
+    state.repo.insert_all(
+      ScanState,
+      [
+        %{
+          name: @notification_scan,
+          cursor: cursor,
+          metadata: %{},
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      on_conflict: {:replace, [:cursor, :updated_at]},
+      conflict_target: [:name]
+    )
+
+    {:reply, :ok, state}
   end
 
   def handle_call({:seen?, uri}, _from, state) do
-    {:reply, :dets.member(state.table, {:seen, uri}), state}
+    seen? =
+      state.repo.exists?(
+        from(event in InteractionEvent,
+          where: event.record_uri == ^uri and event.kind in ^@seen_kinds
+        )
+      )
+
+    {:reply, seen?, state}
   end
 
   def handle_call({:mark_seen, uri}, _from, state) do
-    {:reply, insert(state.table, {{:seen, uri}, %{uri: uri, seen_at: now()}}), state}
+    now = now()
+
+    state.repo.insert_all(
+      InteractionEvent,
+      [
+        %{
+          event_key: seen_event_key(uri),
+          kind: "seen",
+          record_uri: uri,
+          occurred_at: now,
+          state: "completed",
+          attempt_count: 0,
+          payload: %{},
+          terminal_at: now,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      on_conflict: :nothing,
+      conflict_target: [:event_key]
+    )
+
+    {:reply, :ok, state}
   end
 
   def handle_call({:effect, key}, _from, state) do
-    {:reply, lookup(state.table, {:effect, key}), state}
+    {:reply, state.repo.get(Effect, key) |> effect_map(), state}
   end
 
   def handle_call({:reserve_effect, key, collection}, _from, state) do
-    case lookup(state.table, {:effect, key}) do
-      nil ->
-        effect = %{
-          key: key,
-          collection: collection,
-          rkey: JidoDelvetown.Tid.generate(),
-          status: :reserved,
-          created_at: now(),
-          completed_at: nil,
-          receipt: nil
-        }
+    result =
+      state.repo.transaction(
+        fn ->
+          case state.repo.get(Effect, key) do
+            nil -> insert_reserved_effect(state.repo, key, collection)
+            effect -> effect_map(effect)
+          end
+        end,
+        mode: :immediate
+      )
 
-        :ok = insert(state.table, {{:effect, key}, effect})
-        {:reply, {:ok, effect}, state}
-
-      effect ->
-        {:reply, {:ok, effect}, state}
-    end
+    {:reply, transaction_result(result), state}
   end
 
   def handle_call({:complete_effect, key, receipt}, _from, state) do
-    case lookup(state.table, {:effect, key}) do
-      nil ->
-        {:reply, {:error, :not_found}, state}
+    result =
+      state.repo.transaction(
+        fn ->
+          case state.repo.get(Effect, key) do
+            nil ->
+              state.repo.rollback(:not_found)
 
-      effect ->
-        updated = %{effect | status: :complete, completed_at: now(), receipt: receipt}
-        :ok = insert(state.table, {{:effect, key}, updated})
-        {:reply, {:ok, updated}, state}
-    end
+            effect ->
+              effect
+              |> Ecto.Changeset.change(
+                status: "complete",
+                completed_at: now(),
+                receipt: json_safe(receipt),
+                failure: nil
+              )
+              |> state.repo.update!()
+              |> effect_map()
+          end
+        end,
+        mode: :immediate
+      )
+
+    {:reply, transaction_result(result), state}
   end
 
   def handle_call({:add_event, type, data}, _from, state) do
-    sequence = state.event_sequence + 1
-    event = %{type: type, at: now(), data: data}
-    result = insert(state.table, {{:event, sequence}, event})
-    {:reply, result, %{state | event_sequence: sequence}}
+    result =
+      %AuditEvent{
+        type: to_string(type),
+        data: json_safe(data) || %{},
+        occurred_at: now()
+      }
+      |> state.repo.insert()
+
+    reply = if match?({:ok, _event}, result), do: :ok, else: result
+    {:reply, reply, state}
   end
 
   def handle_call({:recent_events, limit}, _from, state) do
     events =
-      fold(state.table, [], fn
-        {{:event, sequence}, event}, acc -> [Map.put(event, :sequence, sequence) | acc]
-        _entry, acc -> acc
-      end)
-      |> Enum.sort_by(& &1.sequence, :desc)
-      |> Enum.take(limit)
+      state.repo.all(
+        from(event in AuditEvent,
+          order_by: [desc: event.id],
+          limit: ^max(limit, 0)
+        )
+      )
+      |> Enum.map(&audit_event_map/1)
 
     {:reply, events, state}
   end
 
   def handle_call(:counts, _from, state) do
+    effects =
+      state.repo.all(
+        from(effect in Effect,
+          group_by: effect.status,
+          select: {effect.status, count()}
+        )
+      )
+
     counts =
-      fold(state.table, %{reserved: 0, complete: 0, seen: 0}, fn
-        {{:effect, _key}, %{status: status}}, acc when is_map_key(acc, status) ->
-          Map.update!(acc, status, &(&1 + 1))
-
-        {{:seen, _uri}, _seen}, acc ->
-          Map.update!(acc, :seen, &(&1 + 1))
-
-        _entry, acc ->
-          acc
+      Enum.reduce(effects, %{reserved: 0, complete: 0, seen: seen_count(state.repo)}, fn
+        {"reserved", count}, acc -> %{acc | reserved: count}
+        {"complete", count}, acc -> %{acc | complete: count}
+        {_status, _count}, acc -> acc
       end)
 
     {:reply, counts, state}
   end
 
-  @impl true
-  def terminate(_reason, state) do
-    :dets.sync(state.table)
-    :dets.close(state.table)
+  defp insert_reserved_effect(repo, key, collection) do
+    now = now()
+
+    row = %{
+      operation_key: key,
+      kind: effect_kind(key),
+      collection: collection,
+      rkey: JidoDelvetown.Tid.generate(),
+      status: "reserved",
+      attempt_count: 0,
+      reserved_at: now,
+      inserted_at: now,
+      updated_at: now
+    }
+
+    repo.insert_all(Effect, [row], on_conflict: :nothing, conflict_target: [:operation_key])
+    repo.get!(Effect, key) |> effect_map()
   end
 
-  defp lookup(table, key) do
-    case :dets.lookup(table, key) do
-      [{^key, item}] -> item
-      [] -> nil
+  defp seen_count(repo) do
+    repo.one(
+      from(event in InteractionEvent,
+        where: event.kind in ^@seen_kinds,
+        select: count()
+      )
+    )
+  end
+
+  defp transaction_result({:ok, value}), do: {:ok, value}
+  defp transaction_result({:error, reason}), do: {:error, reason}
+
+  defp effect_map(nil), do: nil
+
+  defp effect_map(%Effect{} = effect) do
+    %{
+      key: effect.operation_key,
+      collection: effect.collection,
+      rkey: effect.rkey,
+      status: effect_status(effect.status),
+      created_at: iso8601(effect.reserved_at),
+      completed_at: iso8601(effect.completed_at),
+      receipt: effect.receipt
+    }
+  end
+
+  defp audit_event_map(%AuditEvent{} = event) do
+    %{
+      sequence: event.id,
+      type: existing_atom(event.type),
+      at: iso8601(event.occurred_at),
+      data: existing_atom_keys(event.data)
+    }
+  end
+
+  defp effect_status("reserved"), do: :reserved
+  defp effect_status("complete"), do: :complete
+  defp effect_status(status), do: status
+
+  defp effect_kind(key) do
+    case String.split(key, ":", parts: 2) do
+      [kind, _digest] -> kind
+      _other -> "effect"
     end
   end
 
-  defp insert(table, entry) do
-    case :dets.insert(table, entry) do
-      :ok -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+  defp seen_event_key(uri) do
+    digest = :crypto.hash(:sha256, uri) |> Base.url_encode64(padding: false)
+    "seen:" <> digest
   end
 
-  defp fold(table, initial, reducer), do: :dets.foldl(reducer, initial, table)
+  defp json_safe(nil), do: nil
+  defp json_safe(value) when is_binary(value) or is_number(value) or is_boolean(value), do: value
+  defp json_safe(value) when is_atom(value), do: Atom.to_string(value)
+  defp json_safe(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  defp json_safe(%_{} = value), do: value |> Map.from_struct() |> json_safe()
+  defp json_safe(value) when is_list(value), do: Enum.map(value, &json_safe/1)
 
-  defp latest_event_sequence(table) do
-    fold(table, 0, fn
-      {{:event, sequence}, _event}, latest when is_integer(sequence) -> max(sequence, latest)
-      _entry, latest -> latest
-    end)
+  defp json_safe(value) when is_map(value) do
+    Map.new(value, fn {key, item} -> {to_string(key), json_safe(item)} end)
   end
 
-  defp now, do: DateTime.utc_now() |> DateTime.to_iso8601()
+  defp json_safe(value), do: inspect(value)
+
+  defp existing_atom_keys(value) when is_list(value), do: Enum.map(value, &existing_atom_keys/1)
+
+  defp existing_atom_keys(value) when is_map(value) do
+    Map.new(value, fn {key, item} -> {existing_atom(key), existing_atom_keys(item)} end)
+  end
+
+  defp existing_atom_keys(value), do: value
+
+  defp existing_atom(value) when is_binary(value) do
+    String.to_existing_atom(value)
+  rescue
+    ArgumentError -> value
+  end
+
+  defp existing_atom(value), do: value
+
+  defp iso8601(nil), do: nil
+  defp iso8601(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  defp now, do: DateTime.utc_now() |> DateTime.truncate(:microsecond)
 end

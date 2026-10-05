@@ -76,7 +76,7 @@ defmodule JidoDelvetown.Config do
   end
 
   def checkpoint_path, do: Path.join(data_dir(), "jido_checkpoints")
-  def state_path, do: Path.join(data_dir(), "delvetown_state.dets")
+  def legacy_state_path, do: Path.join(data_dir(), "delvetown_state.dets")
 
   def credentials do
     with {:ok, identifier} <- fetch_env("DELVETOWN_IDENTIFIER"),
