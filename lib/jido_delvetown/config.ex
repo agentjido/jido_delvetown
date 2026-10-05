@@ -65,6 +65,16 @@ defmodule JidoDelvetown.Config do
   def data_dir,
     do: System.get_env("DELVETOWN_DATA_DIR", @default_data_dir) |> Path.expand()
 
+  def database_path do
+    System.get_env("DELVETOWN_DATABASE_PATH") ||
+      Application.get_env(
+        :jido_delvetown,
+        :database_path,
+        Path.join(data_dir(), "jido_delvetown.sqlite3")
+      )
+      |> Path.expand()
+  end
+
   def checkpoint_path, do: Path.join(data_dir(), "jido_checkpoints")
   def state_path, do: Path.join(data_dir(), "delvetown_state.dets")
 

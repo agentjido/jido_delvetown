@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Application do
 
   use Application
 
-  alias JidoDelvetown.{Agent, Config, Session, Store}
+  alias JidoDelvetown.{Agent, Config, Database, Repo, Session, Store}
   alias JidoDelvetown.Jido, as: JidoInstance
 
   @impl true
@@ -12,6 +12,8 @@ defmodule JidoDelvetown.Application do
 
     children =
       [
+        Repo,
+        Database,
         JidoInstance,
         Store,
         {DynamicSupervisor, strategy: :one_for_one, name: JidoDelvetown.SessionSupervisor},

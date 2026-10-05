@@ -39,6 +39,8 @@ defmodule JidoDelvetown.MixProject do
       {:zoi, path: "../zoi", override: true},
       {:imp, "0.8.1"},
       {:phoenix_playground, "~> 0.1.9"},
+      {:ecto_sql, "~> 3.13"},
+      {:ecto_sqlite3, "~> 0.24.1"},
       {:proto_rune, "~> 0.6.0"},
       {:jason, "~> 1.4"},
       {:dotenvy, "~> 1.2"},
