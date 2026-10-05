@@ -59,6 +59,25 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "WRITES ON"
   end
 
+  test "shows when dry-run actions advance local memory" do
+    assigns =
+      base_assigns()
+      |> put_in([:status, :dry_run_mark_actioned?], true)
+      |> Map.put(:operational_state, %{
+        key: "safe",
+        label: "Dry run: actions simulated",
+        effect: "Protocol effects are blocked. Selected actions advance local dry-run memory.",
+        next: "A simulated action is not published and will not run again."
+      })
+
+    html = render_dashboard(assigns)
+
+    assert html =~ "Dry run: actions simulated"
+    assert html =~ "Selected actions advance local dry-run memory"
+    assert html =~ "A simulated action is not published"
+    assert html =~ "WRITES OFF"
+  end
+
   test "links the latest published reply from the audit event" do
     assigns =
       base_assigns()

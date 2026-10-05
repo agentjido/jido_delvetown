@@ -87,6 +87,10 @@ defmodule JidoDelvetown.Config do
     enabled?("DELVETOWN_WRITE_ENABLED")
   end
 
+  def dry_run_mark_actioned? do
+    enabled?("DELVETOWN_DRY_RUN_MARK_ACTIONED")
+  end
+
   def mark_notifications_seen?,
     do: enabled?("DELVETOWN_MARK_NOTIFICATIONS_SEEN")
 

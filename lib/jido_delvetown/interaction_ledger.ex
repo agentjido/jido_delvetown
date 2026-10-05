@@ -177,13 +177,10 @@ defmodule JidoDelvetown.InteractionLedger do
     }
 
     with {:ok, _event} <- observe(attrs),
-         {:ok, _claimed} <- claim(event_key),
-         {:ok, _finished} <- finish(event_key, cycle_outcome(cycle.status), cycle_failure(cycle)),
-         :ok <- remember_actor(candidate, cycle, decision, completed_at),
-         :ok <- remember_conversation(candidate, cycle, decision, completed_at) do
+         {:ok, event_result} <- finish_candidate(event_key, cycle),
+         :ok <- remember_candidate(event_result, candidate, cycle, decision, completed_at) do
       :ok
     else
-      {:error, {:not_claimable, state}} when state in @terminal_states -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
@@ -236,15 +233,57 @@ defmodule JidoDelvetown.InteractionLedger do
 
   def outreach_count(kind, since, opts \\ [])
       when is_binary(kind) and is_struct(since, DateTime) do
-    repo(opts).aggregate(
-      from(effect in JidoDelvetown.Storage.Effect,
-        where:
-          effect.kind == ^kind and effect.status in ["reserved", "uncertain", "completed"] and
-            effect.reserved_at >= ^since
-      ),
-      :count,
-      :operation_key
-    )
+    repo = repo(opts)
+
+    effects =
+      repo.aggregate(
+        from(effect in JidoDelvetown.Storage.Effect,
+          where:
+            effect.kind == ^kind and effect.status in ["reserved", "uncertain", "completed"] and
+              effect.reserved_at >= ^since
+        ),
+        :count,
+        :operation_key
+      )
+
+    simulations =
+      repo.aggregate(
+        from(event in InteractionEvent,
+          where:
+            event.state == "completed" and event.terminal_at >= ^since and
+              fragment("json_extract(?, '$.cycle_status')", event.payload) == "simulated" and
+              fragment("json_extract(?, '$.action')", event.payload) == ^kind
+        ),
+        :count,
+        :event_key
+      )
+
+    effects + simulations
+  end
+
+  defp finish_candidate(_event_key, %{status: "proposed"}), do: {:ok, :pending}
+
+  defp finish_candidate(event_key, cycle) do
+    with {:ok, _claimed} <- claim(event_key),
+         {:ok, _finished} <-
+           finish(event_key, cycle_outcome(cycle.status), cycle_failure(cycle)) do
+      {:ok, :finished}
+    else
+      {:error, {:not_claimable, state}} when state in @terminal_states ->
+        {:ok, :already_terminal}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp remember_candidate(:already_terminal, _candidate, _cycle, _decision, _at), do: :ok
+
+  defp remember_candidate(_result, candidate, cycle, decision, at) do
+    with :ok <- remember_actor(candidate, cycle, decision, at),
+         :ok <- remember_conversation(candidate, cycle, decision, at) do
+      :ok
+    end
   end
 
   def context_for(candidate, opts \\ []) when is_map(candidate) do
@@ -306,9 +345,9 @@ defmodule JidoDelvetown.InteractionLedger do
        when is_binary(did) do
     repo = Repo
     seen_at = parse_time(at)
-    contacted? = cycle.status == "acted"
+    contacted? = cycle.status in ["acted", "simulated"]
     opted_out? = Map.get(cycle.candidate, :opt_out?, false)
-    welcomed? = contacted? and decision.action == "welcome"
+    welcome_status = welcome_status(cycle, decision, contacted?)
 
     repo.transaction(
       fn ->
@@ -323,7 +362,7 @@ defmodule JidoDelvetown.InteractionLedger do
               last_seen_at: seen_at,
               last_interaction_at: if(contacted?, do: seen_at),
               contact_count: if(contacted?, do: 1, else: 0),
-              welcome_status: if(welcomed?, do: "completed"),
+              welcome_status: welcome_status,
               opted_out: opted_out?,
               metadata: %{}
             }
@@ -338,7 +377,7 @@ defmodule JidoDelvetown.InteractionLedger do
               last_seen_at: seen_at,
               last_interaction_at: if(contacted?, do: seen_at, else: actor.last_interaction_at),
               contact_count: actor.contact_count + if(contacted?, do: 1, else: 0),
-              welcome_status: if(welcomed?, do: "completed", else: actor.welcome_status),
+              welcome_status: welcome_status || actor.welcome_status,
               opted_out: actor.opted_out || opted_out?
             )
             |> repo.update!()
@@ -351,7 +390,12 @@ defmodule JidoDelvetown.InteractionLedger do
 
   defp remember_actor(_candidate, _cycle, _decision, _at), do: :ok
 
-  defp remember_conversation(candidate, %{status: "acted"}, %{action: "reply"}, at) do
+  defp welcome_status(%{status: "simulated"}, %{action: "welcome"}, true), do: "simulated"
+  defp welcome_status(_cycle, %{action: "welcome"}, true), do: "completed"
+  defp welcome_status(_cycle, _decision, _contacted?), do: nil
+
+  defp remember_conversation(candidate, %{status: status}, %{action: "reply"}, at)
+       when status in ["acted", "simulated"] do
     root_uri = get_in(candidate, [:root, :uri])
 
     if is_binary(root_uri) do

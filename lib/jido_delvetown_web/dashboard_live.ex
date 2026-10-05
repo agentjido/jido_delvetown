@@ -1170,20 +1170,30 @@ defmodule JidoDelvetownWeb.DashboardLive do
   end
 
   defp operational_state(_result, status) do
-    if map_value(status, :writes_enabled?, false) do
-      %{
-        key: "active",
-        label: "Writes enabled",
-        effect: "Scheduled Agent work can create public protocol effects.",
-        next: "Use the review path before any future one-click action."
-      }
-    else
-      %{
-        key: "safe",
-        label: "Safe: writes off",
-        effect: "Protocol effects are blocked. Review cycles can inspect and propose.",
-        next: nil
-      }
+    cond do
+      map_value(status, :writes_enabled?, false) ->
+        %{
+          key: "active",
+          label: "Writes enabled",
+          effect: "Scheduled Agent work can create public protocol effects.",
+          next: "Use the review path before any future one-click action."
+        }
+
+      map_value(status, :dry_run_mark_actioned?, false) ->
+        %{
+          key: "safe",
+          label: "Dry run: actions simulated",
+          effect: "Protocol effects are blocked. Selected actions advance local dry-run memory.",
+          next: "A simulated action is not published and will not run again."
+        }
+
+      true ->
+        %{
+          key: "safe",
+          label: "Safe: writes off",
+          effect: "Protocol effects are blocked. Review cycles can inspect and propose.",
+          next: nil
+        }
     end
   end
 

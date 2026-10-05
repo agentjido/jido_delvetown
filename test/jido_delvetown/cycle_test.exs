@@ -11,12 +11,11 @@ defmodule JidoDelvetown.CycleTest do
     Store
   }
 
-  alias JidoDelvetown.Storage.{InteractionEvent, ScanState}
+  alias JidoDelvetown.Storage.{Actor, Conversation, InteractionEvent, ScanState}
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
 
   setup do
-    Repo.delete_all(ScanState)
-    Repo.delete_all(InteractionEvent)
+    Enum.each([ScanState, InteractionEvent, Conversation, Actor], &Repo.delete_all/1)
 
     keys = [
       :session_module,
@@ -29,6 +28,7 @@ defmodule JidoDelvetown.CycleTest do
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
     old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
+    old_dry_run = System.get_env("DELVETOWN_DRY_RUN_MARK_ACTIONED")
     old_seen = System.get_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN")
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
@@ -36,6 +36,7 @@ defmodule JidoDelvetown.CycleTest do
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
     System.put_env("DELVETOWN_WRITE_ENABLED", "false")
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "false")
     System.put_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", "false")
 
     on_exit(fn ->
@@ -45,6 +46,7 @@ defmodule JidoDelvetown.CycleTest do
       end)
 
       restore_env("DELVETOWN_WRITE_ENABLED", old_write)
+      restore_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", old_dry_run)
       restore_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", old_seen)
     end)
 
@@ -112,6 +114,7 @@ defmodule JidoDelvetown.CycleTest do
     assert state.last_run.selection.reason =~ "direct scored"
     assert state.notifications.processed[uri].status == "proposed"
     assert state.budget.replies == 0
+    assert Repo.get_by!(InteractionEvent, record_uri: uri).state == "pending"
     refute_received {:create_record, _collection, _record, _rkey}
 
     assert_received {:decision, "answer_direct_request", payload}
@@ -119,6 +122,73 @@ defmodule JidoDelvetown.CycleTest do
 
     decision_event = Enum.find(Store.recent_events(Store, 10), &(&1.type == :decision))
     assert decision_event.data.selection.reason == state.last_run.selection.reason
+  end
+
+  test "a dry-run action can advance local memory without a protocol write" do
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+    uri = "at://did:plc:simulated/town.delve.feed.post/reply"
+    root_uri = "at://did:plc:root/town.delve.feed.post/simulated"
+
+    configure_reads(%{
+      "town.delve.notification.listNotifications" =>
+        {:ok,
+         %{
+           "notifications" => [
+             %{
+               "uri" => uri,
+               "cid" => "reply-cid",
+               "reason" => "reply",
+               "isRead" => false,
+               "author" => %{
+                 "did" => "did:plc:simulated",
+                 "handle" => "simulated.test"
+               },
+               "record" => %{
+                 "text" => "How would you isolate this process?",
+                 "reply" => %{
+                   "root" => %{"uri" => root_uri, "cid" => "root-cid"}
+                 }
+               }
+             }
+           ]
+         }},
+      "town.delve.feed.getPostThread" =>
+        {:ok,
+         %{
+           "thread" => %{
+             "post" => %{
+               "uri" => uri,
+               "cid" => "reply-cid",
+               "record" => %{"text" => "How would you isolate this process?"}
+             },
+             "replies" => []
+           }
+         }}
+    })
+
+    Application.put_env(
+      :jido_delvetown,
+      :decision_result,
+      {:ok,
+       %{
+         action: "reply",
+         text: "Give each independent failure one supervised process.",
+         topic: "OTP",
+         reason: "A direct technical question"
+       }}
+    )
+
+    assert {:ok, state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.status == "simulated"
+    assert state.last_run.effects == 0
+    assert state.notifications.processed[uri].status == "simulated"
+    assert state.budget.replies == 1
+    assert Repo.get_by!(InteractionEvent, record_uri: uri).state == "completed"
+    assert Repo.get!(Actor, "did:plc:simulated").contact_count == 1
+    assert Repo.get!(Conversation, root_uri).turn_count == 1
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   test "a quiet timeline selects one daily note and keeps the daily budget unchanged in review" do

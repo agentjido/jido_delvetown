@@ -62,8 +62,13 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
           })
       end
     else
-      Map.merge(cycle, %{status: "proposed", effects: 0, receipt: nil})
+      dry_run(cycle)
     end
+  end
+
+  defp dry_run(cycle) do
+    status = if Config.dry_run_mark_actioned?(), do: "simulated", else: "proposed"
+    Map.merge(cycle, %{status: status, effects: 0, receipt: nil})
   end
 
   defp validate(cycle) do

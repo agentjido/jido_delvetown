@@ -19,6 +19,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
     old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
+    old_dry_run = System.get_env("DELVETOWN_DRY_RUN_MARK_ACTIONED")
     old_limit = System.get_env("DELVETOWN_DAILY_REPLY_LIMIT")
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
@@ -26,6 +27,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
     System.put_env("DELVETOWN_WRITE_ENABLED", "false")
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "false")
     System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "3")
 
     on_exit(fn ->
@@ -35,6 +37,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
       end)
 
       restore_env("DELVETOWN_WRITE_ENABLED", old_write)
+      restore_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", old_dry_run)
       restore_env("DELVETOWN_DAILY_REPLY_LIMIT", old_limit)
     end)
 
@@ -55,12 +58,14 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert payload.candidate.memory == %{actor: nil, conversation: nil}
   end
 
-  test "a completed direct event is not selected again" do
+  test "a simulated direct event is not selected again" do
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
     notification = notification("reply-repeat", "reply", "How should I retry this?")
     configure_reactive(notification)
     reply_decision()
 
-    assert {:ok, _state} = run_reactive()
+    assert {:ok, first_state} = run_reactive()
+    assert first_state.last_run.status == "simulated"
     assert_received {:decision, "answer_direct_request", _payload}
 
     assert {:ok, state} = run_reactive()

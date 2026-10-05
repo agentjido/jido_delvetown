@@ -84,6 +84,41 @@ defmodule JidoDelvetown.InteractionLedgerTest do
              )
   end
 
+  test "a simulated welcome counts as local outreach without an effect" do
+    completed_at = "2026-10-05T12:00:00Z"
+    since = ~U[2026-10-05 00:00:00Z]
+
+    cycle = %{
+      kind: "members",
+      mode: "normal",
+      intent: "welcome_new_member",
+      status: "simulated",
+      errors: [],
+      defer?: false,
+      candidate: %{
+        id: "did:plc:simulated-member",
+        event_key: "member:simulated",
+        uri: nil,
+        indexed_at: "2026-10-05T11:59:00Z",
+        author: %{
+          did: "did:plc:simulated-member",
+          handle: "simulated-member.test",
+          display_name: "Simulated Member"
+        },
+        root: nil
+      }
+    }
+
+    assert :ok = Ledger.record_cycle(cycle, %{action: "welcome"}, completed_at)
+    assert :ok = Ledger.record_cycle(cycle, %{action: "welcome"}, completed_at)
+
+    assert Ledger.outreach_count("welcome", since) == 1
+    assert Repo.aggregate(Effect, :count, :operation_key) == 0
+
+    assert %Actor{contact_count: 1, welcome_status: "simulated"} =
+             Ledger.actor("did:plc:simulated-member")
+  end
+
   test "retention removes old terminal events but keeps effect receipts" do
     now = ~U[2026-10-05 12:00:00.000000Z]
     old = ~U[2025-01-01 12:00:00.000000Z]

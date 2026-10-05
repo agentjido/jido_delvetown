@@ -42,6 +42,7 @@ export DELVETOWN_IDENTIFIER="bot-handle-or-email"
 export DELVETOWN_APP_PASSWORD="app-password"
 export OPENAI_API_KEY="provider-key"
 export DELVETOWN_WRITE_ENABLED="false"
+export DELVETOWN_DRY_RUN_MARK_ACTIONED="true"
 export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
 export DELVETOWN_DAILY_REPLY_LIMIT="3"
 export DELVETOWN_DAILY_WELCOME_LIMIT="2"
@@ -77,6 +78,13 @@ Notification bookkeeping has a separate permission. Set
 `DELVETOWN_MARK_NOTIFICATIONS_SEEN=true` only when the Agent can update the
 server-side notification cursor. This setting does not permit posts, replies,
 likes, reposts, follows, or deletes.
+
+`DELVETOWN_DRY_RUN_MARK_ACTIONED=true` enables an ongoing simulation when
+protocol writes are off. The Agent labels a selected action as `simulated`,
+keeps zero protocol effects, closes the event, and advances its local budget,
+actor contact, conversation, topic, and voice memory. This prevents the same
+event from running again. It does not create a post or effect receipt. Leave
+the setting false when a proposal must remain pending.
 
 Get dependencies and start IEx:
 
@@ -157,6 +165,20 @@ to Oban for retry. One incomplete unique job is allowed for each worker, so a
 slow run does not create a second run of the same cycle. The proactive cycle
 has no automatic schedule while its prompts and policy are being tuned.
 
+For an ongoing dry run, keep the application running with these settings:
+
+```sh
+export DELVETOWN_WRITE_ENABLED="false"
+export DELVETOWN_DRY_RUN_MARK_ACTIONED="true"
+export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
+iex -S mix
+```
+
+This mode reads current events and calls the model on the Oban schedule. It
+records each selected reply, welcome, follow, reaction, or post as a simulated
+action. It never sends that action to DelveTown. The dashboard shows the
+proposal, `simulated` cycle status, budget changes, and recent local events.
+
 For the simplest safe dry run, use the Mix task:
 
 ```sh
@@ -180,8 +202,8 @@ apply posts, replies, reactions, deletes, or notification updates. After every
 run, it confirms that the cycle reported zero effects and that the local effect
 counts did not change.
 
-Review cycles update the local Agent checkpoint. This lets later cycles use the
-same processed-item history, budgets, and recent topics. Remove the configured
+Review cycles update the local Agent checkpoint with proposals, but they do not
+advance budgets or mark a proposal as simulated. Remove the configured
 `DELVETOWN_DATA_DIR` only when you want to start again with empty local state.
 
 You can also use IEx for direct inspection:

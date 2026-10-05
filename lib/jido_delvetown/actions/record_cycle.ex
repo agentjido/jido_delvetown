@@ -95,7 +95,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
         state
       end
 
-    if cycle.status == "acted" do
+    if cycle.status in ["acted", "simulated"] do
       state
       |> increment_budget(decision.action)
       |> update_conversation(cycle.candidate, decision.action, at)
