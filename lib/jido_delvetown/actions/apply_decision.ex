@@ -5,7 +5,15 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     name: "delvetown_apply_decision",
     schema: Zoi.object(%{cycle: Zoi.map()})
 
-  alias JidoDelvetown.Actions.{CreatePost, LikePost, ReplyToPost, RepostPost}
+  alias JidoDelvetown.Actions.{
+    CreatePost,
+    FollowActor,
+    LikePost,
+    ReplyToPost,
+    RepostPost,
+    WelcomeActor
+  }
+
   alias JidoDelvetown.Config
 
   @impl true
@@ -27,6 +35,9 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
   defp apply(%{decision: %{action: "skip"}} = cycle),
     do: Map.merge(cycle, %{status: "skipped", effects: 0, receipt: nil})
+
+  defp apply(%{decision: %{action: "acknowledge"}} = cycle),
+    do: Map.merge(cycle, %{status: "acknowledged", effects: 0, receipt: nil})
 
   defp apply(%{mode: "review"} = cycle),
     do: Map.merge(cycle, %{status: "proposed", effects: 0, receipt: nil})
@@ -65,11 +76,17 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
       action in ["reply", "post"] and not valid_text?(cycle.decision.text) ->
         {:error, :invalid_post_text}
 
+      action == "welcome" and not valid_text?(cycle.decision.text) ->
+        {:error, :invalid_welcome_text}
+
       action == "reply" and not valid_reply_target?(cycle.candidate) ->
         {:error, :invalid_reply_target}
 
       action in ["like", "repost"] and not valid_subject?(cycle.candidate) ->
         {:error, :invalid_subject}
+
+      action in ["follow", "welcome"] and not valid_actor?(cycle.candidate) ->
+        {:error, :invalid_actor}
 
       true ->
         :ok
@@ -99,6 +116,12 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
   defp execute(%{action: "post", text: text}, candidate),
     do: CreatePost.run(%{opportunity_id: candidate.id, text: text, langs: ["en"]}, %{})
 
+  defp execute(%{action: "follow"}, candidate),
+    do: FollowActor.run(%{did: candidate.author.did}, %{})
+
+  defp execute(%{action: "welcome", text: text}, candidate),
+    do: WelcomeActor.run(%{did: candidate.author.did, text: text, langs: ["en"]}, %{})
+
   defp valid_text?(text), do: is_binary(text) and String.length(text) in 1..300
 
   defp valid_reply_target?(%{
@@ -115,6 +138,9 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     do: is_binary(uri) and uri != "" and is_binary(cid) and cid != ""
 
   defp valid_subject?(_candidate), do: false
+
+  defp valid_actor?(%{author: %{did: did}}), do: is_binary(did) and did != ""
+  defp valid_actor?(_candidate), do: false
 
   defp effect_count(%{reused?: true}), do: 0
   defp effect_count(_receipt), do: 1

@@ -12,6 +12,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   @post_limit 1
   @actions %{
     "answer_direct_request" => ["reply", "skip"],
+    "respond_to_new_follow" => ["acknowledge", "follow", "welcome", "skip"],
     "join_useful_discussion" => ["reply", "like", "repost", "skip"],
     "publish_daily_note" => ["post", "skip"],
     "skip" => ["skip"]
@@ -24,6 +25,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     state = remember_ignored_notifications(cycle.state, cycle.notifications)
     cycle = Map.put(cycle, :state, state)
     direct = cycle.notifications |> Enum.find(&direct_candidate?(&1, state)) |> add_memory()
+    follow = cycle.notifications |> Enum.find(&follow_candidate?(&1, state)) |> add_memory()
 
     cond do
       direct && opt_out?(direct) ->
@@ -35,6 +37,18 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
       direct ->
         select_with_thread(cycle, "answer_direct_request", direct)
+
+      follow && opt_out?(follow) ->
+        {:ok, select(cycle, "skip", follow, "actor_opt_out")}
+
+      follow && not valid_actor?(follow) ->
+        {:ok, select(cycle, "skip", follow, "missing_actor_did")}
+
+      follow && prior_contact?(follow) ->
+        {:ok, select(cycle, "skip", follow, "follow_actor_already_contacted")}
+
+      follow ->
+        {:ok, select(cycle, "respond_to_new_follow", follow)}
 
       true ->
         {:ok, select(cycle, "skip", nil, "no_direct_request")}
@@ -139,6 +153,12 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       InteractionLedger.processable_event?(notification.event_key)
   end
 
+  defp follow_candidate?(notification, state) do
+    notification.unread? and notification.reason == "follow" and
+      not processed?(state, notification.id) and
+      InteractionLedger.processable_event?(notification.event_key)
+  end
+
   defp add_memory(nil), do: nil
 
   defp add_memory(candidate),
@@ -146,6 +166,16 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp opt_out?(candidate) do
     OptOut.requested?(candidate.text) or get_in(candidate, [:memory, :actor, :opted_out]) == true
+  end
+
+  defp valid_actor?(candidate), do: is_binary(get_in(candidate, [:author, :did]))
+
+  defp prior_contact?(candidate) do
+    case get_in(candidate, [:memory, :actor]) do
+      %{contact_count: count} when count > 0 -> true
+      %{welcome_status: "completed"} -> true
+      _actor -> false
+    end
   end
 
   defp processed?(state, id) do

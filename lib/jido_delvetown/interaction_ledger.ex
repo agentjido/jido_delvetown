@@ -176,7 +176,7 @@ defmodule JidoDelvetown.InteractionLedger do
     with {:ok, _event} <- observe(attrs),
          {:ok, _claimed} <- claim(event_key),
          {:ok, _finished} <- finish(event_key, cycle_outcome(cycle.status), cycle_failure(cycle)),
-         :ok <- remember_actor(candidate, cycle, completed_at),
+         :ok <- remember_actor(candidate, cycle, decision, completed_at),
          :ok <- remember_conversation(candidate, cycle, decision, completed_at) do
       :ok
     else
@@ -286,11 +286,13 @@ defmodule JidoDelvetown.InteractionLedger do
     {:ok, %{expired: expired, overflow: overflow}}
   end
 
-  defp remember_actor(%{author: %{did: did} = author}, cycle, at) when is_binary(did) do
+  defp remember_actor(%{author: %{did: did} = author}, cycle, decision, at)
+       when is_binary(did) do
     repo = Repo
     seen_at = parse_time(at)
     contacted? = cycle.status == "acted"
     opted_out? = Map.get(cycle.candidate, :opt_out?, false)
+    welcomed? = contacted? and decision.action == "welcome"
 
     repo.transaction(
       fn ->
@@ -305,6 +307,7 @@ defmodule JidoDelvetown.InteractionLedger do
               last_seen_at: seen_at,
               last_interaction_at: if(contacted?, do: seen_at),
               contact_count: if(contacted?, do: 1, else: 0),
+              welcome_status: if(welcomed?, do: "completed"),
               opted_out: opted_out?,
               metadata: %{}
             }
@@ -319,6 +322,7 @@ defmodule JidoDelvetown.InteractionLedger do
               last_seen_at: seen_at,
               last_interaction_at: if(contacted?, do: seen_at, else: actor.last_interaction_at),
               contact_count: actor.contact_count + if(contacted?, do: 1, else: 0),
+              welcome_status: if(welcomed?, do: "completed", else: actor.welcome_status),
               opted_out: actor.opted_out || opted_out?
             )
             |> repo.update!()
@@ -329,7 +333,7 @@ defmodule JidoDelvetown.InteractionLedger do
     |> transaction_ok()
   end
 
-  defp remember_actor(_candidate, _cycle, _at), do: :ok
+  defp remember_actor(_candidate, _cycle, _decision, _at), do: :ok
 
   defp remember_conversation(candidate, %{status: "acted"}, %{action: "reply"}, at) do
     root_uri = get_in(candidate, [:root, :uri])
@@ -397,6 +401,7 @@ defmodule JidoDelvetown.InteractionLedger do
       first_seen_at: iso8601(actor.first_seen_at),
       last_interaction_at: iso8601(actor.last_interaction_at),
       contact_count: actor.contact_count,
+      welcome_status: actor.welcome_status,
       opted_out: actor.opted_out
     }
   end

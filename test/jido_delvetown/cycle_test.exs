@@ -242,7 +242,7 @@ defmodule JidoDelvetown.CycleTest do
     assert {:ok, _scan} = ScanProgress.release("notifications", scan.token)
   end
 
-  test "a new follow stays pending and does not mark the notification batch as seen" do
+  test "a skipped follow becomes terminal before the notification batch is marked as seen" do
     System.put_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", "true")
 
     configure_reads(%{
@@ -265,12 +265,13 @@ defmodule JidoDelvetown.CycleTest do
              Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
 
     assert state.last_run.status == "skipped"
-    refute Map.has_key?(state.notifications.processed, "event-follow")
+    assert state.notifications.processed["event-follow"].status == "skipped"
 
-    assert %InteractionEvent{state: "pending"} =
+    assert %InteractionEvent{state: "ignored"} =
              Repo.get(InteractionEvent, "notification:event-follow")
 
-    refute_received {:appview_procedure, "town.delve.notification.updateSeen", _body}
+    assert_received {:decision, "respond_to_new_follow", _payload}
+    assert_received {:appview_procedure, "town.delve.notification.updateSeen", _body}
   end
 
   defp context do

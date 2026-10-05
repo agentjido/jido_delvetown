@@ -9,7 +9,7 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   alias JidoDelvetown.Config
   alias JidoDelvetown.Personality
 
-  @actions ~w(reply like repost post skip)
+  @actions ~w(reply like repost post acknowledge follow welcome skip)
 
   @instructions Personality.decision_prompt()
 
