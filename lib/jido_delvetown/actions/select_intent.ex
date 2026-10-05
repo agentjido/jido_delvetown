@@ -8,6 +8,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   alias JidoDelvetown.{Candidate, Config, Protocol, Session}
 
   @direct_reasons ["mention", "reply"]
+  @deferred_reasons ["follow"]
   @reply_limit 3
   @post_limit 1
   @actions %{
@@ -110,7 +111,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp remember_ignored_notifications(state, notifications) do
     Enum.reduce(notifications, state, fn notification, acc ->
-      if notification.unread? and notification.reason not in @direct_reasons and
+      if notification.unread? and
+           notification.reason not in (@direct_reasons ++ @deferred_reasons) and
            not processed?(acc, notification.id) do
         put_processed(acc, notification, "skip", "skip", "ignored")
       else

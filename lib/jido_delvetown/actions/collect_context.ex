@@ -9,7 +9,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
         mode: Zoi.enum(["normal", "review"])
       })
 
-  alias JidoDelvetown.{Candidate, Config, Protocol, ScanProgress}
+  alias JidoDelvetown.{Candidate, Config, InteractionLedger, Protocol, ScanProgress}
 
   @timeline_limit 5
   @processed_limit 200
@@ -35,14 +35,16 @@ defmodule JidoDelvetown.Actions.CollectContext do
            Protocol.query("town.delve.notification.listNotifications", %{
              cursor: scan.cursor,
              limit: Config.notification_limit()
-           }) do
+           }),
+         normalized = Candidate.notifications(notifications),
+         :ok <- InteractionLedger.observe_candidates(normalized) do
       {:ok,
        base("reactive", mode, state, started_at)
        |> Map.merge(%{
          status: "ready",
          reads: 2,
          membership: Candidate.membership(membership),
-         notifications: Candidate.notifications(notifications),
+         notifications: normalized,
          scan: Map.put(scan, :next_cursor, response_cursor(notifications))
        })}
     else

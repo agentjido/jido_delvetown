@@ -10,6 +10,40 @@ defmodule JidoDelvetown.InteractionLedger do
   @default_retention_days 90
   @default_event_limit 5_000
 
+  def event_key(kind, values) when is_binary(kind) and is_list(values) do
+    digest =
+      values
+      |> Enum.map(&key_part/1)
+      |> Enum.intersperse(<<0>>)
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.url_encode64(padding: false)
+
+    kind <> ":" <> digest
+  end
+
+  def observe_candidates(candidates, opts \\ []) when is_list(candidates) do
+    Enum.reduce_while(candidates, :ok, fn candidate, :ok ->
+      attrs = %{
+        event_key: candidate.event_key,
+        kind: candidate.reason,
+        actor_did: get_in(candidate, [:author, :did]),
+        record_uri: candidate.uri,
+        source_id: candidate.protocol_id || candidate.id,
+        occurred_at: candidate.indexed_at,
+        payload: %{
+          protocol_id: candidate.protocol_id,
+          raw_reason: candidate.raw_reason,
+          reason_subject: candidate.reason_subject
+        }
+      }
+
+      case observe(attrs, opts) do
+        {:ok, _event} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
   def observe(attrs, opts \\ []) when is_map(attrs) do
     repo = repo(opts)
     now = now()
@@ -108,12 +142,19 @@ defmodule JidoDelvetown.InteractionLedger do
     {:ok, count}
   end
 
-  def record_cycle(%{candidate: nil}, _decision, _completed_at), do: :ok
-  def record_cycle(%{defer?: true}, _decision, _completed_at), do: :ok
-
   def record_cycle(cycle, decision, completed_at) do
+    with :ok <- record_candidate(cycle, decision, completed_at),
+         :ok <- finish_ignored_notifications(cycle) do
+      :ok
+    end
+  end
+
+  defp record_candidate(%{candidate: nil}, _decision, _completed_at), do: :ok
+  defp record_candidate(%{defer?: true}, _decision, _completed_at), do: :ok
+
+  defp record_candidate(cycle, decision, completed_at) do
     candidate = cycle.candidate
-    event_key = candidate_event_key(cycle.kind, candidate.id)
+    event_key = Map.get(candidate, :event_key) || candidate_event_key(cycle.kind, candidate.id)
     actor_did = get_in(candidate, [:author, :did])
 
     attrs = %{
@@ -144,9 +185,50 @@ defmodule JidoDelvetown.InteractionLedger do
     end
   end
 
+  defp finish_ignored_notifications(cycle) do
+    cycle
+    |> Map.get(:notifications, [])
+    |> Enum.reduce_while(:ok, fn notification, :ok ->
+      case get_in(cycle, [:state, :notifications, :processed, notification.id, :status]) do
+        status when status in ["ignored", "skipped"] ->
+          case claim(notification.event_key) do
+            {:ok, _claimed} ->
+              case finish(notification.event_key, :ignored, %{reason: "policy_skip"}) do
+                {:ok, _event} -> {:cont, :ok}
+                {:error, reason} -> {:halt, {:error, reason}}
+              end
+
+            {:error, {:not_claimable, state}} when state in @terminal_states ->
+              {:cont, :ok}
+
+            {:error, reason} ->
+              {:halt, {:error, reason}}
+          end
+
+        _status ->
+          {:cont, :ok}
+      end
+    end)
+  end
+
   def actor(did, opts \\ []), do: repo(opts).get(Actor, did)
   def conversation(root_uri, opts \\ []), do: repo(opts).get(Conversation, root_uri)
   def event(event_key, opts \\ []), do: repo(opts).get(InteractionEvent, event_key)
+
+  def events_terminal?(candidates, opts \\ []) when is_list(candidates) do
+    keys = Enum.map(candidates, & &1.event_key)
+
+    terminal_count =
+      repo(opts).aggregate(
+        from(event in InteractionEvent,
+          where: event.event_key in ^keys and event.state in ^@terminal_states
+        ),
+        :count,
+        :event_key
+      )
+
+    terminal_count == length(Enum.uniq(keys))
+  end
 
   def prune(opts \\ []) do
     repo = repo(opts)
@@ -277,9 +359,11 @@ defmodule JidoDelvetown.InteractionLedger do
   defp cycle_failure(_cycle), do: %{}
 
   defp candidate_event_key(kind, id) do
-    digest = :crypto.hash(:sha256, [kind, <<0>>, id]) |> Base.url_encode64(padding: false)
-    "candidate:" <> digest
+    event_key("candidate", [kind, id])
   end
+
+  defp key_part(nil), do: ""
+  defp key_part(value), do: to_string(value)
 
   defp fetch!(map, key) do
     case value(map, key) do

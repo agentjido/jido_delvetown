@@ -18,9 +18,9 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     decision = normalize_decision(cycle.decision)
     state = update_policy_state(cycle.state, cycle, decision, completed_at)
     result = result(cycle, decision, completed_at)
-    {state, result} = maybe_mark_notifications_seen(state, cycle, result, completed_at)
 
     with :ok <- InteractionLedger.record_cycle(cycle, decision, completed_at),
+         {state, result} <- maybe_mark_notifications_seen(state, cycle, result, completed_at),
          :ok <- finish_scan(cycle) do
       {:ok, finish_state(state, result, completed_at)}
     else
@@ -159,7 +159,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
           not Config.mark_notifications_seen?() ->
         {state, result}
 
-      not all_notifications_terminal?(state, cycle.notifications) ->
+      not all_notifications_terminal?(cycle.notifications) ->
         {state, result}
 
       true ->
@@ -175,15 +175,10 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     end
   end
 
-  defp all_notifications_terminal?(state, notifications) do
+  defp all_notifications_terminal?(notifications) do
     notifications
     |> Enum.filter(& &1.unread?)
-    |> Enum.all?(fn notification ->
-      case state.notifications.processed[notification.id] do
-        %{status: status} -> status in ["acted", "ignored", "skipped"]
-        _missing -> false
-      end
-    end)
+    |> InteractionLedger.events_terminal?()
   end
 
   defp finish_state(state, result, completed_at) do

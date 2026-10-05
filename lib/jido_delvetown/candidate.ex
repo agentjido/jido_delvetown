@@ -22,15 +22,28 @@ defmodule JidoDelvetown.Candidate do
     record = value(item, :record, %{})
     uri = value(item, :uri)
     cid = value(item, :cid)
+    protocol_id = present(value(item, :id)) || present(value(item, :notification_id))
+    reason_subject = value(item, :reason_subject)
+    raw_reason = item |> value(:reason, "unknown") |> to_string()
+    reason = normalize_reason(raw_reason)
+    author = actor(value(item, :author, %{}))
+    indexed_at = value(item, :indexed_at)
+
+    event_key =
+      notification_event_key(protocol_id, reason, author, uri, reason_subject, indexed_at)
 
     %{
-      id: uri || value(item, :reason_subject),
+      id: protocol_id || uri || reason_subject || event_key,
+      event_key: event_key,
+      protocol_id: protocol_id,
       uri: uri,
       cid: cid,
-      reason: item |> value(:reason, "unknown") |> to_string(),
+      reason: reason,
+      raw_reason: raw_reason,
+      reason_subject: reason_subject,
       unread?: value(item, :is_read) not in [true, "true"],
-      indexed_at: value(item, :indexed_at),
-      author: actor(value(item, :author, %{})),
+      indexed_at: indexed_at,
+      author: author,
       text: record |> value(:text, "") |> text(),
       parent: strong_ref(%{uri: uri, cid: cid}),
       root: reply_root(record) || strong_ref(%{uri: uri, cid: cid})
@@ -126,6 +139,31 @@ defmodule JidoDelvetown.Candidate do
 
   defp text(value) when is_binary(value), do: String.slice(value, 0, @text_limit)
   defp text(_value), do: ""
+
+  defp notification_event_key(protocol_id, _reason, _author, _uri, _subject, _indexed_at)
+       when is_binary(protocol_id) and protocol_id != "",
+       do: "notification:" <> protocol_id
+
+  defp notification_event_key(_protocol_id, reason, author, uri, subject, indexed_at) do
+    JidoDelvetown.InteractionLedger.event_key("notification", [
+      reason,
+      Map.get(author, :did, ""),
+      uri || subject || "",
+      indexed_at || ""
+    ])
+  end
+
+  defp normalize_reason(reason) do
+    case String.downcase(reason) do
+      value when value in ["reply", "replied"] -> "reply"
+      value when value in ["mention", "mentioned"] -> "mention"
+      value when value in ["follow", "followed", "new_follow"] -> "follow"
+      _value -> "unknown"
+    end
+  end
+
+  defp present(value) when is_binary(value) and value != "", do: value
+  defp present(_value), do: nil
 
   defp value(map, key, default \\ nil)
 

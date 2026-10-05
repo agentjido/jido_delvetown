@@ -10,11 +10,12 @@ defmodule JidoDelvetown.CycleTest do
     ScanProgress
   }
 
-  alias JidoDelvetown.Storage.ScanState
+  alias JidoDelvetown.Storage.{InteractionEvent, ScanState}
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
 
   setup do
     Repo.delete_all(ScanState)
+    Repo.delete_all(InteractionEvent)
 
     keys = [
       :session_module,
@@ -239,6 +240,37 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:appview_query, _method, _params}
 
     assert {:ok, _scan} = ScanProgress.release("notifications", scan.token)
+  end
+
+  test "a new follow stays pending and does not mark the notification batch as seen" do
+    System.put_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", "true")
+
+    configure_reads(%{
+      "town.delve.notification.listNotifications" =>
+        {:ok,
+         %{
+           "notifications" => [
+             %{
+               "id" => "event-follow",
+               "reason" => "follow",
+               "isRead" => false,
+               "indexedAt" => "2026-10-05T12:00:00Z",
+               "author" => %{"did" => "did:plc:new-follower"}
+             }
+           ]
+         }}
+    })
+
+    assert {:ok, state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.status == "skipped"
+    refute Map.has_key?(state.notifications.processed, "event-follow")
+
+    assert %InteractionEvent{state: "pending"} =
+             Repo.get(InteractionEvent, "notification:event-follow")
+
+    refute_received {:appview_procedure, "town.delve.notification.updateSeen", _body}
   end
 
   defp context do
