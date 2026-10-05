@@ -121,6 +121,9 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp increment_budget(state, "post"),
     do: put_in(state, [:budget, :posts], state.budget.posts + 1)
 
+  defp increment_budget(state, "welcome"),
+    do: put_in(state, [:budget, :posts], state.budget.posts + 1)
+
   defp increment_budget(state, _action), do: state
 
   defp update_conversation(state, candidate, "reply", at) do

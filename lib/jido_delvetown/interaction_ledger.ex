@@ -31,9 +31,10 @@ defmodule JidoDelvetown.InteractionLedger do
         source_id: candidate.protocol_id || candidate.id,
         occurred_at: candidate.indexed_at,
         payload: %{
-          protocol_id: candidate.protocol_id,
-          raw_reason: candidate.raw_reason,
-          reason_subject: candidate.reason_subject
+          protocol_id: Map.get(candidate, :protocol_id),
+          raw_reason: Map.get(candidate, :raw_reason),
+          reason_subject: Map.get(candidate, :reason_subject),
+          joined_at: Map.get(candidate, :joined_at)
         }
       }
 
@@ -228,6 +229,19 @@ defmodule JidoDelvetown.InteractionLedger do
       from(event in InteractionEvent,
         where: event.state == "pending" and event.kind in ^kinds
       )
+    )
+  end
+
+  def outreach_count(kind, since, opts \\ [])
+      when is_binary(kind) and is_struct(since, DateTime) do
+    repo(opts).aggregate(
+      from(effect in JidoDelvetown.Storage.Effect,
+        where:
+          effect.kind == ^kind and effect.status in ["reserved", "uncertain", "completed"] and
+            effect.reserved_at >= ^since
+      ),
+      :count,
+      :operation_key
     )
   end
 

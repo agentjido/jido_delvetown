@@ -104,6 +104,9 @@ defmodule JidoDelvetown.AgentTest do
     assert scheduled.state.scheduler.cron[Agent.schedule_job_id()].cron_expression ==
              Agent.schedule_cron()
 
+    assert scheduled.state.scheduler.cron[Agent.member_schedule_job_id()].cron_expression ==
+             Agent.member_schedule_cron()
+
     :ok = Supervisor.stop(first_instance)
 
     {:ok, second_instance} = Jido.start_link(options)
@@ -122,5 +125,8 @@ defmodule JidoDelvetown.AgentTest do
 
     assert restored.state.scheduler.cron[Agent.schedule_job_id()].cron_expression ==
              Agent.schedule_cron()
+
+    assert restored.state.scheduler.cron[Agent.member_schedule_job_id()].cron_expression ==
+             Agent.member_schedule_cron()
   end
 end

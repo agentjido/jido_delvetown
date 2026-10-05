@@ -18,6 +18,37 @@ defmodule JidoDelvetown.Candidate do
     |> Enum.reject(&is_nil(&1.id))
   end
 
+  def members(response) do
+    response
+    |> value(:actors, [])
+    |> Enum.map(&member/1)
+    |> Enum.reject(&is_nil(&1.id))
+  end
+
+  def member(item) when is_map(item) do
+    author = member_actor(item)
+    did = Map.get(author, :did)
+    indexed_at = value(item, :created_at) || value(item, :indexed_at)
+
+    %{
+      id: did,
+      event_key: JidoDelvetown.InteractionLedger.event_key("new_member", [did]),
+      protocol_id: did,
+      uri: nil,
+      cid: nil,
+      reason: "new_member",
+      raw_reason: "new_member",
+      reason_subject: nil,
+      unread?: true,
+      indexed_at: indexed_at,
+      joined_at: indexed_at,
+      author: author,
+      text: item |> value(:description, "") |> text(),
+      parent: nil,
+      root: nil
+    }
+  end
+
   def notification(item) when is_map(item) do
     record = value(item, :record, %{})
     uri = value(item, :uri)
@@ -120,6 +151,18 @@ defmodule JidoDelvetown.Candidate do
   end
 
   defp actor(_actor), do: %{}
+
+  defp member_actor(actor) when is_map(actor) do
+    %{
+      did: value(actor, :did),
+      handle: value(actor, :handle),
+      display_name: value(actor, :display_name),
+      description: actor |> value(:description, "") |> text(),
+      created_at: value(actor, :created_at),
+      indexed_at: value(actor, :indexed_at)
+    }
+    |> reject_nil()
+  end
 
   defp reply_root(record) do
     record

@@ -13,6 +13,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   @actions %{
     "answer_direct_request" => ["reply", "skip"],
     "respond_to_new_follow" => ["acknowledge", "follow", "welcome", "skip"],
+    "welcome_new_member" => ["welcome", "skip"],
     "join_useful_discussion" => ["reply", "like", "repost", "skip"],
     "publish_daily_note" => ["post", "skip"],
     "skip" => ["skip"]
@@ -58,6 +59,9 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   def run(%{cycle: %{kind: "proactive"} = cycle}, _context),
     do: select_proactive(cycle)
 
+  def run(%{cycle: %{kind: "members"} = cycle}, _context),
+    do: select_member(cycle)
+
   @doc false
   def allowed_actions(intent), do: Map.fetch(@actions, intent)
 
@@ -91,6 +95,44 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       true ->
         reason = if discussion, do: "reply_budget_exhausted", else: "no_eligible_work"
         {:ok, select(cycle, "skip", discussion, reason, not is_nil(discussion))}
+    end
+  end
+
+  defp select_member(cycle) do
+    candidate =
+      cycle.members
+      |> Enum.filter(&InteractionLedger.processable_event?(&1.event_key))
+      |> Enum.sort_by(&{&1.indexed_at || "", &1.id})
+      |> List.first()
+      |> add_memory()
+
+    cond do
+      is_nil(candidate) ->
+        {:ok, select(cycle, "skip", nil, "no_new_member")}
+
+      own_actor?(candidate) ->
+        {:ok, select(cycle, "skip", candidate, "agent_account")}
+
+      not valid_member_context?(candidate) ->
+        {:ok, select(cycle, "skip", candidate, "insufficient_member_context")}
+
+      member_too_old?(candidate) ->
+        {:ok, select(cycle, "skip", candidate, "member_too_old")}
+
+      opt_out?(candidate) ->
+        {:ok, select(cycle, "skip", candidate, "actor_opt_out")}
+
+      prior_contact?(candidate) ->
+        {:ok, select(cycle, "skip", candidate, "member_already_contacted")}
+
+      InteractionLedger.pending_events?(@direct_reasons) ->
+        {:ok, select(cycle, "skip", candidate, "direct_request_pending", true)}
+
+      welcome_budget_exhausted?() ->
+        {:ok, select(cycle, "skip", candidate, "welcome_budget_exhausted", true)}
+
+      true ->
+        {:ok, select(cycle, "welcome_new_member", candidate)}
     end
   end
 
@@ -176,6 +218,39 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       %{welcome_status: "completed"} -> true
       _actor -> false
     end
+  end
+
+  defp own_actor?(%{author: %{did: did}}) when is_binary(did) do
+    case Session.status() do
+      %{did: ^did} -> true
+      _status -> false
+    end
+  catch
+    :exit, _reason -> false
+  end
+
+  defp own_actor?(_candidate), do: false
+
+  defp valid_member_context?(candidate) do
+    valid_actor?(candidate) and is_binary(get_in(candidate, [:author, :handle]))
+  end
+
+  defp member_too_old?(%{indexed_at: indexed_at}) when is_binary(indexed_at) do
+    case DateTime.from_iso8601(indexed_at) do
+      {:ok, joined_at, _offset} ->
+        DateTime.diff(DateTime.utc_now(), joined_at, :hour) > Config.member_max_age_hours()
+
+      _invalid ->
+        true
+    end
+  end
+
+  defp member_too_old?(_candidate), do: true
+
+  defp welcome_budget_exhausted? do
+    now = DateTime.utc_now()
+    start_of_day = DateTime.new!(DateTime.to_date(now), ~T[00:00:00], "Etc/UTC")
+    InteractionLedger.outreach_count("welcome", start_of_day) >= Config.daily_welcome_limit()
   end
 
   defp processed?(state, id) do

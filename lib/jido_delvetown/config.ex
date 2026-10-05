@@ -59,6 +59,18 @@ defmodule JidoDelvetown.Config do
     env_integer("DELVETOWN_DAILY_REPLY_LIMIT", 3, 0, 100)
   end
 
+  def daily_welcome_limit do
+    env_integer("DELVETOWN_DAILY_WELCOME_LIMIT", 2, 0, 100)
+  end
+
+  def member_discovery_limit do
+    env_integer("DELVETOWN_MEMBER_DISCOVERY_LIMIT", 20, 1, 100)
+  end
+
+  def member_max_age_hours do
+    env_integer("DELVETOWN_MEMBER_MAX_AGE_HOURS", 24, 1, 24 * 30)
+  end
+
   def write_enabled? do
     enabled?("DELVETOWN_WRITE_ENABLED")
   end

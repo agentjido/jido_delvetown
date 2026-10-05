@@ -28,6 +28,14 @@ defmodule JidoDelvetown.Agent do
                      %{mode: "normal"},
                      source: "/jido_delvetown/cron"
                    )
+  @member_schedule_job_id "delvetown-member-discovery"
+  @member_schedule_cron "7 * * * *"
+  @member_schedule_generation 1
+  @member_schedule_signal Jido.Signal.new!(
+                            "jido.delvetown.members",
+                            %{mode: "normal"},
+                            source: "/jido_delvetown/cron"
+                          )
 
   use Jido.AI.Agent,
     name: "jido_delvetown",
@@ -39,6 +47,10 @@ defmodule JidoDelvetown.Agent do
   def schedule_generation, do: @schedule_generation
 
   def schedule_signal, do: @schedule_signal
+  def member_schedule_job_id, do: @member_schedule_job_id
+  def member_schedule_cron, do: @member_schedule_cron
+  def member_schedule_generation, do: @member_schedule_generation
+  def member_schedule_signal, do: @member_schedule_signal
 
   @impl Jido.Agent
   def checkpoint(agent, _context) do
@@ -258,6 +270,14 @@ defmodule JidoDelvetown.Agent do
     route "jido.delvetown.proactive.review", JidoDelvetown.ProactiveParticipationCycle,
       defaults: %{mode: "review"},
       as: :review_proactive_cycle
+
+    route "jido.delvetown.members", JidoDelvetown.MemberDiscoveryCycle,
+      defaults: %{mode: "normal"},
+      as: :run_member_discovery
+
+    route "jido.delvetown.members.review", JidoDelvetown.MemberDiscoveryCycle,
+      defaults: %{mode: "review"},
+      as: :review_member_discovery
 
     # Keep restored checkpoints with the earlier scheduled Signal usable.
     route "jido.delvetown.cycle", JidoDelvetown.ReactiveParticipationCycle,

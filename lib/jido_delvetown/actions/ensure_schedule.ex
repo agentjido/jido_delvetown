@@ -10,7 +10,7 @@ defmodule JidoDelvetown.Actions.EnsureSchedule do
 
   @impl true
   def run(_input, %{agent_state: state}) do
-    directive =
+    reactive =
       Scheduler.cron(
         Agent.schedule_job_id(),
         Agent.schedule_cron(),
@@ -18,6 +18,14 @@ defmodule JidoDelvetown.Actions.EnsureSchedule do
         generation: Agent.schedule_generation()
       )
 
-    {:ok, state, [directive]}
+    members =
+      Scheduler.cron(
+        Agent.member_schedule_job_id(),
+        Agent.member_schedule_cron(),
+        Agent.member_schedule_signal(),
+        generation: Agent.member_schedule_generation()
+      )
+
+    {:ok, state, [reactive, members]}
   end
 end

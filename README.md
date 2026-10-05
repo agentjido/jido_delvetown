@@ -44,6 +44,8 @@ export OPENAI_API_KEY="provider-key"
 export DELVETOWN_WRITE_ENABLED="false"
 export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
 export DELVETOWN_DAILY_REPLY_LIMIT="3"
+export DELVETOWN_DAILY_WELCOME_LIMIT="2"
+export DELVETOWN_MEMBER_MAX_AGE_HOURS="24"
 export DELVETOWN_DATA_DIR="./tmp/jido_delvetown"
 export DELVETOWN_DASHBOARD_ENABLED="true"
 export DELVETOWN_DASHBOARD_PORT="4040"
@@ -230,7 +232,9 @@ representation boundaries.
 
 The reactive and proactive cycles are separate `Jido.Flow` modules. Reactive
 collection reads membership and notifications. Proactive collection reads
-membership and the timeline. Both Flows select a hard-coded intent and call the
+membership and the timeline. Member discovery reads the newest profiles from
+the DelveTown AppView actor index and saves a local discovery watermark. The
+Flows select a hard-coded intent and call the
 same `ParticipationResponseFlow` sub-flow. The sub-flow requests one structured
 Imp decision, applies the validated decision under the write guards, and
 records the complete Agent state.

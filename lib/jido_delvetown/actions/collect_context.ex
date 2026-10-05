@@ -5,7 +5,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
     name: "delvetown_collect_context",
     schema:
       Zoi.object(%{
-        kind: Zoi.enum(["reactive", "proactive"]),
+        kind: Zoi.enum(["reactive", "proactive", "members"]),
         mode: Zoi.enum(["normal", "review"])
       })
 
@@ -73,6 +73,28 @@ defmodule JidoDelvetown.Actions.CollectContext do
     end
   end
 
+  defp collect("members", mode, state, started_at, scan) do
+    with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
+         {:ok, response} <-
+           Protocol.query("town.delve.actor.searchActors", %{
+             limit: Config.member_discovery_limit()
+           }),
+         normalized = Candidate.members(response),
+         :ok <- InteractionLedger.observe_candidates(normalized) do
+      {:ok,
+       base("members", mode, state, started_at)
+       |> Map.merge(%{
+         status: "ready",
+         reads: 2,
+         membership: Candidate.membership(membership),
+         members: normalized,
+         scan: Map.put(scan, :next_cursor, member_watermark(scan.cursor, normalized))
+       })}
+    else
+      {:error, reason} -> failed("members", mode, state, started_at, scan, reason)
+    end
+  end
+
   defp failed(kind, mode, state, started_at, scan, reason) do
     {:ok,
      kind
@@ -109,6 +131,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
       errors: [],
       membership: %{},
       notifications: [],
+      members: [],
       recent_posts: [],
       intent: "skip",
       allowed_actions: ["skip"],
@@ -124,12 +147,20 @@ defmodule JidoDelvetown.Actions.CollectContext do
 
   defp scan_name("reactive"), do: "notifications"
   defp scan_name("proactive"), do: "timeline"
+  defp scan_name("members"), do: "members"
 
   defp response_cursor(response) when is_map(response) do
     Map.get(response, :cursor) || Map.get(response, "cursor")
   end
 
   defp response_cursor(_response), do: nil
+
+  defp member_watermark(current, members) do
+    members
+    |> Enum.map(&"#{&1.indexed_at || ""}|#{&1.id}")
+    |> Enum.concat(List.wrap(current))
+    |> Enum.max(fn -> nil end)
+  end
 
   defp reset_budget(state) do
     today = Date.utc_today() |> Date.to_iso8601()
