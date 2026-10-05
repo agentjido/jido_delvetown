@@ -74,7 +74,8 @@ defmodule JidoDelvetown.PersonalityTest do
     assert disclosure.operator.contact == "https://mike-hostetler.com"
     assert disclosure.model_service == JidoDelvetown.Config.decision_model()
     assert disclosure.human_review =~ "without individual human review"
-    assert disclosure.local_memory =~ "bounded local checkpoint"
+    assert disclosure.local_memory =~ "local SQLite database"
+    assert disclosure.local_memory =~ "public-action receipts"
     assert disclosure.training_and_research =~ "does not use"
     assert disclosure.deletion =~ "deletion requests"
 

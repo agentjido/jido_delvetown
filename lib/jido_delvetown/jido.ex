@@ -4,5 +4,5 @@ defmodule JidoDelvetown.Jido do
   use Jido,
     otp_app: :jido_delvetown,
     namespace: "jido/delvetown",
-    persistence: {Jido.Persistence.File, path: JidoDelvetown.Config.checkpoint_path()}
+    persistence: {Jido.Persistence.Ecto, repo: JidoDelvetown.Repo}
 end

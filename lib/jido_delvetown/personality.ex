@@ -199,7 +199,7 @@ defmodule JidoDelvetown.Personality do
       processing:
         "Selected public context is sent to the configured model service. Processing locations and provider retention follow that service's terms.",
       local_memory:
-        "A bounded local checkpoint keeps processed record IDs, conversation summaries, budgets, recent topics, and cycle decisions.",
+        "A local SQLite database keeps bounded interaction memory, conversation summaries, budgets, recent topics, cycle decisions, and public-action receipts.",
       training_and_research:
         "The operator does not use DelveTown interactions for model training or undisclosed research. The configured model service handles submitted data under its own terms.",
       deletion:

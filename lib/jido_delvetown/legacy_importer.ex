@@ -75,7 +75,7 @@ defmodule JidoDelvetown.LegacyImporter do
     %{
       repo: Keyword.get(opts, :repo, Repo),
       dets_path: Keyword.get(opts, :dets_path, Config.legacy_state_path()),
-      checkpoint_path: Keyword.get(opts, :checkpoint_path, Config.checkpoint_path()),
+      checkpoint_path: Keyword.get(opts, :checkpoint_path, Config.legacy_checkpoint_path()),
       namespace: Keyword.get(opts, :namespace, @namespace),
       agent_id: Keyword.get(opts, :agent_id, @agent_id)
     }

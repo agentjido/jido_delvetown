@@ -57,13 +57,15 @@ If the web setup already used the invite code, do not set
 must call the Delvetown membership join operation.
 
 `DELVETOWN_DATA_DIR` is optional. It defaults to `tmp/jido_delvetown`. This one
-directory contains the Jido agent checkpoints and the Delvetown DETS store. Use
-one local BEAM instance for this directory.
+directory contains one SQLite database for all local durable state. Use one
+local BEAM instance for this directory. On the first SQLite start, the
+application imports the former DETS store and file checkpoint when they exist.
+It keeps those legacy files unchanged after the import.
 
-The Jido checkpoint keeps the bounded decision state, daily budget, recent
-topics, processed record IDs, conversation summaries, and last result. The
-Agent definition installs the cron schedule when it creates or restores the
-Agent. Live session data and credentials are not in the checkpoint.
+SQLite keeps the Jido checkpoint, bounded decision state, daily budget, recent
+topics, processed record IDs, conversation summaries, effect receipts, and
+audit events. The Agent definition installs the cron schedule when it creates
+or restores the Agent. Live session data and credentials are not in SQLite.
 
 Notification bookkeeping has a separate permission. Set
 `DELVETOWN_MARK_NOTIFICATIONS_SEEN=true` only when the Agent can update the

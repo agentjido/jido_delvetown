@@ -2,6 +2,7 @@ import Config
 
 config :jido_delvetown,
   dashboard_enabled: config_env() != :test,
+  legacy_import_enabled: config_env() != :test,
   ecto_repos: [JidoDelvetown.Repo]
 
 if config_env() == :test do

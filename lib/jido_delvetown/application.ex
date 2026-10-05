@@ -37,9 +37,8 @@ defmodule JidoDelvetown.Application do
   end
 
   defp start_agent do
-    # Load keys from the first local checkpoint format before Jido performs its
-    # safe decode. The next checkpoint stores state as JSON and does not need
-    # this compatibility load.
+    # Load keys from the imported checkpoint format before Jido performs its
+    # safe decode. The next checkpoint stores state as JSON.
     Code.ensure_loaded!(Jido.Agent.Checkpoint)
     Code.ensure_loaded!(JidoDelvetown.Actions.RecordCycle)
 

@@ -75,7 +75,14 @@ defmodule JidoDelvetown.Config do
       |> Path.expand()
   end
 
-  def checkpoint_path, do: Path.join(data_dir(), "jido_checkpoints")
+  def legacy_import_enabled? do
+    case System.get_env("DELVETOWN_LEGACY_IMPORT_ENABLED") do
+      nil -> Application.get_env(:jido_delvetown, :legacy_import_enabled, true)
+      value -> enabled_value?(value)
+    end
+  end
+
+  def legacy_checkpoint_path, do: Path.join(data_dir(), "jido_checkpoints")
   def legacy_state_path, do: Path.join(data_dir(), "delvetown_state.dets")
 
   def credentials do

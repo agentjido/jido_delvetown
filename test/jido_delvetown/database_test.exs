@@ -49,4 +49,21 @@ defmodule JidoDelvetown.DatabaseTest do
 
     Repo.query!("DELETE FROM effects WHERE operation_key = ?", ["test:one"])
   end
+
+  test "SQLite checkpoint compare-and-swap rejects stale writers" do
+    key = "test:checkpoint:#{System.unique_integer([:positive])}"
+    opts = [repo: Repo]
+
+    on_exit(fn -> Jido.Persistence.Ecto.delete(key, opts) end)
+
+    assert :ok = Jido.Persistence.Ecto.compare_and_swap(key, :not_found, "one", opts)
+
+    assert {:error, :conflict} =
+             Jido.Persistence.Ecto.compare_and_swap(key, :not_found, "x", opts)
+
+    assert :ok = Jido.Persistence.Ecto.compare_and_swap(key, "one", "two", opts)
+    assert {:error, :conflict} = Jido.Persistence.Ecto.compare_and_swap(key, "one", "stale", opts)
+    assert {:ok, "two"} = Jido.Persistence.Ecto.get(key, opts)
+    assert :ok = Jido.Persistence.Ecto.compare_and_swap(key, "two", "two", opts)
+  end
 end

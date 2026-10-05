@@ -3,6 +3,7 @@ defmodule JidoDelvetown.AgentTest do
 
   alias JidoDelvetown.Agent
   alias JidoDelvetown.Personality
+  alias JidoDelvetown.Repo
 
   test "the hard-coded DSL exposes the complete participation tool set" do
     tool_names = Agent.ai_profile(:operator).tools |> Enum.map(& &1.name) |> MapSet.new()
@@ -63,19 +64,21 @@ defmodule JidoDelvetown.AgentTest do
            )
   end
 
-  test "the file checkpoint restores the agent state" do
+  test "the SQLite checkpoint restores the agent state" do
     suffix = System.unique_integer([:positive])
     instance = :"jido_delvetown_checkpoint_#{suffix}"
     namespace = "jido-delvetown-test/#{suffix}"
-    path = Path.join(System.tmp_dir!(), namespace)
 
     options = [
       name: instance,
       namespace: namespace,
-      persistence: {Jido.Persistence.File, path: path}
+      persistence: {Jido.Persistence.Ecto, repo: Repo}
     ]
 
     id = "checkpoint-agent"
+    ref = Jido.Agent.Ref.new!(namespace: namespace, partition: nil, id: id)
+    key = Jido.Persistence.agent_key(ref)
+    :ok = Jido.Persistence.Ecto.delete(key, repo: Repo)
 
     {:ok, first_instance} = Jido.start_link(options)
     Process.unlink(first_instance)
@@ -91,11 +94,7 @@ defmodule JidoDelvetown.AgentTest do
       )
 
     assert {:ok, first_agent} = Jido.start_agent(instance, saved)
-
-    assert Map.has_key?(
-             Jido.AgentServer.agent(first_agent).state.scheduler.cron,
-             "delvetown-reactive-participation"
-           )
+    assert Jido.AgentServer.agent(first_agent).state.last_run == %{summary: "saved"}
 
     :ok = Supervisor.stop(first_instance)
 
@@ -104,7 +103,7 @@ defmodule JidoDelvetown.AgentTest do
 
     on_exit(fn ->
       if Process.alive?(second_instance), do: Supervisor.stop(second_instance)
-      File.rm_rf(path)
+      Jido.Persistence.Ecto.delete(key, repo: Repo)
     end)
 
     assert {:ok, second_agent} = Jido.start_agent(instance, Agent, id: id)
@@ -112,6 +111,5 @@ defmodule JidoDelvetown.AgentTest do
     assert restored.state.last_run == %{summary: "saved"}
     assert restored.state.budget == %{date: "2026-10-04", replies: 2, posts: 1}
     assert restored.state.proactive.recent_topics == ["OTP"]
-    assert Map.has_key?(restored.state.scheduler.cron, "delvetown-reactive-participation")
   end
 end

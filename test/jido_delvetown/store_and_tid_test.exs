@@ -53,11 +53,11 @@ defmodule JidoDelvetown.StoreAndTidTest do
 
     assert Config.data_dir() == data_dir
     assert Config.database_path() == database_path
-    assert Config.checkpoint_path() == Path.join(data_dir, "jido_checkpoints")
+    assert Config.legacy_checkpoint_path() == Path.join(data_dir, "jido_checkpoints")
     assert Config.legacy_state_path() == Path.join(data_dir, "delvetown_state.dets")
 
     assert JidoDelvetown.Jido.__jido_persistence__() ==
-             {Jido.Persistence.File, path: Config.checkpoint_path()}
+             {Jido.Persistence.Ecto, repo: JidoDelvetown.Repo}
   end
 
   test "event sequence continues after the Store restarts" do

@@ -5,6 +5,7 @@ defmodule JidoDelvetown.LegacyImporterTest do
 
   alias JidoDelvetown.LegacyImporter
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Agent
   alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, ScanState}
 
   setup do
@@ -59,6 +60,16 @@ defmodule JidoDelvetown.LegacyImporterTest do
 
       assert {:ok, ^checkpoint_bytes} =
                Jido.Persistence.Ecto.get(checkpoint_key, repo: Repo)
+
+      assert {:ok, restored} =
+               Jido.Persistence.load_agent(
+                 {Jido.Persistence.Ecto, repo: Repo},
+                 Agent,
+                 "agent",
+                 namespace: Keyword.fetch!(context.opts, :namespace)
+               )
+
+      assert restored.state.last_run == %{summary: "imported"}
 
       assert {:ok, {:reused, ^details}} = LegacyImporter.run(context.opts)
       assert {:ok, %{status: :verified}} = LegacyImporter.verify(context.opts)
@@ -144,16 +155,23 @@ defmodule JidoDelvetown.LegacyImporterTest do
   end
 
   defp write_checkpoint(opts) do
-    ref =
-      Jido.Agent.Ref.new!(
-        namespace: Keyword.fetch!(opts, :namespace),
-        partition: nil,
-        id: Keyword.fetch!(opts, :agent_id)
-      )
+    namespace = Keyword.fetch!(opts, :namespace)
+    agent_id = Keyword.fetch!(opts, :agent_id)
+    path = Keyword.fetch!(opts, :checkpoint_path)
+    ref = Jido.Agent.Ref.new!(namespace: namespace, partition: nil, id: agent_id)
 
     key = Jido.Persistence.agent_key(ref)
-    bytes = :erlang.term_to_binary(%{revision: 4, state: "saved"})
-    :ok = Jido.Persistence.File.put(key, bytes, path: Keyword.fetch!(opts, :checkpoint_path))
+    agent = Agent.new!(id: agent_id, state: %{last_run: %{summary: "imported"}})
+
+    :ok =
+      Jido.Persistence.save_agent(
+        {Jido.Persistence.File, path: path},
+        agent,
+        namespace: namespace,
+        revision: 4
+      )
+
+    {:ok, bytes} = Jido.Persistence.File.get(key, path: path)
     {key, bytes}
   end
 
