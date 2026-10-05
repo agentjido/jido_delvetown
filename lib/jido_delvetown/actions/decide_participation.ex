@@ -7,6 +7,7 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
 
   alias JidoDelvetown.Actions.SelectIntent
   alias JidoDelvetown.Config
+  alias JidoDelvetown.CreativeFormats
   alias JidoDelvetown.Personality
 
   @actions ~w(reply like repost post acknowledge follow welcome skip)
@@ -63,18 +64,21 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   end
 
   def run(%{cycle: cycle}, context) do
+    cycle = CreativeFormats.prepare(cycle)
+
     payload = %{
       reason: cycle.reason,
       membership: cycle.membership,
       candidate: cycle.candidate,
       recent_posts: Enum.take(cycle.recent_posts, 3),
       budget: cycle.state.budget,
-      recent_topics: cycle.state.proactive.recent_topics
+      recent_topics: cycle.state.proactive.recent_topics,
+      response_format: cycle.response_format
     }
 
     case decision_module().choose(cycle.intent, payload, context) do
       {:ok, decision} ->
-        {:ok, Map.put(cycle, :decision, decision)}
+        {:ok, Map.put(cycle, :decision, CreativeFormats.finalize(decision, cycle))}
 
       {:error, reason} ->
         {:ok,

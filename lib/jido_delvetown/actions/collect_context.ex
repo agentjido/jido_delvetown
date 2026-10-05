@@ -15,6 +15,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
   @processed_limit 200
   @conversation_limit 50
   @topic_limit 10
+  @voice_history_limit 6
   @retention_seconds 30 * 24 * 60 * 60
 
   @impl true
@@ -175,12 +176,31 @@ defmodule JidoDelvetown.Actions.CollectContext do
     processed = bounded(state.notifications.processed, :at, @processed_limit)
     conversations = bounded(state.conversations, :last_action_at, @conversation_limit)
 
+    state =
+      Map.put_new(state, :voice, %{
+        recent_formats: [],
+        recent_openings: [],
+        recent_topics: []
+      })
+
     state
     |> put_in([:notifications, :processed], processed)
     |> Map.put(:conversations, conversations)
     |> put_in(
       [:proactive, :recent_topics],
       Enum.take(state.proactive.recent_topics, @topic_limit)
+    )
+    |> put_in(
+      [:voice, :recent_formats],
+      Enum.take(state.voice.recent_formats, @voice_history_limit)
+    )
+    |> put_in(
+      [:voice, :recent_openings],
+      Enum.take(state.voice.recent_openings, @voice_history_limit)
+    )
+    |> put_in(
+      [:voice, :recent_topics],
+      Enum.take(state.voice.recent_topics, @voice_history_limit)
     )
   end
 

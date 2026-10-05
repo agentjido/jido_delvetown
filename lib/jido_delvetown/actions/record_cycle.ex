@@ -7,6 +7,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
 
   alias JidoDelvetown.Actions.UpdateNotificationsSeen
   alias JidoDelvetown.Config
+  alias JidoDelvetown.CreativeFormats
   alias JidoDelvetown.InteractionLedger
   alias JidoDelvetown.ScanProgress
   alias JidoDelvetown.Store
@@ -61,7 +62,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       candidate_id: candidate_id(cycle.candidate),
       record_uri: receipt_uri(cycle.receipt),
       summary: summary(cycle),
-      proposal: Map.take(decision, [:text, :topic, :reason]),
+      proposal: Map.take(decision, [:text, :topic, :reason, :format]),
       selection: Map.get(cycle, :selection, %{}),
       reads: cycle.reads,
       effects: cycle.effects,
@@ -99,6 +100,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       |> increment_budget(decision.action)
       |> update_conversation(cycle.candidate, decision.action, at)
       |> update_proactive(decision, at)
+      |> update_voice(decision)
     else
       state
     end
@@ -158,6 +160,26 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   end
 
   defp update_proactive(state, _decision, _at), do: state
+
+  defp update_voice(state, %{action: action, text: text} = decision)
+       when action in ["reply", "post", "welcome"] and is_binary(text) do
+    voice =
+      state
+      |> Map.get(:voice, %{recent_formats: [], recent_openings: [], recent_topics: []})
+      |> prepend_bounded(:recent_formats, Map.get(decision, :format))
+      |> prepend_bounded(:recent_openings, CreativeFormats.opening(text))
+      |> prepend_bounded(:recent_topics, Map.get(decision, :topic))
+
+    Map.put(state, :voice, voice)
+  end
+
+  defp update_voice(state, _decision), do: state
+
+  defp prepend_bounded(memory, _key, value) when value in [nil, ""], do: memory
+
+  defp prepend_bounded(memory, key, value) do
+    Map.update(memory, key, [value], fn values -> Enum.take([value | values], 6) end)
+  end
 
   defp maybe_mark_notifications_seen(state, cycle, result, at) do
     cond do
@@ -227,6 +249,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       candidate_id: candidate_id(cycle.candidate),
       cycle_status: cycle.status,
       selection: Map.get(cycle, :selection, %{}),
+      response_format: Map.get(decision, :format),
       model_reason: Map.get(decision, :reason),
       completed_at: completed_at
     })

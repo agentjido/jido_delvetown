@@ -164,7 +164,9 @@ defmodule JidoDelvetown.Personality do
   participation charter. Select skip when the response has weak value or when a
   safety, privacy, representation, opt-out, or evidence rule is not satisfied.
   For proactive participation, respond only when you can add something specific
-  and relevant.
+  and relevant. Follow the supplied response_format as a presentation shape.
+  The format never relaxes accuracy, privacy, opt-out, representation, tone, or
+  length rules.
   """
 
   @spec character() :: Jido.Character.t()

@@ -78,7 +78,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
     configure_reactive(first)
     assert {:ok, first_state} = run_reactive()
     assert first_state.last_run.status == "acted"
-    assert_received {:decision, "answer_direct_request", _payload}
+    assert_received {:decision, "answer_direct_request", first_payload}
 
     second = notification("turn-2", "reply", "What should restart it?", "second")
     configure_reactive(second)
@@ -86,12 +86,14 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert second_state.last_run.status == "acted"
 
     assert_received {:decision, "answer_direct_request", payload}
+    refute payload.response_format.id == first_payload.response_format.id
     assert payload.candidate.memory.actor.contact_count == 1
     assert payload.candidate.memory.conversation.turn_count == 1
     assert payload.candidate.memory.conversation.last_action == "reply"
 
     assert Repo.get!(Actor, "did:plc:member").contact_count == 2
     assert Repo.get!(Conversation, root_uri()).turn_count == 2
+    assert length(second_state.voice.recent_formats) == 2
   end
 
   test "an opt-out request is stored and prevents later contact" do

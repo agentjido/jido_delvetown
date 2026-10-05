@@ -171,6 +171,7 @@ defmodule JidoDelvetown.InteractionLedger do
         intent: cycle.intent,
         action: decision.action,
         cycle_status: cycle.status,
+        response_format: Map.get(decision, :format),
         selection: Map.get(cycle, :selection, %{})
       }
     }

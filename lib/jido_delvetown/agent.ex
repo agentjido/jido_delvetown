@@ -6,6 +6,7 @@ defmodule JidoDelvetown.Agent do
     :notifications,
     :conversations,
     :proactive,
+    :voice,
     :budget,
     :decision,
     :last_cycle,
@@ -15,7 +16,7 @@ defmodule JidoDelvetown.Agent do
     action at budget candidate_id completed_at conversations date decision effects errors
     conversation_load factors id intent kind last_action_at
     last_cycle last_post_at last_record_uri last_run model_reason prior_contact priority recency
-    record_uri relevance score selection
+    format recent_formats recent_openings record_uri relevance response_format score selection voice
     last_seen_at notifications posts processed proactive proposal reads reason recent_topics
     replies root_uri skips started_at status summary text topic turns uri
   )a
@@ -124,6 +125,17 @@ defmodule JidoDelvetown.Agent do
                  recent_topics: Zoi.list(Zoi.string()) |> Zoi.default([])
                })
                |> Zoi.default(%{last_post_at: "", recent_topics: []}),
+             voice:
+               Zoi.object(%{
+                 recent_formats: Zoi.list(Zoi.string()) |> Zoi.default([]),
+                 recent_openings: Zoi.list(Zoi.string()) |> Zoi.default([]),
+                 recent_topics: Zoi.list(Zoi.string()) |> Zoi.default([])
+               })
+               |> Zoi.default(%{
+                 recent_formats: [],
+                 recent_openings: [],
+                 recent_topics: []
+               }),
              budget:
                Zoi.object(%{
                  date: Zoi.string() |> Zoi.default(""),
