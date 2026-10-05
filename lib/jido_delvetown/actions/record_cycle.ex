@@ -29,6 +29,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
 
   defp result(cycle, decision, completed_at) do
     %{
+      kind: cycle.kind,
       status: cycle.status,
       intent: cycle.intent,
       action: decision.action,
@@ -47,7 +48,9 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp summary(%{status: "failed", stage: stage}), do: "Cycle failed during #{stage}."
 
   defp summary(cycle),
-    do: "Intent #{cycle.intent} selected #{cycle.decision.action}; cycle #{cycle.status}."
+    do:
+      "#{String.capitalize(cycle.kind)} intent #{cycle.intent} selected " <>
+        "#{cycle.decision.action}; cycle #{cycle.status}."
 
   defp update_policy_state(state, cycle, decision, at) do
     state =
@@ -128,7 +131,8 @@ defmodule JidoDelvetown.Actions.RecordCycle do
 
   defp maybe_mark_notifications_seen(state, cycle, result, at) do
     cond do
-      cycle.mode != "normal" or not Config.mark_notifications_seen?() ->
+      cycle.kind != "reactive" or cycle.mode != "normal" or
+          not Config.mark_notifications_seen?() ->
         {state, result}
 
       not all_notifications_terminal?(state, cycle.notifications) ->
@@ -161,7 +165,17 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp finish_state(state, result, completed_at) do
     last_cycle =
       result
-      |> Map.take([:status, :intent, :action, :candidate_id, :reads, :effects, :skips, :errors])
+      |> Map.take([
+        :kind,
+        :status,
+        :intent,
+        :action,
+        :candidate_id,
+        :reads,
+        :effects,
+        :skips,
+        :errors
+      ])
       |> Map.put(:completed_at, completed_at)
 
     state

@@ -2,7 +2,7 @@ defmodule JidoDelvetown.CycleTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.Agent
-  alias JidoDelvetown.ParticipationCycle
+  alias JidoDelvetown.{ProactiveParticipationCycle, ReactiveParticipationCycle}
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
 
   setup do
@@ -88,7 +88,10 @@ defmodule JidoDelvetown.CycleTest do
        }}
     )
 
-    assert {:ok, state} = Jido.Exec.run(ParticipationCycle, %{mode: "normal"}, context())
+    assert {:ok, state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.kind == "reactive"
     assert state.last_run.status == "proposed"
     assert state.last_run.intent == "answer_direct_request"
     assert state.last_run.action == "reply"
@@ -133,7 +136,10 @@ defmodule JidoDelvetown.CycleTest do
        }}
     )
 
-    assert {:ok, state} = Jido.Exec.run(ParticipationCycle, %{mode: "review"}, context())
+    assert {:ok, state} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "review"}, context())
+
+    assert state.last_run.kind == "proactive"
     assert state.last_run.status == "proposed"
     assert state.last_run.intent == "publish_daily_note"
     assert state.last_run.action == "post"
@@ -181,7 +187,10 @@ defmodule JidoDelvetown.CycleTest do
       {:ok, %{action: "like", text: nil, topic: "OTP", reason: "Useful question"}}
     )
 
-    assert {:ok, state} = Jido.Exec.run(ParticipationCycle, %{mode: "normal"}, context())
+    assert {:ok, state} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.kind == "proactive"
     assert state.last_run.intent == "join_useful_discussion"
     assert state.last_run.action == "like"
     assert state.last_run.status == "proposed"

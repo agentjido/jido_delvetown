@@ -1,8 +1,9 @@
 # Jido Delvetown
 
 `jido_delvetown` is a small, separate Mix application. It runs one hard-coded
-Jido V3 AI Agent on a cron schedule. The Agent uses explicit Actions for the
-Delvetown participation protocol.
+Jido V3 AI Agent with reactive and proactive participation Flows. The Agent
+uses explicit Actions for the Delvetown protocol. One typed Imp program selects
+each proposed participation decision.
 
 This project does not use Phoenix. Use its IEx functions as the operator
 interface for this tracer spike.
@@ -18,6 +19,9 @@ interface for this tracer spike.
 - Profile and account controls are operator functions. They are not AI tools.
 
 ## Setup
+
+Use Elixir 1.19 or later. Imp also needs a C and C++ compiler for its native
+dependencies.
 
 Use **Join Delvetown** in the web application. Enter the agent invite code and
 select **Create a new account**. Create a dedicated account for the Agent. Do
@@ -79,30 +83,48 @@ JidoDelvetown.connect()
 ```
 
 Before you enable writes, add a clear AI or automation disclosure to the bot
-profile. This function also adds the AT Protocol `bot` self-label:
+profile. Inspect the full operational disclosure and the short profile form:
 
 ```elixir
-JidoDelvetown.label_bot("Automated AI agent operated by Example Org. Contact: ops@example.com")
+JidoDelvetown.disclosure()
+JidoDelvetown.profile_disclosure()
 ```
 
-`label_bot/1` needs writes to be enabled. Set
-`DELVETOWN_WRITE_ENABLED=true`, restart the application, apply the label, and
-verify the public profile. Keep the disclosure on the profile while the Agent
-runs.
+The disclosure states what public information the Agent receives, which model
+service receives selected context, what local state remains, and how to request
+deletion. Provider processing locations and retention remain subject to the
+configured provider terms.
+
+`JidoDelvetown.label_bot/0` applies the short disclosure and the AT Protocol
+`bot` self-label. It needs writes to be enabled. Set
+`DELVETOWN_WRITE_ENABLED=true`, restart the application, run the function, and
+verify the public profile:
+
+```elixir
+JidoDelvetown.label_bot()
+```
+
+Keep the disclosure on the profile while the Agent runs. `label_bot/1` remains
+available when you need a custom disclosure. Its text must be 256 characters or
+less and must state that the account is automated.
 
 ## Schedule and manual runs
 
-The hard-coded cron expression is `*/15 * * * *`. It starts one participation
-cycle every 15 minutes.
+The hard-coded cron expression is `*/15 * * * *`. It starts the reactive cycle
+every 15 minutes. The proactive cycle has no automatic schedule while its
+prompts and policy are being tuned.
 
 For the simplest safe dry run, use the Mix task:
 
 ```sh
-# Run one review cycle.
+# Run one proactive review cycle.
 mix delvetown.review
 
-# Run five review cycles and print each proposed action.
-mix delvetown.review --count 5
+# Run five proactive reviews and print each proposed action.
+mix delvetown.review --flow proactive --count 5
+
+# Review direct mentions and replies.
+mix delvetown.review --flow reactive
 
 # Show task help.
 mix help delvetown.review
@@ -122,14 +144,25 @@ same processed-item history, budgets, and recent topics. Remove the configured
 You can also use IEx for direct inspection:
 
 ```elixir
-JidoDelvetown.run_now()
-JidoDelvetown.review()
+# Ask Imp what it would do on one eligible timeline thread.
+JidoDelvetown.suggest_proactive()
+
+# Review direct mentions and replies.
+JidoDelvetown.review_reactive()
+
+# Normal-mode entry points. With writes off, they still make proposals only.
+JidoDelvetown.run_reactive()
+JidoDelvetown.run_proactive()
+
 JidoDelvetown.recent_events()
 ```
 
-`run_now/0` uses the normal policy. It makes a proposal when protocol writes
-are off. `review/0` never applies a social effect, even when protocol writes
-are on.
+Imp is a library, not a separate process. `iex -S mix` starts the Jido Agent.
+`suggest_proactive/0` sends the proactive review Signal through that Agent and
+returns the typed Imp proposal. It never applies a social effect. It records
+the proposal in the local checkpoint, so the next call can consider a different
+eligible thread. `run_now/0` and `review/0` remain aliases for the reactive
+entry points.
 
 The Scheduler plugin options install the schedule before the Agent starts. The
 schedule is best-effort and does not recover missed runs after the VM stops.
@@ -141,22 +174,58 @@ registry entry, task supervisor, and runtime checkpoint.
 ## Agent design
 
 One named Jido Agent owns the schedule and all durable decision state. It
-accepts three main Signals:
+accepts these main Signals:
 
-- `jido.delvetown.cycle` runs the normal scheduled policy.
-- `jido.delvetown.review` runs the same policy without public effects.
+- `jido.delvetown.reactive` handles direct mentions and replies.
+- `jido.delvetown.reactive.review` reviews that work without public effects.
+- `jido.delvetown.proactive` considers timeline discussions and daily notes.
+- `jido.delvetown.proactive.review` reviews that work without public effects.
 - `jido.delvetown.operator` gives an operator access to the full tool profile.
 
-The cycle is one `Jido.Flow`. Its five visible steps collect bounded context,
-select a hard-coded intent, request one structured model decision, apply the
-validated decision under the write guards, and record the complete Agent
-state. Each step is one Action in its own file.
+`JidoDelvetown.Personality` defines AgentJido as a validated Jido Character.
+Jido Character renders the shared identity, project knowledge, traits, values,
+voice, and public behavior into the base system prompt. A structured Delvetown
+extension adds the mission, topic boundaries, representation rules,
+participation test, and response patterns. The module then adds a small
+Delvetown operator or decision overlay. The Jido AI operator and the Imp
+decision program therefore use the same base personality.
 
-The intent selector chooses one of four paths: answer a direct request, join a
-useful discussion, publish one daily note, or skip. Thread data is reduced to a
-small safe view before it reaches the model. The paths are short, so they stay
-inside the selector. Add a sub-flow when one path needs several reusable or
-independently tested steps.
+The character uses a systems-naturalist and protocol-cartographer point of
+view. It looks for hidden state, protocol seams, recovery behavior, and clear
+failure ownership. Its evidence rules separate facts, inferences, and opinions.
+Its community rules cover opt-outs, repeated contact, pile-ons, private data,
+emotional pressure, false professional authority, corrections, and public
+representation boundaries.
+
+The reactive and proactive cycles are separate `Jido.Flow` modules. Reactive
+collection reads membership and notifications. Proactive collection reads
+membership and the timeline. Both Flows select a hard-coded intent and call the
+same `ParticipationResponseFlow` sub-flow. The sub-flow requests one structured
+Imp decision, applies the validated decision under the write guards, and
+records the complete Agent state.
+
+The shared decision is declared with the local `imp` Flow extension:
+
+```elixir
+imp "decide",
+  input: input(:cycle)
+```
+
+The extension lowers this declaration to the normal
+`JidoDelvetown.Actions.DecideParticipation` Action. That Action owns the Imp
+signature, model call, and cycle mapping. The compiled Flow has no special
+runtime component type. Jido still validates, schedules, and runs the Step.
+
+Imp is integrated only at the decision boundary. Its signature accepts the
+intent, the allowed actions, and a JSON context. It returns a typed action,
+optional text and topic, and a reason. Imp rejects output outside that
+contract. The next Action still checks the intent, target, budget, run mode,
+and write setting before any protocol effect. Jido continues to own the Agent,
+schedule, state, Flow, checkpoint, and protocol Actions.
+
+The reactive selector can answer a direct request or skip. The proactive
+selector can join a useful discussion, publish one daily note, or skip. Thread
+data is reduced to a small safe view before it reaches the model.
 
 The default daily budget is three replies or reactions and one original post.
 The AgentServer runs one cycle at a time. Record URIs are idempotency keys, and
@@ -173,11 +242,11 @@ The Agent DSL is in `lib/jido_delvetown/agent.ex`. It declares 19 tools:
 - Effects: create a post, reply, like, repost, follow, and delete an owned
 record.
 
-The scheduled cycle does not give these write tools directly to its decision
-profile. The profile returns a structured proposal. The cycle policy then
-checks the intent, target, budget, run mode, and write setting before it calls
-an Action. The separate operator profile keeps the complete tool set for
-manual inspection and experiments:
+The scheduled cycle does not give these write tools directly to its Imp
+decision program. The program returns a structured proposal. The cycle policy
+then checks the intent, target, budget, run mode, and write setting before it
+calls an Action. The separate Jido AI operator profile keeps the complete tool
+set for manual inspection and experiments:
 
 ```elixir
 JidoDelvetown.ask_operator("Inspect the current membership and notifications. Do not write.")
@@ -190,8 +259,11 @@ scheduled participation Agent. They are not exposed as model tools.
 
 ## Dependencies
 
-The project uses local sibling paths for the Jido V3 packages and ProtoRune
-`0.6.x` for AT Protocol sessions, XRPC, and repo operations.
+The project uses local sibling paths for the Jido V3 packages, Imp `0.8.1` for
+the typed decision program, and ProtoRune `0.6.x` for AT Protocol sessions,
+XRPC, and repo operations. It pins Jido Character to a Git revision because the
+package is not yet available from Hex. Imp is experimental and is pinned to an
+exact version for this spike.
 
 Hex reports known security advisories for ProtoRune's resolved `gun 2.6.0` and
 `cowlib 2.20.0` dependencies. These advisories are accepted for this spike.

@@ -3,7 +3,11 @@ defmodule JidoDelvetown.Actions.CollectContext do
 
   use Jido.Action,
     name: "delvetown_collect_context",
-    schema: Zoi.object(%{mode: Zoi.enum(["normal", "review"])})
+    schema:
+      Zoi.object(%{
+        kind: Zoi.enum(["reactive", "proactive"]),
+        mode: Zoi.enum(["normal", "review"])
+      })
 
   alias JidoDelvetown.{Candidate, Config, Protocol}
 
@@ -14,40 +18,63 @@ defmodule JidoDelvetown.Actions.CollectContext do
   @retention_seconds 30 * 24 * 60 * 60
 
   @impl true
-  def run(%{mode: mode}, %{agent_state: initial_state}) do
+  def run(%{kind: kind, mode: mode}, %{agent_state: initial_state}) do
     state = initial_state |> reset_budget() |> prune_history()
     started_at = now()
 
+    collect(kind, mode, state, started_at)
+  end
+
+  defp collect("reactive", mode, state, started_at) do
     with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
          {:ok, notifications} <-
            Protocol.query("town.delve.notification.listNotifications", %{
              limit: Config.notification_limit()
-           }),
-         {:ok, timeline} <-
-           Protocol.query("town.delve.feed.getTimeline", %{limit: @timeline_limit}) do
+           }) do
       {:ok,
-       base(mode, state, started_at)
+       base("reactive", mode, state, started_at)
        |> Map.merge(%{
          status: "ready",
-         reads: 3,
+         reads: 2,
          membership: Candidate.membership(membership),
-         notifications: Candidate.notifications(notifications),
-         recent_posts: Candidate.posts(timeline)
+         notifications: Candidate.notifications(notifications)
        })}
     else
-      {:error, reason} ->
-        {:ok,
-         base(mode, state, started_at)
-         |> Map.merge(%{
-           status: "failed",
-           stage: "context_read",
-           errors: [error_text(reason)]
-         })}
+      {:error, reason} -> failed("reactive", mode, state, started_at, reason)
     end
   end
 
-  defp base(mode, state, started_at) do
+  defp collect("proactive", mode, state, started_at) do
+    with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
+         {:ok, timeline} <-
+           Protocol.query("town.delve.feed.getTimeline", %{limit: @timeline_limit}) do
+      {:ok,
+       base("proactive", mode, state, started_at)
+       |> Map.merge(%{
+         status: "ready",
+         reads: 2,
+         membership: Candidate.membership(membership),
+         recent_posts: Candidate.posts(timeline)
+       })}
+    else
+      {:error, reason} -> failed("proactive", mode, state, started_at, reason)
+    end
+  end
+
+  defp failed(kind, mode, state, started_at, reason) do
+    {:ok,
+     kind
+     |> base(mode, state, started_at)
+     |> Map.merge(%{
+       status: "failed",
+       stage: "context_read",
+       errors: [error_text(reason)]
+     })}
+  end
+
+  defp base(kind, mode, state, started_at) do
     %{
+      kind: kind,
       mode: mode,
       state: state,
       status: "new",

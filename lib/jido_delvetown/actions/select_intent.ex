@@ -1,5 +1,5 @@
 defmodule JidoDelvetown.Actions.SelectIntent do
-  @moduledoc "Selects one hard-coded reactive or proactive participation intent."
+  @moduledoc "Selects one intent for a reactive or proactive cycle."
 
   use Jido.Action,
     name: "delvetown_select_intent",
@@ -20,7 +20,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   @impl true
   def run(%{cycle: %{status: "failed"} = cycle}, _context), do: {:ok, cycle}
 
-  def run(%{cycle: cycle}, _context) do
+  def run(%{cycle: %{kind: "reactive"} = cycle}, _context) do
     state = remember_ignored_notifications(cycle.state, cycle.notifications)
     cycle = Map.put(cycle, :state, state)
     direct = Enum.find(cycle.notifications, &direct_candidate?(&1, state))
@@ -33,9 +33,15 @@ defmodule JidoDelvetown.Actions.SelectIntent do
         select_with_thread(cycle, "answer_direct_request", direct)
 
       true ->
-        select_proactive(cycle)
+        {:ok, select(cycle, "skip", nil, "no_direct_request")}
     end
   end
+
+  def run(%{cycle: %{kind: "proactive"} = cycle}, _context),
+    do: select_proactive(cycle)
+
+  @doc false
+  def allowed_actions(intent), do: Map.fetch(@actions, intent)
 
   defp select_proactive(cycle) do
     posts =

@@ -3,6 +3,7 @@ defmodule JidoDelvetown do
 
   alias JidoDelvetown.Agent
   alias JidoDelvetown.Config
+  alias JidoDelvetown.Personality
   alias JidoDelvetown.Session
   alias JidoDelvetown.Store
   alias JidoDelvetown.Transport.ProtoRune, as: Transport
@@ -18,13 +19,14 @@ defmodule JidoDelvetown do
     end
   end
 
-  def run_now do
-    run_cycle("jido.delvetown.cycle")
-  end
+  def run_now, do: run_reactive()
+  def review, do: review_reactive()
 
-  def review do
-    run_cycle("jido.delvetown.review")
-  end
+  def run_reactive, do: run_cycle("jido.delvetown.reactive")
+  def review_reactive, do: run_cycle("jido.delvetown.reactive.review")
+  def run_proactive, do: run_cycle("jido.delvetown.proactive")
+  def review_proactive, do: run_cycle("jido.delvetown.proactive.review")
+  def suggest_proactive, do: review_proactive()
 
   def ask_operator(query) when is_binary(query) and query != "" do
     with {:ok, agent_server} <- agent_server() do
@@ -38,6 +40,9 @@ defmodule JidoDelvetown do
     end
   end
 
+  def disclosure, do: Personality.disclosure()
+  def profile_disclosure, do: Personality.profile_disclosure()
+
   def join(invite_code \\ nil) do
     with true <- Config.write_enabled?() || {:error, :writes_disabled},
          {:ok, session} <- Session.session(),
@@ -45,6 +50,8 @@ defmodule JidoDelvetown do
       Transport.join(session, configured_code, [])
     end
   end
+
+  def label_bot, do: label_bot(profile_disclosure())
 
   def label_bot(description) when is_binary(description) do
     with true <- Config.write_enabled?() || {:error, :writes_disabled},

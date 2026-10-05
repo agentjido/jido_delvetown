@@ -2,6 +2,7 @@ defmodule JidoDelvetown.AgentTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.Agent
+  alias JidoDelvetown.Personality
 
   test "the hard-coded DSL exposes the complete participation tool set" do
     tool_names = Agent.ai_profile(:operator).tools |> Enum.map(& &1.name) |> MapSet.new()
@@ -36,11 +37,12 @@ defmodule JidoDelvetown.AgentTest do
       end)
 
     assert scheduler_options[:cron_expression] == "*/15 * * * *"
-    assert scheduler_options[:signal].type == "jido.delvetown.cycle"
+    assert scheduler_options[:job_id] == "delvetown-reactive-participation"
+    assert scheduler_options[:signal].type == "jido.delvetown.reactive"
     assert scheduler_options[:signal].data == %{mode: "normal"}
 
-    assert Agent.ai_profile(:decider).tools == []
-    assert Agent.ai_profile(:decider).result.into == :decision
+    assert Agent.ai_profile(:operator).result.into == :last_run
+    assert Agent.ai_profile(:operator).instructions == Personality.operator_prompt()
   end
 
   test "application starts the agent with the cron schedule enabled" do
@@ -92,7 +94,7 @@ defmodule JidoDelvetown.AgentTest do
 
     assert Map.has_key?(
              Jido.AgentServer.agent(first_agent).state.scheduler.cron,
-             "delvetown-participation"
+             "delvetown-reactive-participation"
            )
 
     :ok = Supervisor.stop(first_instance)
@@ -110,6 +112,6 @@ defmodule JidoDelvetown.AgentTest do
     assert restored.state.last_run == %{summary: "saved"}
     assert restored.state.budget == %{date: "2026-10-04", replies: 2, posts: 1}
     assert restored.state.proactive.recent_topics == ["OTP"]
-    assert Map.has_key?(restored.state.scheduler.cron, "delvetown-participation")
+    assert Map.has_key?(restored.state.scheduler.cron, "delvetown-reactive-participation")
   end
 end

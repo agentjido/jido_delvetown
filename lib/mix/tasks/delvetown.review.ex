@@ -6,6 +6,7 @@ defmodule Mix.Tasks.Delvetown.Review do
 
       mix delvetown.review
       mix delvetown.review --count 5
+      mix delvetown.review --flow proactive --count 5
 
   The task stops unless both Delvetown write settings are false. It also checks
   that each cycle made zero effects and that the local effect counts did not
@@ -17,7 +18,7 @@ defmodule Mix.Tasks.Delvetown.Review do
   alias JidoDelvetown.{Config, Store}
 
   @requirements ["app.start"]
-  @switches [count: :integer, help: :boolean]
+  @switches [count: :integer, flow: :string, help: :boolean]
   @aliases [n: :count, h: :help]
   @maximum_count 20
 
@@ -31,21 +32,23 @@ defmodule Mix.Tasks.Delvetown.Review do
         Mix.shell().info(@moduledoc)
 
       positional != [] or invalid != [] ->
-        Mix.raise("Use: mix delvetown.review [--count N]")
+        Mix.raise("Use: mix delvetown.review [--flow reactive|proactive] [--count N]")
 
       true ->
-        run_reviews(Keyword.get(options, :count, 1))
+        run_reviews(Keyword.get(options, :flow, "proactive"), Keyword.get(options, :count, 1))
     end
   end
 
-  defp run_reviews(count) when is_integer(count) and count in 1..@maximum_count do
+  defp run_reviews(flow, count)
+       when flow in ["reactive", "proactive"] and is_integer(count) and
+              count in 1..@maximum_count do
     ensure_safe!()
     before_counts = Store.counts()
 
     results =
       for number <- 1..count do
-        result = run_review!(number, count)
-        print_result(number, count, result)
+        result = run_review!(flow, number, count)
+        print_result(flow, number, count, result)
         result
       end
 
@@ -59,17 +62,21 @@ defmodule Mix.Tasks.Delvetown.Review do
     end
 
     Mix.shell().info(
-      "Completed #{length(results)} review cycle(s). Protocol effects: 0. " <>
+      "Completed #{length(results)} #{flow} review cycle(s). Protocol effects: 0. " <>
         "Effect counts: #{inspect(after_counts)}"
     )
   end
 
-  defp run_reviews(_count) do
+  defp run_reviews(flow, _count) when flow not in ["reactive", "proactive"] do
+    Mix.raise("--flow must be reactive or proactive")
+  end
+
+  defp run_reviews(_flow, _count) do
     Mix.raise("--count must be an integer from 1 through #{@maximum_count}")
   end
 
-  defp run_review!(number, count) do
-    case JidoDelvetown.review() do
+  defp run_review!(flow, number, count) do
+    case review(flow) do
       {:ok, %{effects: 0, errors: []} = result} ->
         result
 
@@ -81,13 +88,16 @@ defmodule Mix.Tasks.Delvetown.Review do
     end
   end
 
-  defp print_result(number, count, result) do
+  defp review("reactive"), do: JidoDelvetown.review_reactive()
+  defp review("proactive"), do: JidoDelvetown.review_proactive()
+
+  defp print_result(flow, number, count, result) do
     output =
       result
-      |> Map.take([:status, :intent, :action, :proposal, :reads, :effects, :errors])
+      |> Map.take([:kind, :status, :intent, :action, :proposal, :reads, :effects, :errors])
       |> Jason.encode!(pretty: true)
 
-    Mix.shell().info("Review #{number}/#{count}:\n#{output}")
+    Mix.shell().info("#{String.capitalize(flow)} review #{number}/#{count}:\n#{output}")
   end
 
   defp ensure_safe! do
