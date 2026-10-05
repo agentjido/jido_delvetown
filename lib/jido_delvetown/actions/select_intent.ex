@@ -5,11 +5,10 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     name: "delvetown_select_intent",
     schema: Zoi.object(%{cycle: Zoi.map()})
 
-  alias JidoDelvetown.{Candidate, Config, Protocol, Session}
+  alias JidoDelvetown.{Candidate, Config, InteractionLedger, OptOut, Protocol, Session}
 
   @direct_reasons ["mention", "reply"]
   @deferred_reasons ["follow"]
-  @reply_limit 3
   @post_limit 1
   @actions %{
     "answer_direct_request" => ["reply", "skip"],
@@ -24,10 +23,14 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   def run(%{cycle: %{kind: "reactive"} = cycle}, _context) do
     state = remember_ignored_notifications(cycle.state, cycle.notifications)
     cycle = Map.put(cycle, :state, state)
-    direct = Enum.find(cycle.notifications, &direct_candidate?(&1, state))
+    direct = cycle.notifications |> Enum.find(&direct_candidate?(&1, state)) |> add_memory()
 
     cond do
-      direct && state.budget.replies >= @reply_limit ->
+      direct && opt_out?(direct) ->
+        candidate = Map.put(direct, :opt_out?, OptOut.requested?(direct.text))
+        {:ok, select(cycle, "skip", candidate, "actor_opt_out")}
+
+      direct && state.budget.replies >= Config.daily_reply_limit() ->
         {:ok, select(cycle, "skip", direct, "reply_budget_exhausted", true)}
 
       direct ->
@@ -53,7 +56,10 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     discussion = Enum.find(posts, &Candidate.question?/1)
 
     cond do
-      discussion && cycle.state.budget.replies < @reply_limit ->
+      InteractionLedger.pending_events?(@direct_reasons) ->
+        {:ok, select(cycle, "skip", nil, "direct_request_pending")}
+
+      discussion && cycle.state.budget.replies < Config.daily_reply_limit() ->
         select_with_thread(%{cycle | recent_posts: posts}, "join_useful_discussion", discussion)
 
       daily_note_due?(cycle.state) ->
@@ -82,8 +88,14 @@ defmodule JidoDelvetown.Actions.SelectIntent do
          }) do
       {:ok, response} ->
         thread = Candidate.thread(response)
-        root = get_in(thread || %{}, [:post, :root]) || candidate.root
-        candidate = candidate |> Map.put(:thread, thread) |> Map.put(:root, root)
+        root = candidate.root || get_in(thread || %{}, [:post, :root])
+
+        candidate =
+          candidate
+          |> Map.put(:thread, thread)
+          |> Map.put(:root, root)
+          |> add_memory()
+
         {:ok, cycle |> Map.update!(:reads, &(&1 + 1)) |> select(intent, candidate)}
 
       {:error, reason} ->
@@ -123,7 +135,17 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp direct_candidate?(notification, state) do
     notification.unread? and notification.reason in @direct_reasons and
-      not processed?(state, notification.id)
+      not processed?(state, notification.id) and
+      InteractionLedger.processable_event?(notification.event_key)
+  end
+
+  defp add_memory(nil), do: nil
+
+  defp add_memory(candidate),
+    do: Map.put(candidate, :memory, InteractionLedger.context_for(candidate))
+
+  defp opt_out?(candidate) do
+    OptOut.requested?(candidate.text) or get_in(candidate, [:memory, :actor, :opted_out]) == true
   end
 
   defp processed?(state, id) do

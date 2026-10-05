@@ -55,6 +55,10 @@ defmodule JidoDelvetown.Config do
     env_integer("DELVETOWN_NOTIFICATION_LIMIT", 20, 1, 100)
   end
 
+  def daily_reply_limit do
+    env_integer("DELVETOWN_DAILY_REPLY_LIMIT", 3, 0, 100)
+  end
+
   def write_enabled? do
     enabled?("DELVETOWN_WRITE_ENABLED")
   end

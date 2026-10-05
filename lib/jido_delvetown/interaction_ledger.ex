@@ -215,6 +215,32 @@ defmodule JidoDelvetown.InteractionLedger do
   def conversation(root_uri, opts \\ []), do: repo(opts).get(Conversation, root_uri)
   def event(event_key, opts \\ []), do: repo(opts).get(InteractionEvent, event_key)
 
+  def processable_event?(event_key, opts \\ []) when is_binary(event_key) do
+    case event(event_key, opts) do
+      nil -> true
+      %InteractionEvent{state: "pending"} -> true
+      %InteractionEvent{} -> false
+    end
+  end
+
+  def pending_events?(kinds, opts \\ []) when is_list(kinds) do
+    repo(opts).exists?(
+      from(event in InteractionEvent,
+        where: event.state == "pending" and event.kind in ^kinds
+      )
+    )
+  end
+
+  def context_for(candidate, opts \\ []) when is_map(candidate) do
+    actor = maybe_actor(get_in(candidate, [:author, :did]), opts)
+    conversation = maybe_conversation(get_in(candidate, [:root, :uri]), opts)
+
+    %{
+      actor: actor_context(actor),
+      conversation: conversation_context(conversation)
+    }
+  end
+
   def events_terminal?(candidates, opts \\ []) when is_list(candidates) do
     keys = Enum.map(candidates, & &1.event_key)
 
@@ -264,6 +290,7 @@ defmodule JidoDelvetown.InteractionLedger do
     repo = Repo
     seen_at = parse_time(at)
     contacted? = cycle.status == "acted"
+    opted_out? = Map.get(cycle.candidate, :opt_out?, false)
 
     repo.transaction(
       fn ->
@@ -278,6 +305,7 @@ defmodule JidoDelvetown.InteractionLedger do
               last_seen_at: seen_at,
               last_interaction_at: if(contacted?, do: seen_at),
               contact_count: if(contacted?, do: 1, else: 0),
+              opted_out: opted_out?,
               metadata: %{}
             }
             |> repo.insert!()
@@ -290,7 +318,8 @@ defmodule JidoDelvetown.InteractionLedger do
               profile: Map.merge(actor.profile || %{}, json_safe(author)),
               last_seen_at: seen_at,
               last_interaction_at: if(contacted?, do: seen_at, else: actor.last_interaction_at),
-              contact_count: actor.contact_count + if(contacted?, do: 1, else: 0)
+              contact_count: actor.contact_count + if(contacted?, do: 1, else: 0),
+              opted_out: actor.opted_out || opted_out?
             )
             |> repo.update!()
         end
@@ -357,6 +386,44 @@ defmodule JidoDelvetown.InteractionLedger do
 
   defp cycle_failure(%{errors: errors}) when errors != [], do: %{errors: errors}
   defp cycle_failure(_cycle), do: %{}
+
+  defp actor_context(nil), do: nil
+
+  defp actor_context(actor) do
+    %{
+      did: actor.did,
+      handle: actor.handle,
+      display_name: actor.display_name,
+      first_seen_at: iso8601(actor.first_seen_at),
+      last_interaction_at: iso8601(actor.last_interaction_at),
+      contact_count: actor.contact_count,
+      opted_out: actor.opted_out
+    }
+  end
+
+  defp conversation_context(nil), do: nil
+
+  defp conversation_context(conversation) do
+    %{
+      root_uri: conversation.root_uri,
+      turn_count: conversation.turn_count,
+      last_record_uri: conversation.last_record_uri,
+      last_action: conversation.last_action,
+      last_action_at: iso8601(conversation.last_action_at),
+      status: conversation.status
+    }
+  end
+
+  defp iso8601(nil), do: nil
+  defp iso8601(%DateTime{} = value), do: DateTime.to_iso8601(value)
+
+  defp maybe_actor(did, opts) when is_binary(did), do: actor(did, opts)
+  defp maybe_actor(_did, _opts), do: nil
+
+  defp maybe_conversation(root_uri, opts) when is_binary(root_uri),
+    do: conversation(root_uri, opts)
+
+  defp maybe_conversation(_root_uri, _opts), do: nil
 
   defp candidate_event_key(kind, id) do
     event_key("candidate", [kind, id])
