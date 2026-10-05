@@ -2,6 +2,7 @@ defmodule JidoDelvetown do
   @moduledoc "IEx operator interface for the Jido Delvetown tracer."
 
   alias JidoDelvetown.Agent
+  alias JidoDelvetown.Automation
   alias JidoDelvetown.Config
   alias JidoDelvetown.Inspection
   alias JidoDelvetown.Personality
@@ -27,6 +28,8 @@ defmodule JidoDelvetown do
   def review_reactive, do: run_cycle("jido.delvetown.reactive.review")
   def run_proactive, do: run_cycle("jido.delvetown.proactive")
   def review_proactive, do: run_cycle("jido.delvetown.proactive.review")
+  def run_member_discovery, do: run_cycle("jido.delvetown.members")
+  def review_member_discovery, do: run_cycle("jido.delvetown.members.review")
   def suggest_proactive, do: review_proactive()
 
   def ask_operator(query) when is_binary(query) and query != "" do
@@ -70,8 +73,8 @@ defmodule JidoDelvetown do
       %{
         session: Session.status(),
         store: Store.counts(),
-        schedule_enabled?: map_size(agent.state.scheduler.cron) > 0,
-        cron: configured_scheduler_options()[:cron_expression],
+        schedule_enabled?: Automation.running?(),
+        cron: Automation.reactive_cron(),
         writes_enabled?: Config.write_enabled?(),
         mark_notifications_seen?: Config.mark_notifications_seen?(),
         budget: agent.state.budget,
@@ -121,13 +124,5 @@ defmodule JidoDelvetown do
          {:ok, agent} <- Jido.AgentServer.call(agent_server, signal, timeout: 120_000) do
       {:ok, agent.state.last_run}
     end
-  end
-
-  defp configured_scheduler_options do
-    Agent.definition().plugins
-    |> Enum.find_value([], fn
-      {Jido.Plugin.Scheduler, options} -> options
-      _plugin -> nil
-    end)
   end
 end

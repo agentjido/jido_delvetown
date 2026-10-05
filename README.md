@@ -69,9 +69,9 @@ application imports the former DETS store and file checkpoint when they exist.
 It keeps those legacy files unchanged after the import.
 
 SQLite keeps the Jido checkpoint, bounded decision state, daily budget, recent
-topics, processed record IDs, conversation summaries, effect receipts, and
-audit events. The Agent definition installs the cron schedule when it creates
-or restores the Agent. Live session data and credentials are not in SQLite.
+topics, processed record IDs, conversation summaries, effect receipts, audit
+events, and Oban jobs. Oban Cron creates durable cycle jobs in the same SQLite
+database. Live session data and credentials are not in SQLite.
 
 Notification bookkeeping has a separate permission. Set
 `DELVETOWN_MARK_NOTIFICATIONS_SEEN=true` only when the Agent can update the
@@ -150,9 +150,12 @@ less and must state that the account is automated.
 
 ## Schedule and manual runs
 
-The hard-coded cron expression is `*/15 * * * *`. It starts the reactive cycle
-every 15 minutes. The proactive cycle has no automatic schedule while its
-prompts and policy are being tuned.
+Oban Cron adds a reactive cycle job every 15 minutes with `*/15 * * * *`. It
+adds a member discovery job at minute 7 of every hour with `7 * * * *`. Both
+jobs use the `delvetown` queue with one worker. A worker returns cycle failures
+to Oban for retry. One incomplete unique job is allowed for each worker, so a
+slow run does not create a second run of the same cycle. The proactive cycle
+has no automatic schedule while its prompts and policy are being tuned.
 
 For the simplest safe dry run, use the Mix task:
 
@@ -207,8 +210,9 @@ the proposal in the local checkpoint, so the next call can consider a different
 eligible thread. `run_now/0` and `review/0` remain aliases for the reactive
 entry points.
 
-The Scheduler plugin options install the schedule before the Agent starts. The
-schedule is best-effort and does not recover missed runs after the VM stops.
+Oban stores scheduled work and retry state in SQLite. The application starts
+the Jido Agent before it starts the Oban queue, so a durable job cannot run
+against an Agent that has not started.
 
 The application supervises a named `JidoDelvetown.Jido` instance and loads the
 Agent into it before startup completes. The instance owns the Agent process,
@@ -216,8 +220,8 @@ registry entry, task supervisor, and runtime checkpoint.
 
 ## Agent design
 
-One named Jido Agent owns the schedule and all durable decision state. It
-accepts these main Signals:
+One named Jido Agent owns all durable decision state. Oban owns the cron
+schedule and sends work to this Agent through these main Signals:
 
 - `jido.delvetown.reactive` handles direct mentions and replies.
 - `jido.delvetown.reactive.review` reviews that work without public effects.
@@ -259,14 +263,15 @@ imp "decide",
 The extension lowers this declaration to the normal
 `JidoDelvetown.Actions.DecideParticipation` Action. That Action owns the Imp
 signature, model call, and cycle mapping. The compiled Flow has no special
-runtime component type. Jido still validates, schedules, and runs the Step.
+runtime component type. Jido still validates and runs the Step.
 
 Imp is integrated only at the decision boundary. Its signature accepts the
 intent, the allowed actions, and a JSON context. It returns a typed action,
 optional text and topic, and a reason. Imp rejects output outside that
 contract. The next Action still checks the intent, target, budget, run mode,
 and write setting before any protocol effect. Jido continues to own the Agent,
-schedule, state, Flow, checkpoint, and protocol Actions.
+state, Flow, checkpoint, and protocol Actions. Oban owns the durable schedule
+and retry lifecycle.
 
 The reactive selector can answer a direct request or skip. The proactive
 selector can join a useful discussion, publish one daily note, or skip. Thread
@@ -304,11 +309,12 @@ scheduled participation Agent. They are not exposed as model tools.
 
 ## Dependencies
 
-The project uses local sibling paths for the Jido V3 packages, Imp `0.8.1` for
-the typed decision program, and ProtoRune `0.6.x` for AT Protocol sessions,
-XRPC, and repo operations. It pins Jido Character to a Git revision because the
-package is not yet available from Hex. Imp is experimental and is pinned to an
-exact version for this spike.
+The project uses local sibling paths for the Jido V3 packages, Oban with its
+SQLite Lite engine for durable cron work, Imp `0.8.1` for the typed decision
+program, and ProtoRune `0.6.x` for AT Protocol sessions, XRPC, and repo
+operations. It pins Jido Character to a Git revision because the package is not
+yet available from Hex. Imp is experimental and is pinned to an exact version
+for this spike.
 
 Hex reports known security advisories for ProtoRune's resolved `gun 2.6.0` and
 `cowlib 2.20.0` dependencies. These advisories are accepted for this spike.

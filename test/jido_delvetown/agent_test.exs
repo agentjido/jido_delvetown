@@ -2,8 +2,11 @@ defmodule JidoDelvetown.AgentTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.Agent
+  alias JidoDelvetown.Automation
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Workers.MemberDiscoveryWorker
+  alias JidoDelvetown.Workers.ReactiveParticipationWorker
 
   test "the hard-coded DSL exposes the complete participation tool set" do
     tool_names = Agent.ai_profile(:operator).tools |> Enum.map(& &1.name) |> MapSet.new()
@@ -31,24 +34,25 @@ defmodule JidoDelvetown.AgentTest do
                delete_record
              ))
 
-    scheduler_options =
-      Enum.find_value(Agent.definition().plugins, fn
-        {Jido.Plugin.Scheduler, options} -> options
-        _plugin -> nil
-      end)
-
-    assert scheduler_options[:cron_expression] == "*/15 * * * *"
-    assert scheduler_options[:job_id] == "delvetown-reactive-participation"
-    assert scheduler_options[:signal].type == "jido.delvetown.reactive"
-    assert scheduler_options[:signal].data == %{mode: "normal"}
+    refute Enum.any?(Agent.definition().plugins, fn
+             {Jido.Plugin.Scheduler, _options} -> true
+             Jido.Plugin.Scheduler -> true
+             _plugin -> false
+           end)
 
     assert Agent.ai_profile(:operator).result.into == :last_run
     assert Agent.ai_profile(:operator).instructions == Personality.operator_prompt()
   end
 
-  test "application starts the agent with the cron schedule enabled" do
+  test "application starts Oban with both cron schedules" do
     assert JidoDelvetown.status().schedule_enabled?
     assert JidoDelvetown.status().cron == "*/15 * * * *"
+    assert is_pid(Oban.whereis(Oban))
+
+    assert Automation.crontab() == [
+             {"*/15 * * * *", ReactiveParticipationWorker},
+             {"7 * * * *", MemberDiscoveryWorker}
+           ]
   end
 
   test "the named Jido instance owns the Delvetown agent" do
@@ -96,17 +100,6 @@ defmodule JidoDelvetown.AgentTest do
     assert {:ok, first_agent} = Jido.start_agent(instance, saved)
     assert Jido.AgentServer.agent(first_agent).state.last_run == %{summary: "saved"}
 
-    schedule_signal =
-      Jido.Signal.new!("jido.delvetown.schedule.ensure", %{}, source: "/test")
-
-    assert {:ok, scheduled} = Jido.AgentServer.call(first_agent, schedule_signal)
-
-    assert scheduled.state.scheduler.cron[Agent.schedule_job_id()].cron_expression ==
-             Agent.schedule_cron()
-
-    assert scheduled.state.scheduler.cron[Agent.member_schedule_job_id()].cron_expression ==
-             Agent.member_schedule_cron()
-
     :ok = Supervisor.stop(first_instance)
 
     {:ok, second_instance} = Jido.start_link(options)
@@ -122,11 +115,5 @@ defmodule JidoDelvetown.AgentTest do
     assert restored.state.last_run == %{summary: "saved"}
     assert restored.state.budget == %{date: "2026-10-04", replies: 2, posts: 1}
     assert restored.state.proactive.recent_topics == ["OTP"]
-
-    assert restored.state.scheduler.cron[Agent.schedule_job_id()].cron_expression ==
-             Agent.schedule_cron()
-
-    assert restored.state.scheduler.cron[Agent.member_schedule_job_id()].cron_expression ==
-             Agent.member_schedule_cron()
   end
 end

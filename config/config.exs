@@ -5,6 +5,20 @@ config :jido_delvetown,
   legacy_import_enabled: config_env() != :test,
   ecto_repos: [JidoDelvetown.Repo]
 
+oban_config = [
+  engine: Oban.Engines.Lite,
+  repo: JidoDelvetown.Repo,
+  queues: [delvetown: 1],
+  cron: [
+    crontab: [
+      {"*/15 * * * *", JidoDelvetown.Workers.ReactiveParticipationWorker},
+      {"7 * * * *", JidoDelvetown.Workers.MemberDiscoveryWorker}
+    ]
+  ],
+  lifeline: [rescue_after: {5, :minutes}],
+  pruner: [max_age: {30, :days}]
+]
+
 if config_env() == :test do
   database =
     Path.join(
@@ -18,6 +32,10 @@ if config_env() == :test do
   config :jido_delvetown, JidoDelvetown.Repo,
     pool_size: 1,
     queue_target: 5_000
+
+  config :jido_delvetown, Oban, Keyword.put(oban_config, :testing, :manual)
+else
+  config :jido_delvetown, Oban, oban_config
 end
 
 config :logger, :console,
