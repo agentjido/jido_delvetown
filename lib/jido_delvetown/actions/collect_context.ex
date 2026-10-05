@@ -137,6 +137,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
       allowed_actions: ["skip"],
       candidate: nil,
       reason: nil,
+      selection: %{},
       defer?: false,
       decision: %{},
       effects: 0,

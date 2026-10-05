@@ -7,7 +7,8 @@ defmodule JidoDelvetown.CycleTest do
     ProactiveParticipationCycle,
     ReactiveParticipationCycle,
     Repo,
-    ScanProgress
+    ScanProgress,
+    Store
   }
 
   alias JidoDelvetown.Storage.{InteractionEvent, ScanState}
@@ -107,12 +108,17 @@ defmodule JidoDelvetown.CycleTest do
     assert state.last_run.intent == "answer_direct_request"
     assert state.last_run.action == "reply"
     assert state.last_run.effects == 0
+    assert is_integer(state.last_run.selection.score)
+    assert state.last_run.selection.reason =~ "direct scored"
     assert state.notifications.processed[uri].status == "proposed"
     assert state.budget.replies == 0
     refute_received {:create_record, _collection, _record, _rkey}
 
     assert_received {:decision, "answer_direct_request", payload}
     assert payload.candidate.thread.post.text == "How would you model this in OTP?"
+
+    decision_event = Enum.find(Store.recent_events(Store, 10), &(&1.type == :decision))
+    assert decision_event.data.selection.reason == state.last_run.selection.reason
   end
 
   test "a quiet timeline selects one daily note and keeps the daily budget unchanged in review" do

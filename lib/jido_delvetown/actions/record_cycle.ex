@@ -9,6 +9,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   alias JidoDelvetown.Config
   alias JidoDelvetown.InteractionLedger
   alias JidoDelvetown.ScanProgress
+  alias JidoDelvetown.Store
 
   @topic_limit 10
 
@@ -20,6 +21,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     result = result(cycle, decision, completed_at)
 
     with :ok <- InteractionLedger.record_cycle(cycle, decision, completed_at),
+         :ok <- record_decision(cycle, decision, completed_at),
          {state, result} <- maybe_mark_notifications_seen(state, cycle, result, completed_at),
          :ok <- finish_scan(cycle) do
       {:ok, finish_state(state, result, completed_at)}
@@ -60,6 +62,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       record_uri: receipt_uri(cycle.receipt),
       summary: summary(cycle),
       proposal: Map.take(decision, [:text, :topic, :reason]),
+      selection: Map.get(cycle, :selection, %{}),
       reads: cycle.reads,
       effects: cycle.effects,
       skips: if(cycle.status == "skipped", do: 1, else: 0),
@@ -194,6 +197,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
         :action,
         :candidate_id,
         :record_uri,
+        :selection,
         :reads,
         :effects,
         :skips,
@@ -214,6 +218,19 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp receipt_uri(%{uri: uri}) when is_binary(uri), do: uri
   defp receipt_uri(%{"uri" => uri}) when is_binary(uri), do: uri
   defp receipt_uri(_receipt), do: nil
+
+  defp record_decision(cycle, decision, completed_at) do
+    Store.add_event(:decision, %{
+      cycle_kind: cycle.kind,
+      intent: cycle.intent,
+      action: decision.action,
+      candidate_id: candidate_id(cycle.candidate),
+      cycle_status: cycle.status,
+      selection: Map.get(cycle, :selection, %{}),
+      model_reason: Map.get(decision, :reason),
+      completed_at: completed_at
+    })
+  end
 
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason

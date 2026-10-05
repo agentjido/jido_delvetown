@@ -14,6 +14,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "Participation proposal"
     assert html =~ "answer_direct_request"
     assert html =~ "One reply proposed"
+    assert html =~ "Policy score"
+    assert html =~ "direct scored 138"
     assert html =~ "Run reactive review"
     assert html =~ "Approve human-in-the-loop post"
     assert html =~ "No action or approval handlers are installed"
@@ -97,6 +99,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       },
       last_run: %{
         summary: "One reply proposed",
+        selection: %{score: 138, reason: "direct scored 138"},
         record_uri: "at://did:plc:agentjido/town.delve.feed.post/published-reply"
       },
       workflow_events: [

@@ -170,7 +170,8 @@ defmodule JidoDelvetown.InteractionLedger do
         mode: cycle.mode,
         intent: cycle.intent,
         action: decision.action,
-        cycle_status: cycle.status
+        cycle_status: cycle.status,
+        selection: Map.get(cycle, :selection, %{})
       }
     }
 

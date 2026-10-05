@@ -13,7 +13,9 @@ defmodule JidoDelvetown.Agent do
   ]
   @checkpoint_keys ~w(
     action at budget candidate_id completed_at conversations date decision effects errors
-    id intent kind last_action_at last_cycle last_post_at last_record_uri last_run record_uri
+    conversation_load factors id intent kind last_action_at
+    last_cycle last_post_at last_record_uri last_run model_reason prior_contact priority recency
+    record_uri relevance score selection
     last_seen_at notifications posts processed proactive proposal reads reason recent_topics
     replies root_uri skips started_at status summary text topic turns uri
   )a

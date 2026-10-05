@@ -5,7 +5,15 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     name: "delvetown_select_intent",
     schema: Zoi.object(%{cycle: Zoi.map()})
 
-  alias JidoDelvetown.{Candidate, Config, InteractionLedger, OptOut, Protocol, Session}
+  alias JidoDelvetown.{
+    Candidate,
+    Config,
+    EngagementRanker,
+    InteractionLedger,
+    OptOut,
+    Protocol,
+    Session
+  }
 
   @direct_reasons ["mention", "reply"]
   @deferred_reasons ["follow"]
@@ -25,8 +33,16 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   def run(%{cycle: %{kind: "reactive"} = cycle}, _context) do
     state = remember_ignored_notifications(cycle.state, cycle.notifications)
     cycle = Map.put(cycle, :state, state)
-    direct = cycle.notifications |> Enum.find(&direct_candidate?(&1, state)) |> add_memory()
-    follow = cycle.notifications |> Enum.find(&follow_candidate?(&1, state)) |> add_memory()
+
+    direct =
+      cycle.notifications
+      |> Enum.filter(&direct_candidate?(&1, state))
+      |> rank(:direct, state)
+
+    follow =
+      cycle.notifications
+      |> Enum.filter(&follow_candidate?(&1, state))
+      |> rank(:follow, state)
 
     cond do
       direct && opt_out?(direct) ->
@@ -71,7 +87,10 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       |> Enum.reject(&own_post?/1)
       |> Enum.reject(&processed?(cycle.state, &1.id))
 
-    discussion = Enum.find(posts, &Candidate.question?/1)
+    discussion =
+      posts
+      |> Enum.filter(&Candidate.question?/1)
+      |> rank(:useful_discussion, cycle.state)
 
     cond do
       InteractionLedger.pending_events?(@direct_reasons) ->
@@ -81,14 +100,16 @@ defmodule JidoDelvetown.Actions.SelectIntent do
         select_with_thread(%{cycle | recent_posts: posts}, "join_useful_discussion", discussion)
 
       daily_note_due?(cycle.state) ->
-        candidate = %{
-          id: "daily:#{cycle.state.budget.date}",
-          uri: nil,
-          cid: nil,
-          root: nil,
-          author: %{},
-          text: ""
-        }
+        candidate =
+          %{
+            id: "daily:#{cycle.state.budget.date}",
+            uri: nil,
+            cid: nil,
+            root: nil,
+            author: %{},
+            text: ""
+          }
+          |> then(&EngagementRanker.best([&1], :original_post, cycle.state))
 
         {:ok, select(%{cycle | recent_posts: posts}, "publish_daily_note", candidate)}
 
@@ -102,9 +123,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     candidate =
       cycle.members
       |> Enum.filter(&InteractionLedger.processable_event?(&1.event_key))
-      |> Enum.sort_by(&{&1.indexed_at || "", &1.id})
-      |> List.first()
-      |> add_memory()
+      |> rank(:new_member, cycle.state)
 
     cond do
       is_nil(candidate) ->
@@ -168,11 +187,14 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   end
 
   defp select(cycle, intent, candidate, reason \\ nil, defer? \\ false) do
+    selection = selection(candidate, reason)
+
     Map.merge(cycle, %{
       intent: intent,
       allowed_actions: Map.fetch!(@actions, intent),
       candidate: candidate,
-      reason: reason,
+      reason: selection.reason,
+      selection: selection,
       defer?: defer?
     })
   end
@@ -205,6 +227,20 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp add_memory(candidate),
     do: Map.put(candidate, :memory, InteractionLedger.context_for(candidate))
+
+  defp rank(candidates, opportunity, state) do
+    candidates
+    |> Enum.map(&add_memory/1)
+    |> EngagementRanker.best(opportunity, state)
+  end
+
+  defp selection(nil, reason), do: %{score: nil, factors: %{}, reason: reason}
+
+  defp selection(candidate, reason) do
+    candidate
+    |> Map.get(:engagement_rank, %{score: nil, factors: %{}, reason: nil})
+    |> Map.put(:reason, reason || get_in(candidate, [:engagement_rank, :reason]))
+  end
 
   defp opt_out?(candidate) do
     OptOut.requested?(candidate.text) or get_in(candidate, [:memory, :actor, :opted_out]) == true

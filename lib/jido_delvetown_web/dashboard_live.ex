@@ -784,6 +784,18 @@ defmodule JidoDelvetownWeb.DashboardLive do
               <p class="metric-label">Candidate</p>
               <p class="metric-value">{display(map_value(@last_cycle, :candidate_id))}</p>
             </div>
+            <div class="metric">
+              <p class="metric-label">Policy score</p>
+              <p class="metric-value">
+                {display(map_value(map_value(@last_run, :selection, %{}), :score))}
+              </p>
+            </div>
+            <div class="metric">
+              <p class="metric-label">Selection reason</p>
+              <p class="metric-value">
+                {display(map_value(map_value(@last_run, :selection, %{}), :reason))}
+              </p>
+            </div>
           </div>
 
           <p class="state-next" style="margin-top: 13px;">
