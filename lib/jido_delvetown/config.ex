@@ -1,0 +1,75 @@
+defmodule JidoDelvetown.Config do
+  @moduledoc false
+
+  @default_pds_url "https://pds.delve.town"
+  @default_appview_did "did:web:api.delve.town"
+  @default_model "openai:gpt-4o-mini"
+  @default_data_dir Path.expand("../../tmp/jido_delvetown", __DIR__)
+
+  def load_env(path \\ ".env") do
+    if File.regular?(path) do
+      System.put_env(Dotenvy.source!([path, System.get_env()], side_effect: nil))
+    end
+
+    :ok
+  end
+
+  def pds_url, do: System.get_env("DELVETOWN_PDS_URL", @default_pds_url)
+  def appview_did, do: System.get_env("DELVETOWN_APPVIEW_DID", @default_appview_did)
+  def proxy_header, do: "#{appview_did()}#bsky_appview"
+  def decision_model, do: System.get_env("DELVETOWN_MODEL", @default_model)
+
+  def decision_timeout do
+    env_integer("DELVETOWN_DECISION_TIMEOUT_MS", 45_000, 1_000, 180_000)
+  end
+
+  def notification_limit do
+    env_integer("DELVETOWN_NOTIFICATION_LIMIT", 20, 1, 100)
+  end
+
+  def write_enabled? do
+    enabled?("DELVETOWN_WRITE_ENABLED")
+  end
+
+  def mark_notifications_seen?,
+    do: enabled?("DELVETOWN_MARK_NOTIFICATIONS_SEEN")
+
+  def data_dir,
+    do: System.get_env("DELVETOWN_DATA_DIR", @default_data_dir) |> Path.expand()
+
+  def checkpoint_path, do: Path.join(data_dir(), "jido_checkpoints")
+  def state_path, do: Path.join(data_dir(), "delvetown_state.dets")
+
+  def credentials do
+    with {:ok, identifier} <- fetch_env("DELVETOWN_IDENTIFIER"),
+         {:ok, password} <- fetch_env("DELVETOWN_APP_PASSWORD") do
+      {:ok, %{identifier: identifier, password: password}}
+    end
+  end
+
+  def invite_code, do: fetch_env("DELVETOWN_INVITE_CODE")
+
+  defp fetch_env(name) do
+    case System.get_env(name) do
+      value when is_binary(value) and value != "" -> {:ok, value}
+      _value -> {:error, {:missing_environment_variable, name}}
+    end
+  end
+
+  defp env_integer(name, default, minimum, maximum) do
+    value =
+      case Integer.parse(System.get_env(name, "")) do
+        {integer, ""} -> integer
+        _other -> default
+      end
+
+    value |> max(minimum) |> min(maximum)
+  end
+
+  defp enabled?(name) do
+    name
+    |> System.get_env("false")
+    |> String.downcase()
+    |> then(&(&1 in ["1", "true", "yes"]))
+  end
+end

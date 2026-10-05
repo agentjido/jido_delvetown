@@ -1,0 +1,13 @@
+/_build/
+/cover/
+/deps/
+/doc/
+/tmp/
+/.elixir_ls/
+/.expert/
+/.env
+erl_crash.dump
+*.ez
+*.plt
+*.plt.hash
+.DS_Store
