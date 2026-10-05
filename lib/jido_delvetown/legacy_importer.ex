@@ -83,25 +83,38 @@ defmodule JidoDelvetown.LegacyImporter do
 
   defp read_dets(%{dets_path: path}) do
     if File.regular?(path) do
-      case :dets.open_file(@dets_table,
-             file: String.to_charlist(path),
-             type: :set,
-             access: :read
-           ) do
-        {:ok, @dets_table} ->
+      source_bytes = File.read!(path)
+      repair_path = repair_copy_path()
+
+      try do
+        with :ok <- File.cp(path, repair_path),
+             {:ok, @dets_table} <-
+               :dets.open_file(@dets_table,
+                 file: String.to_charlist(repair_path),
+                 type: :set,
+                 access: :read_write,
+                 repair: :force
+               ) do
           try do
             entries = :dets.foldl(&[&1 | &2], [], @dets_table)
-            {:ok, %{entries: entries, source_bytes: File.read!(path)}}
+            {:ok, %{entries: entries, source_bytes: source_bytes}}
           after
             :dets.close(@dets_table)
           end
-
-        {:error, reason} ->
-          {:error, {:legacy_dets_open_failed, reason}}
+        else
+          {:error, reason} -> {:error, {:legacy_dets_open_failed, reason}}
+        end
+      after
+        File.rm(repair_path)
       end
     else
       {:ok, %{entries: [], source_bytes: <<>>}}
     end
+  end
+
+  defp repair_copy_path do
+    name = "jido_delvetown_legacy_#{System.unique_integer([:positive, :monotonic])}.dets"
+    Path.join(System.tmp_dir!(), name)
   end
 
   defp read_checkpoint(opts) do

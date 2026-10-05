@@ -107,6 +107,29 @@ defmodule JidoDelvetown.LegacyImporterTest do
              LegacyImporter.run(context.opts)
   end
 
+  test "reads an unclean DETS file from a repair copy without changing the source", context do
+    elixir = System.find_executable("elixir")
+
+    script = """
+    path = System.fetch_env!("DELVETOWN_TEST_DETS_PATH")
+    {:ok, :unclean_legacy_dets} =
+      :dets.open_file(:unclean_legacy_dets, file: String.to_charlist(path), type: :set)
+    :ok = :dets.insert(:unclean_legacy_dets, {:cursor, "unclean-cursor"})
+    :ok = :dets.sync(:unclean_legacy_dets)
+    :erlang.halt(0)
+    """
+
+    assert {_output, 0} =
+             System.cmd(elixir, ["-e", script],
+               env: [{"DELVETOWN_TEST_DETS_PATH", context.dets_path}]
+             )
+
+    source_bytes = File.read!(context.dets_path)
+
+    assert {:ok, %{cursors: 1}} = LegacyImporter.preview(context.opts)
+    assert File.read!(context.dets_path) == source_bytes
+  end
+
   test "rolls back every row when one legacy record is invalid", context do
     write_invalid_dets(context.dets_path)
 
