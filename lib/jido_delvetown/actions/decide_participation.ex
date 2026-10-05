@@ -87,7 +87,7 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   end
 
   def choose(intent, payload, _context) do
-    choose_with_lm(intent, payload, Imp.req_llm(Config.decision_model()))
+    choose_with_lm(intent, payload, Imp.req_llm(Config.decision_model_input()))
   end
 
   @doc false

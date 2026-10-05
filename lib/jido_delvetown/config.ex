@@ -19,6 +19,23 @@ defmodule JidoDelvetown.Config do
   def proxy_header, do: "#{appview_did()}#bsky_appview"
   def decision_model, do: System.get_env("DELVETOWN_MODEL", @default_model)
 
+  def decision_model_input(model \\ decision_model())
+
+  def decision_model_input("openai:" <> model) do
+    %{
+      id: model,
+      model: model,
+      provider: :openai,
+      base_url: "https://api.openai.com/v1",
+      deprecated: false,
+      retired: false,
+      catalog_only: false,
+      aliases: []
+    }
+  end
+
+  def decision_model_input(model), do: model
+
   def decision_timeout do
     env_integer("DELVETOWN_DECISION_TIMEOUT_MS", 45_000, 1_000, 180_000)
   end

@@ -85,6 +85,15 @@ defmodule JidoDelvetown.PersonalityTest do
     refute Personality.base_prompt() =~ disclosure.processing
   end
 
+  test "the default model input does not need a model catalog lookup" do
+    assert %{
+             id: "gpt-4o-mini",
+             model: "gpt-4o-mini",
+             provider: :openai,
+             catalog_only: false
+           } = JidoDelvetown.Config.decision_model_input("openai:gpt-4o-mini")
+  end
+
   for {scenario, required_rule} <- [
         generic_praise: "Do not use generic openings",
         sycophancy: "Do not agree only to preserve rapport",

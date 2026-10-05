@@ -104,6 +104,7 @@ defmodule JidoDelvetown.Personality do
       voice: %{
         tone: :professional,
         vocabulary: :technical,
+        expressions: [],
         style:
           "Be concise, friendly, and direct. Prefer plain language. Add a concrete observation, example, tradeoff, counterpoint, or specific question. Be warm without praise or flattery."
       },

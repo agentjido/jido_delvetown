@@ -19,6 +19,7 @@ defmodule JidoDelvetown.Agent do
   )a
   @checkpoint_key_lookup Map.new(@checkpoint_keys, &{Atom.to_string(&1), &1})
   @operator_prompt JidoDelvetown.Personality.operator_prompt()
+  @operator_model JidoDelvetown.Config.decision_model_input()
 
   use Jido.AI.Agent,
     name: "jido_delvetown",
@@ -102,7 +103,7 @@ defmodule JidoDelvetown.Agent do
       ]
 
     ai :operator do
-      model "openai:gpt-4o-mini"
+      model @operator_model
 
       instructions @operator_prompt
 
