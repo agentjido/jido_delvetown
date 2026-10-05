@@ -5,6 +5,7 @@
 /tmp/
 /.elixir_ls/
 /.expert/
+/.impeccable/
 /.env
 erl_crash.dump
 *.ez
