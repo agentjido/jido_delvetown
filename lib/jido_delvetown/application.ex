@@ -10,12 +10,13 @@ defmodule JidoDelvetown.Application do
   def start(_type, _args) do
     :ok = Config.load_env()
 
-    children = [
-      JidoInstance,
-      Store,
-      {DynamicSupervisor, strategy: :one_for_one, name: JidoDelvetown.SessionSupervisor},
-      Session
-    ]
+    children =
+      [
+        JidoInstance,
+        Store,
+        {DynamicSupervisor, strategy: :one_for_one, name: JidoDelvetown.SessionSupervisor},
+        Session
+      ] ++ dashboard_children()
 
     with {:ok, supervisor} <-
            Supervisor.start_link(children,
@@ -48,6 +49,27 @@ defmodule JidoDelvetown.Application do
          ) do
       {:ok, _agent_server} -> :ok
       {:error, _reason} = error -> error
+    end
+  end
+
+  defp dashboard_children do
+    if Config.dashboard_enabled?() do
+      port = Config.dashboard_port()
+
+      [
+        {PhoenixPlayground,
+         live: JidoDelvetownWeb.DashboardLive,
+         port: port,
+         host: "localhost",
+         ip: {127, 0, 0, 1},
+         open_browser: false,
+         live_reload: false,
+         endpoint_options: [
+           check_origin: ["//localhost:#{port}", "//127.0.0.1:#{port}"]
+         ]}
+      ]
+    else
+      []
     end
   end
 end

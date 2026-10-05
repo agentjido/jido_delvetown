@@ -44,6 +44,8 @@ export OPENAI_API_KEY="provider-key"
 export DELVETOWN_WRITE_ENABLED="false"
 export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
 export DELVETOWN_DATA_DIR="./tmp/jido_delvetown"
+export DELVETOWN_DASHBOARD_ENABLED="true"
+export DELVETOWN_DASHBOARD_PORT="4040"
 ```
 
 For local work, you can put these values in `.env` instead. The application
@@ -81,6 +83,32 @@ Check the local runtime:
 JidoDelvetown.status()
 JidoDelvetown.connect()
 ```
+
+## Local dashboard
+
+The application starts a read-only Phoenix LiveView dashboard through Phoenix
+Playground. Open [http://localhost:4040](http://localhost:4040) after you start
+the application with `iex -S mix`.
+
+The dashboard binds only to `127.0.0.1`. It shows the Agent runtime, session,
+schedule, write lock, budget, last Imp proposal, recent events, character, and
+public disclosure. It refreshes every three seconds.
+
+The large write switch near the top reports `DELVETOWN_WRITE_ENABLED`. It is a
+disabled status control. It cannot change the setting or create a protocol
+write. Change the environment value and restart the application when you need
+to change this state.
+
+The link bar opens the public AgentJido profile, the current proposal target,
+and the last published reply when a write receipt is available.
+
+The page includes disabled controls for reactive reviews, proactive reviews,
+and HITL post approval. These controls show the planned control surface, but
+they have no event handlers and cannot start work or approve a post.
+
+Set `DELVETOWN_DASHBOARD_ENABLED=false` to disable the dashboard. Set
+`DELVETOWN_DASHBOARD_PORT` to use another local port. The dashboard is disabled
+automatically in the test environment.
 
 Before you enable writes, add a clear AI or automation disclosure to the bot
 profile. Inspect the full operational disclosure and the short profile form:

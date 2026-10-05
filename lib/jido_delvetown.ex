@@ -73,6 +73,7 @@ defmodule JidoDelvetown do
         writes_enabled?: Config.write_enabled?(),
         mark_notifications_seen?: Config.mark_notifications_seen?(),
         budget: agent.state.budget,
+        decision: agent.state.decision,
         last_cycle: agent.state.last_cycle,
         last_run: agent.state.last_run,
         credentials_configured?: match?({:ok, _credentials}, Config.credentials())

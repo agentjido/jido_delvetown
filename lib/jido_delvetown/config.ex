@@ -36,6 +36,17 @@ defmodule JidoDelvetown.Config do
 
   def decision_model_input(model), do: model
 
+  def dashboard_enabled? do
+    case System.get_env("DELVETOWN_DASHBOARD_ENABLED") do
+      nil -> Application.get_env(:jido_delvetown, :dashboard_enabled, true)
+      value -> enabled_value?(value)
+    end
+  end
+
+  def dashboard_port do
+    env_integer("DELVETOWN_DASHBOARD_PORT", 4040, 1, 65_535)
+  end
+
   def decision_timeout do
     env_integer("DELVETOWN_DECISION_TIMEOUT_MS", 45_000, 1_000, 180_000)
   end
@@ -86,7 +97,8 @@ defmodule JidoDelvetown.Config do
   defp enabled?(name) do
     name
     |> System.get_env("false")
-    |> String.downcase()
-    |> then(&(&1 in ["1", "true", "yes"]))
+    |> enabled_value?()
   end
+
+  defp enabled_value?(value), do: String.downcase(value) in ["1", "true", "yes"]
 end

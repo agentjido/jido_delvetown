@@ -41,6 +41,7 @@ defmodule JidoDelvetown.MixProject do
        ref: "ad24cc0644edb60d546c90a73a798856f0528820",
        override: true},
       {:imp, "0.8.1"},
+      {:phoenix_playground, "~> 0.1.9"},
       {:proto_rune, "~> 0.6.0"},
       {:jason, "~> 1.4"},
       {:dotenvy, "~> 1.2"},
