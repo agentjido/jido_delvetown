@@ -54,6 +54,35 @@ defmodule JidoDelvetown.StoreAndTidTest do
              {Jido.Persistence.File, path: Config.checkpoint_path()}
   end
 
+  test "event sequence continues after the Store restarts" do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "jido_delvetown_events_#{System.unique_integer([:positive])}.dets"
+      )
+
+    name = JidoDelvetown.EventStoreTestServer
+    table = JidoDelvetown.EventStoreTestTable
+    on_exit(fn -> File.rm(path) end)
+
+    {:ok, first_store} = Store.start_link(name: name, table: table, path: path)
+    Process.unlink(first_store)
+    assert :ok = Store.add_event(:first, %{}, name)
+    GenServer.stop(first_store)
+
+    {:ok, second_store} = Store.start_link(name: name, table: table, path: path)
+    Process.unlink(second_store)
+    assert :ok = Store.add_event(:second, %{}, name)
+
+    assert [
+             %{type: :second, sequence: second_sequence},
+             %{type: :first, sequence: first_sequence}
+           ] = Store.recent_events(name, 2)
+
+    assert second_sequence == first_sequence + 1
+    GenServer.stop(second_store)
+  end
+
   defp restore_env(name, nil), do: System.delete_env(name)
   defp restore_env(name, value), do: System.put_env(name, value)
 end

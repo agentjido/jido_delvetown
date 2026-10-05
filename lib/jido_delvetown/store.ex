@@ -40,7 +40,7 @@ defmodule JidoDelvetown.Store do
     :ok = path |> Path.dirname() |> File.mkdir_p()
 
     case :dets.open_file(table, file: String.to_charlist(path), type: :set, auto_save: 500) do
-      {:ok, ^table} -> {:ok, %{table: table}}
+      {:ok, ^table} -> {:ok, %{table: table, event_sequence: latest_event_sequence(table)}}
       {:error, reason} -> {:stop, {:dets_open_failed, reason}}
     end
   end
@@ -99,9 +99,10 @@ defmodule JidoDelvetown.Store do
   end
 
   def handle_call({:add_event, type, data}, _from, state) do
-    sequence = System.unique_integer([:monotonic, :positive])
+    sequence = state.event_sequence + 1
     event = %{type: type, at: now(), data: data}
-    {:reply, insert(state.table, {{:event, sequence}, event}), state}
+    result = insert(state.table, {{:event, sequence}, event})
+    {:reply, result, %{state | event_sequence: sequence}}
   end
 
   def handle_call({:recent_events, limit}, _from, state) do
@@ -153,5 +154,13 @@ defmodule JidoDelvetown.Store do
   end
 
   defp fold(table, initial, reducer), do: :dets.foldl(reducer, initial, table)
+
+  defp latest_event_sequence(table) do
+    fold(table, 0, fn
+      {{:event, sequence}, _event}, latest when is_integer(sequence) -> max(sequence, latest)
+      _entry, latest -> latest
+    end)
+  end
+
   defp now, do: DateTime.utc_now() |> DateTime.to_iso8601()
 end
