@@ -6,6 +6,9 @@ defmodule JidoDelvetown.Actions.CreatePost do
     description: "Create one top-level Delvetown post.",
     schema:
       Zoi.object(%{
+        opportunity_id:
+          Zoi.string(description: "Stable identifier for this posting opportunity")
+          |> Zoi.min(1),
         text: Zoi.string(description: "Post text") |> Zoi.min(1) |> Zoi.max(300),
         langs:
           Zoi.list(Zoi.string(), description: "BCP-47 language tags")
@@ -14,14 +17,18 @@ defmodule JidoDelvetown.Actions.CreatePost do
       })
 
   @impl true
-  def run(%{text: text, langs: langs}, _context) do
-    hour = DateTime.utc_now() |> Calendar.strftime("%Y-%m-%dT%H")
-    key = JidoDelvetown.Protocol.effect_key("post", [text, hour])
+  def run(%{opportunity_id: opportunity_id, text: text, langs: langs}, _context) do
+    key = JidoDelvetown.Protocol.effect_key("post", [opportunity_id])
 
-    JidoDelvetown.Protocol.create_record(key, "town.delve.feed.post", %{
-      text: text,
-      langs: langs,
-      created_at: JidoDelvetown.Protocol.now()
-    })
+    JidoDelvetown.Protocol.create_record(
+      key,
+      "town.delve.feed.post",
+      %{
+        text: text,
+        langs: langs,
+        created_at: JidoDelvetown.Protocol.now()
+      },
+      subject_key: opportunity_id
+    )
   end
 end

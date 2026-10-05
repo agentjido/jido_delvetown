@@ -27,7 +27,7 @@ defmodule JidoDelvetown.DatabaseTest do
     assert String.downcase(mode) == "wal"
   end
 
-  test "effect operation keys and record keys are unique" do
+  test "effect operation keys are unique and delete operations can share a record key" do
     now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
 
     row = %{
@@ -44,10 +44,15 @@ defmodule JidoDelvetown.DatabaseTest do
     assert {1, nil} = Repo.insert_all("effects", [row])
 
     assert_raise Exqlite.Error, fn ->
-      Repo.insert_all("effects", [%{row | operation_key: "test:two"}])
+      Repo.insert_all("effects", [%{row | rkey: "rkey-two"}])
     end
 
-    Repo.query!("DELETE FROM effects WHERE operation_key = ?", ["test:one"])
+    assert {1, nil} = Repo.insert_all("effects", [%{row | operation_key: "delete:test:one"}])
+
+    Repo.query!("DELETE FROM effects WHERE operation_key IN (?, ?)", [
+      "test:one",
+      "delete:test:one"
+    ])
   end
 
   test "SQLite checkpoint compare-and-swap rejects stale writers" do

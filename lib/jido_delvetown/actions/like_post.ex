@@ -14,9 +14,14 @@ defmodule JidoDelvetown.Actions.LikePost do
   def run(%{uri: uri, cid: cid}, _context) do
     key = JidoDelvetown.Protocol.effect_key("like", [uri])
 
-    JidoDelvetown.Protocol.create_record(key, "town.delve.feed.like", %{
-      subject: %{uri: uri, cid: cid},
-      created_at: JidoDelvetown.Protocol.now()
-    })
+    JidoDelvetown.Protocol.create_record(
+      key,
+      "town.delve.feed.like",
+      %{
+        subject: %{uri: uri, cid: cid},
+        created_at: JidoDelvetown.Protocol.now()
+      },
+      subject_key: uri
+    )
   end
 end

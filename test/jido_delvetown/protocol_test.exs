@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.ProtocolTest do
   use ExUnit.Case, async: false
 
-  alias JidoDelvetown.Actions.LikePost
+  alias JidoDelvetown.Actions.{CreatePost, LikePost}
   alias JidoDelvetown.Protocol
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Store
@@ -28,7 +28,8 @@ defmodule JidoDelvetown.ProtocolTest do
       store: Application.get_env(:jido_delvetown, :store),
       test_owner: Application.get_env(:jido_delvetown, :test_owner),
       create_result: Application.get_env(:jido_delvetown, :create_result),
-      get_result: Application.get_env(:jido_delvetown, :get_result)
+      get_result: Application.get_env(:jido_delvetown, :get_result),
+      delete_result: Application.get_env(:jido_delvetown, :delete_result)
     }
 
     old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
@@ -88,7 +89,124 @@ defmodule JidoDelvetown.ProtocolTest do
 
     assert_received {:create_record, "town.delve.feed.like", _record, rkey}
     assert_received {:get_record, "town.delve.feed.like", ^rkey}
-    assert %{status: :complete, rkey: ^rkey} = Store.effect("effect-key", @test_store)
+    assert %{status: :completed, rkey: ^rkey} = Store.effect("effect-key", @test_store)
+  end
+
+  test "a lost reply retries with the same record key" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    Application.put_env(:jido_delvetown, :create_result, {:error, :timeout})
+    Application.put_env(:jido_delvetown, :get_result, {:error, :not_found})
+
+    key = Protocol.effect_key("reply", ["at://did:plc:other/town.delve.feed.post/parent"])
+    record = %{text: "A reply", reply: %{}}
+
+    assert {:error, {:create_uncertain, :timeout, first_rkey}} =
+             Protocol.create_record(key, "town.delve.feed.post", record)
+
+    assert_received {:create_record, "town.delve.feed.post", _record, ^first_rkey}
+    assert_received {:get_record, "town.delve.feed.post", ^first_rkey}
+    assert %{status: :uncertain, attempt_count: 1} = Store.effect(key, @test_store)
+
+    Application.delete_env(:jido_delvetown, :create_result)
+
+    assert {:ok, %{reconciled?: false, reused?: false}} =
+             Protocol.create_record(key, "town.delve.feed.post", record)
+
+    assert_received {:get_record, "town.delve.feed.post", ^first_rkey}
+    assert_received {:create_record, "town.delve.feed.post", _record, ^first_rkey}
+
+    assert %{status: :completed, attempt_count: 2, rkey: ^first_rkey} =
+             Store.effect(key, @test_store)
+  end
+
+  test "an uncertain effect reconciles remote success before another write" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    key = "reply:remote-success"
+
+    assert {:ok, reserved} =
+             Store.reserve_effect(key, "town.delve.feed.post", @test_store)
+
+    assert {:ok, %{status: :uncertain}} = Store.begin_effect_attempt(key, @test_store)
+
+    Application.put_env(
+      :jido_delvetown,
+      :get_result,
+      {:ok, %{uri: "at://remote/reply", cid: "remote-cid"}}
+    )
+
+    assert {:ok, %{reconciled?: true, reused?: false}} =
+             Protocol.create_record(key, "town.delve.feed.post", %{text: "Already written"})
+
+    assert_received {:get_record, "town.delve.feed.post", rkey}
+    assert rkey == reserved.rkey
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    assert %{status: :completed, attempt_count: 1, rkey: ^rkey} =
+             Store.effect(key, @test_store)
+  end
+
+  test "an original post uses its stable opportunity identifier" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+
+    assert {:ok, %{reused?: false}} =
+             CreatePost.run(
+               %{opportunity_id: "daily:2026-10-05", text: "First draft", langs: ["en"]},
+               %{}
+             )
+
+    assert_received {:create_record, "town.delve.feed.post", _record, rkey}
+
+    assert {:ok, %{reused?: true}} =
+             CreatePost.run(
+               %{opportunity_id: "daily:2026-10-05", text: "Changed draft", langs: ["en"]},
+               %{}
+             )
+
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    key = Protocol.effect_key("post", ["daily:2026-10-05"])
+
+    assert %{status: :completed, rkey: ^rkey, subject_key: "daily:2026-10-05"} =
+             Store.effect(key, @test_store)
+  end
+
+  test "an owned deletion is durable and idempotent" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    uri = "at://did:plc:bot/town.delve.feed.post/owned-record"
+
+    assert {:ok, %{deleted?: true, reused?: false}} = Protocol.delete_own_record(uri)
+    assert_received {:delete_record, "town.delve.feed.post", "owned-record"}
+
+    assert {:ok, %{deleted?: true, reused?: true}} = Protocol.delete_own_record(uri)
+    refute_received {:delete_record, _collection, _rkey}
+
+    key = Protocol.effect_key("delete", [uri])
+
+    assert %{status: :completed, rkey: "owned-record", subject_key: ^uri} =
+             Store.effect(key, @test_store)
+  end
+
+  test "a permanent create failure is not retried" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+
+    Application.put_env(
+      :jido_delvetown,
+      :create_result,
+      {:error, %ProtoRune.XRPC.Error{reason: :forbidden, http_status: 403}}
+    )
+
+    key = "like:permanent"
+
+    assert {:error, {:create_failed_permanently, %{http_status: 403}}} =
+             Protocol.create_record(key, "town.delve.feed.like", %{subject: %{}})
+
+    assert_received {:create_record, "town.delve.feed.like", _record, _rkey}
+    assert %{status: :permanent_failure, attempt_count: 1} = Store.effect(key, @test_store)
+
+    assert {:error, {:effect_failed_permanently, _failure}} =
+             Protocol.create_record(key, "town.delve.feed.like", %{subject: %{}})
+
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   test "delete rejects a record owned by another account" do

@@ -191,7 +191,7 @@ defmodule JidoDelvetown.LegacyImporter do
       kind: legacy_effect_kind(key),
       collection: map_value(effect, :collection),
       rkey: map_value(effect, :rkey),
-      status: effect |> map_value(:status) |> to_string(),
+      status: effect |> map_value(:status) |> normalize_effect_status(),
       attempt_count: 0,
       receipt: json_safe(map_value(effect, :receipt)),
       reserved_at: parse_time(map_value(effect, :created_at)),
@@ -375,6 +375,9 @@ defmodule JidoDelvetown.LegacyImporter do
       _other -> "legacy"
     end
   end
+
+  defp normalize_effect_status(status) when status in [:complete, "complete"], do: "completed"
+  defp normalize_effect_status(status), do: to_string(status)
 
   defp parse_time(value) do
     case optional_time(value) do

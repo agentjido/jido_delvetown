@@ -96,8 +96,8 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
   defp execute(%{action: "repost"}, candidate),
     do: RepostPost.run(%{uri: candidate.uri, cid: candidate.cid}, %{})
 
-  defp execute(%{action: "post", text: text}, _candidate),
-    do: CreatePost.run(%{text: text, langs: ["en"]}, %{})
+  defp execute(%{action: "post", text: text}, candidate),
+    do: CreatePost.run(%{opportunity_id: candidate.id, text: text, langs: ["en"]}, %{})
 
   defp valid_text?(text), do: is_binary(text) and String.length(text) in 1..300
 

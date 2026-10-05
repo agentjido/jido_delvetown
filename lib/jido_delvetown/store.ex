@@ -24,11 +24,24 @@ defmodule JidoDelvetown.Store do
   def counts(server \\ __MODULE__), do: GenServer.call(server, :counts)
 
   def reserve_effect(key, collection, server \\ __MODULE__) do
-    GenServer.call(server, {:reserve_effect, key, collection})
+    reserve_effect(key, collection, %{}, server)
+  end
+
+  def reserve_effect(key, collection, attributes, server)
+      when is_binary(key) and is_binary(collection) and is_map(attributes) do
+    GenServer.call(server, {:reserve_effect, key, collection, attributes})
+  end
+
+  def begin_effect_attempt(key, server \\ __MODULE__) do
+    GenServer.call(server, {:begin_effect_attempt, key})
   end
 
   def complete_effect(key, receipt, server \\ __MODULE__) do
     GenServer.call(server, {:complete_effect, key, receipt})
+  end
+
+  def fail_effect_permanently(key, failure, server \\ __MODULE__) do
+    GenServer.call(server, {:fail_effect_permanently, key, failure})
   end
 
   def add_event(type, data, server \\ __MODULE__) do
@@ -119,13 +132,41 @@ defmodule JidoDelvetown.Store do
     {:reply, state.repo.get(Effect, key) |> effect_map(), state}
   end
 
-  def handle_call({:reserve_effect, key, collection}, _from, state) do
+  def handle_call({:reserve_effect, key, collection, attributes}, _from, state) do
     result =
       state.repo.transaction(
         fn ->
           case state.repo.get(Effect, key) do
-            nil -> insert_reserved_effect(state.repo, key, collection)
-            effect -> effect_map(effect)
+            nil -> insert_reserved_effect(state.repo, key, collection, attributes)
+            effect -> validate_reserved_effect(state.repo, effect, collection, attributes)
+          end
+        end,
+        mode: :immediate
+      )
+
+    {:reply, transaction_result(result), state}
+  end
+
+  def handle_call({:begin_effect_attempt, key}, _from, state) do
+    result =
+      state.repo.transaction(
+        fn ->
+          case state.repo.get(Effect, key) do
+            nil ->
+              state.repo.rollback(:not_found)
+
+            %Effect{status: status} = effect when status in ["reserved", "uncertain"] ->
+              effect
+              |> Ecto.Changeset.change(
+                status: "uncertain",
+                attempt_count: effect.attempt_count + 1,
+                failure: nil
+              )
+              |> state.repo.update!()
+              |> effect_map()
+
+            %Effect{status: status} ->
+              state.repo.rollback({:invalid_effect_state, status})
           end
         end,
         mode: :immediate
@@ -142,13 +183,45 @@ defmodule JidoDelvetown.Store do
             nil ->
               state.repo.rollback(:not_found)
 
+            %Effect{status: "permanent_failure"} ->
+              state.repo.rollback({:invalid_effect_state, "permanent_failure"})
+
             effect ->
               effect
               |> Ecto.Changeset.change(
-                status: "complete",
+                status: "completed",
                 completed_at: now(),
                 receipt: json_safe(receipt),
                 failure: nil
+              )
+              |> state.repo.update!()
+              |> effect_map()
+          end
+        end,
+        mode: :immediate
+      )
+
+    {:reply, transaction_result(result), state}
+  end
+
+  def handle_call({:fail_effect_permanently, key, failure}, _from, state) do
+    result =
+      state.repo.transaction(
+        fn ->
+          case state.repo.get(Effect, key) do
+            nil ->
+              state.repo.rollback(:not_found)
+
+            %Effect{status: "completed"} ->
+              state.repo.rollback({:invalid_effect_state, "completed"})
+
+            effect ->
+              effect
+              |> Ecto.Changeset.change(
+                status: "permanent_failure",
+                completed_at: now(),
+                failure: json_safe(failure),
+                receipt: nil
               )
               |> state.repo.update!()
               |> effect_map()
@@ -196,23 +269,37 @@ defmodule JidoDelvetown.Store do
       )
 
     counts =
-      Enum.reduce(effects, %{reserved: 0, complete: 0, seen: seen_count(state.repo)}, fn
-        {"reserved", count}, acc -> %{acc | reserved: count}
-        {"complete", count}, acc -> %{acc | complete: count}
-        {_status, _count}, acc -> acc
-      end)
+      Enum.reduce(
+        effects,
+        %{
+          reserved: 0,
+          uncertain: 0,
+          completed: 0,
+          permanent_failure: 0,
+          seen: seen_count(state.repo)
+        },
+        fn
+          {"reserved", count}, acc -> %{acc | reserved: count}
+          {"uncertain", count}, acc -> %{acc | uncertain: count}
+          {"completed", count}, acc -> %{acc | completed: count}
+          {"permanent_failure", count}, acc -> %{acc | permanent_failure: count}
+          {_status, _count}, acc -> acc
+        end
+      )
 
     {:reply, counts, state}
   end
 
-  defp insert_reserved_effect(repo, key, collection) do
+  defp insert_reserved_effect(repo, key, collection, attributes) do
     now = now()
 
     row = %{
       operation_key: key,
       kind: effect_kind(key),
       collection: collection,
-      rkey: JidoDelvetown.Tid.generate(),
+      subject_key: attribute(attributes, :subject_key),
+      actor_did: attribute(attributes, :actor_did),
+      rkey: attribute(attributes, :rkey) || JidoDelvetown.Tid.generate(),
       status: "reserved",
       attempt_count: 0,
       reserved_at: now,
@@ -222,6 +309,21 @@ defmodule JidoDelvetown.Store do
 
     repo.insert_all(Effect, [row], on_conflict: :nothing, conflict_target: [:operation_key])
     repo.get!(Effect, key) |> effect_map()
+  end
+
+  defp validate_reserved_effect(repo, effect, collection, attributes) do
+    expected_rkey = attribute(attributes, :rkey)
+
+    cond do
+      effect.collection != collection ->
+        repo.rollback({:effect_conflict, :collection})
+
+      is_binary(expected_rkey) and effect.rkey != expected_rkey ->
+        repo.rollback({:effect_conflict, :rkey})
+
+      true ->
+        effect_map(effect)
+    end
   end
 
   defp seen_count(repo) do
@@ -241,12 +343,17 @@ defmodule JidoDelvetown.Store do
   defp effect_map(%Effect{} = effect) do
     %{
       key: effect.operation_key,
+      kind: effect.kind,
       collection: effect.collection,
+      subject_key: effect.subject_key,
+      actor_did: effect.actor_did,
       rkey: effect.rkey,
       status: effect_status(effect.status),
+      attempt_count: effect.attempt_count,
       created_at: iso8601(effect.reserved_at),
       completed_at: iso8601(effect.completed_at),
-      receipt: effect.receipt
+      receipt: effect.receipt,
+      failure: effect.failure
     }
   end
 
@@ -260,8 +367,14 @@ defmodule JidoDelvetown.Store do
   end
 
   defp effect_status("reserved"), do: :reserved
-  defp effect_status("complete"), do: :complete
+  defp effect_status("uncertain"), do: :uncertain
+  defp effect_status("completed"), do: :completed
+  defp effect_status("complete"), do: :completed
+  defp effect_status("permanent_failure"), do: :permanent_failure
   defp effect_status(status), do: status
+
+  defp attribute(attributes, key),
+    do: Map.get(attributes, key, Map.get(attributes, Atom.to_string(key)))
 
   defp effect_kind(key) do
     case String.split(key, ":", parts: 2) do

@@ -114,7 +114,7 @@ defmodule JidoDelvetown.InteractionLedgerTest do
       kind: "reply",
       collection: "town.delve.feed.post",
       rkey: "stable-rkey",
-      status: "complete",
+      status: "completed",
       attempt_count: 1,
       receipt: %{"uri" => "at://receipt"},
       reserved_at: now,

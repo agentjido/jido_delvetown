@@ -34,8 +34,15 @@ defmodule JidoDelvetown.StoreAndTidTest do
     assert first.rkey == second.rkey
 
     assert {:ok, complete} = Store.complete_effect("same", %{uri: "at://receipt"}, name)
-    assert complete.status == :complete
-    assert Store.counts(name) == %{reserved: 0, complete: 1, seen: 0}
+    assert complete.status == :completed
+
+    assert Store.counts(name) == %{
+             reserved: 0,
+             uncertain: 0,
+             completed: 1,
+             permanent_failure: 0,
+             seen: 0
+           }
   end
 
   test "configuration separates the database from migration-only legacy paths" do

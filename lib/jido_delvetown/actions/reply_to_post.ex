@@ -18,14 +18,19 @@ defmodule JidoDelvetown.Actions.ReplyToPost do
   def run(params, _context) do
     key = JidoDelvetown.Protocol.effect_key("reply", [params.parent_uri])
 
-    JidoDelvetown.Protocol.create_record(key, "town.delve.feed.post", %{
-      text: params.text,
-      langs: params.langs,
-      created_at: JidoDelvetown.Protocol.now(),
-      reply: %{
-        root: %{uri: params.root_uri, cid: params.root_cid},
-        parent: %{uri: params.parent_uri, cid: params.parent_cid}
-      }
-    })
+    JidoDelvetown.Protocol.create_record(
+      key,
+      "town.delve.feed.post",
+      %{
+        text: params.text,
+        langs: params.langs,
+        created_at: JidoDelvetown.Protocol.now(),
+        reply: %{
+          root: %{uri: params.root_uri, cid: params.root_cid},
+          parent: %{uri: params.parent_uri, cid: params.parent_cid}
+        }
+      },
+      subject_key: params.parent_uri
+    )
   end
 end

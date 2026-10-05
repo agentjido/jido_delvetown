@@ -51,7 +51,7 @@ defmodule JidoDelvetown.LegacyImporterTest do
 
       assert %ScanState{cursor: "cursor-1"} = Repo.get(ScanState, "notifications")
 
-      assert %Effect{status: "complete", rkey: "fixed-rkey", receipt: receipt} =
+      assert %Effect{status: "completed", rkey: "fixed-rkey", receipt: receipt} =
                Repo.get(Effect, "like:stable")
 
       assert receipt["uri"] == "at://receipt"

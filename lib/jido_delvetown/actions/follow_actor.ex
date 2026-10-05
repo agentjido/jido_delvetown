@@ -10,9 +10,15 @@ defmodule JidoDelvetown.Actions.FollowActor do
   def run(%{did: did}, _context) do
     key = JidoDelvetown.Protocol.effect_key("follow", [did])
 
-    JidoDelvetown.Protocol.create_record(key, "town.delve.graph.follow", %{
-      subject: did,
-      created_at: JidoDelvetown.Protocol.now()
-    })
+    JidoDelvetown.Protocol.create_record(
+      key,
+      "town.delve.graph.follow",
+      %{
+        subject: did,
+        created_at: JidoDelvetown.Protocol.now()
+      },
+      subject_key: did,
+      actor_did: did
+    )
   end
 end

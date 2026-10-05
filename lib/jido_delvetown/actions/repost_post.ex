@@ -14,9 +14,14 @@ defmodule JidoDelvetown.Actions.RepostPost do
   def run(%{uri: uri, cid: cid}, _context) do
     key = JidoDelvetown.Protocol.effect_key("repost", [uri])
 
-    JidoDelvetown.Protocol.create_record(key, "town.delve.feed.repost", %{
-      subject: %{uri: uri, cid: cid},
-      created_at: JidoDelvetown.Protocol.now()
-    })
+    JidoDelvetown.Protocol.create_record(
+      key,
+      "town.delve.feed.repost",
+      %{
+        subject: %{uri: uri, cid: cid},
+        created_at: JidoDelvetown.Protocol.now()
+      },
+      subject_key: uri
+    )
   end
 end
