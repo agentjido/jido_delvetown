@@ -8,6 +8,9 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
     assert html =~ "AgentJido"
     assert html =~ "Safe: writes off"
+    assert html =~ "Simulated posts"
+    assert html =~ ~s(id="overview-tab")
+    assert html =~ ~s(aria-selected="true")
     assert html =~ ~s(role="switch")
     assert html =~ ~s(aria-checked="false")
     assert html =~ "WRITES OFF"
@@ -39,6 +42,43 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "disabled"
     refute html =~ "phx-click"
     refute function_exported?(DashboardLive, :handle_event, 3)
+  end
+
+  test "renders durable simulated drafts in the simulated posts tab" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "simulated-posts")
+      |> put_in([:inspection, :simulated_posts], [
+        %{
+          event_key: "event:simulated-reply",
+          action: "reply",
+          text: "Give & keep each failure boundary <small>.",
+          topic: "OTP",
+          reason: "A direct technical question",
+          response_format: "state_machine_sketch",
+          intent: "answer_direct_request",
+          record_uri: "at://did:plc:member/town.delve.feed.post/source-post",
+          simulated_at: "2026-10-05T12:04:00Z"
+        }
+      ])
+
+    html = render_dashboard(assigns)
+
+    assert html =~ ~s(id="simulated-posts-panel")
+    assert html =~ "SQLite dry-run history"
+    assert html =~ "Local only"
+    assert html =~ "Give &amp; keep each failure boundary &lt;small&gt;."
+    assert html =~ "State machine sketch"
+    assert html =~ "source-post"
+    refute html =~ "Participation proposal"
+    refute html =~ "phx-click"
+  end
+
+  test "shows the simulated-post empty state" do
+    html = render_dashboard(Map.put(base_assigns(), :active_tab, "simulated-posts"))
+
+    assert html =~ "No simulated posts yet"
+    assert html =~ "were not sent to DelveTown"
   end
 
   test "shows when protocol writes are enabled" do
@@ -107,6 +147,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
   defp base_assigns do
     %{
+      active_tab: "overview",
       status: %{
         writes_enabled?: false,
         schedule_enabled?: true,
@@ -141,6 +182,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       ],
       agent_events: [],
       inspection: %{
+        simulated_posts: [],
         events: %{
           counts: %{
             "pending" => 1,

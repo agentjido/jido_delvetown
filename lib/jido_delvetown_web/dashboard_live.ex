@@ -8,10 +8,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
   @refresh_ms 3_000
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     if connected?(socket), do: schedule_refresh()
 
-    {:ok, assign(socket, snapshot())}
+    assigns = snapshot() |> Map.put(:active_tab, active_tab(params))
+    {:ok, assign(socket, assigns)}
   end
 
   @impl true
@@ -316,6 +317,51 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
         .delve-links a:hover { border-color: var(--cyan); }
 
+        .dashboard-tabs {
+          display: flex;
+          gap: 7px;
+          margin-bottom: 16px;
+          padding: 5px;
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          background: var(--surface);
+        }
+
+        .dashboard-tab {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 40px;
+          padding: 8px 13px;
+          border: 1px solid transparent;
+          border-radius: 8px;
+          color: var(--muted);
+          font-size: 13px;
+          font-weight: 720;
+          text-decoration: none;
+        }
+
+        .dashboard-tab:hover {
+          border-color: var(--line-strong);
+          color: var(--text);
+        }
+
+        .dashboard-tab.active {
+          border-color: rgba(117, 230, 168, 0.4);
+          background: var(--green-deep);
+          color: var(--green);
+        }
+
+        .tab-count {
+          min-width: 22px;
+          padding: 1px 7px;
+          border-radius: 99px;
+          background: rgba(7, 17, 15, 0.68);
+          color: currentColor;
+          font-size: 11px;
+          text-align: center;
+        }
+
         .status-item {
           min-width: 0;
           padding: 14px 16px;
@@ -560,6 +606,73 @@ defmodule JidoDelvetownWeb.DashboardLive do
           font-size: 14px;
         }
 
+        .simulated-panel { margin-bottom: 18px; }
+
+        .simulated-intro {
+          max-width: 72ch;
+          margin-bottom: 18px;
+          color: var(--muted);
+        }
+
+        .simulated-list {
+          display: grid;
+          gap: 12px;
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+
+        .simulated-card {
+          padding: 16px;
+          border: 1px solid var(--line);
+          border-radius: 11px;
+          background: var(--surface-raised);
+        }
+
+        .simulated-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 11px;
+        }
+
+        .simulated-card-header time {
+          color: var(--quiet);
+          font-size: 12px;
+        }
+
+        .simulated-draft {
+          margin: 0 0 13px;
+          padding: 14px 15px;
+          border-left: 3px solid var(--cyan);
+          border-radius: 0 8px 8px 0;
+          background: rgba(120, 216, 233, 0.06);
+          color: var(--text);
+          font-size: 15px;
+          white-space: pre-wrap;
+        }
+
+        .simulated-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 14px;
+          margin-bottom: 10px;
+          color: var(--muted);
+          font-size: 12px;
+        }
+
+        .simulated-meta strong { color: var(--text); font-weight: 650; }
+
+        .source-link {
+          color: var(--cyan);
+          font-size: 12px;
+          font-weight: 680;
+          text-decoration: none;
+        }
+
+        .source-link:hover { text-decoration: underline; }
+
         .planned-controls {
           display: grid;
           grid-template-columns: minmax(210px, 1fr) minmax(0, 2fr);
@@ -771,7 +884,37 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </a>
       </nav>
 
-      <section class="primary-grid">
+      <nav class="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+        <a
+          id="overview-tab"
+          class={"dashboard-tab #{tab_class(@active_tab, "overview")}"}
+          href="/"
+          role="tab"
+          aria-selected={to_string(@active_tab == "overview")}
+          aria-controls="overview-panel"
+        >
+          Overview
+        </a>
+        <a
+          id="simulated-posts-tab"
+          class={"dashboard-tab #{tab_class(@active_tab, "simulated-posts")}"}
+          href="/?tab=simulated-posts"
+          role="tab"
+          aria-selected={to_string(@active_tab == "simulated-posts")}
+          aria-controls="simulated-posts-panel"
+        >
+          Simulated posts
+          <span class="tab-count">{length(inspection_list(@inspection, [:simulated_posts]))}</span>
+        </a>
+      </nav>
+
+      <section
+        :if={@active_tab == "overview"}
+        id="overview-panel"
+        class="primary-grid"
+        role="tabpanel"
+        aria-labelledby="overview-tab"
+      >
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -842,7 +985,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </article>
       </section>
 
-      <section class="health-grid" aria-label="Durable memory and effect health">
+      <section
+        :if={@active_tab == "overview"}
+        class="health-grid"
+        aria-label="Durable memory and effect health"
+      >
         <article class="panel">
           <div class="panel-header">
             <div>
@@ -950,7 +1097,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </article>
       </section>
 
-      <section class="health-grid" aria-label="SQLite progress and migration status">
+      <section
+        :if={@active_tab == "overview"}
+        class="health-grid"
+        aria-label="SQLite progress and migration status"
+      >
         <article class="panel">
           <div class="panel-header">
             <h2>Scan watermarks</h2>
@@ -1018,7 +1169,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </article>
       </section>
 
-      <section class="event-grid" aria-label="Recent events">
+      <section :if={@active_tab == "overview"} class="event-grid" aria-label="Recent events">
         <article class="panel">
           <div class="panel-header">
             <h2>Workflow events</h2>
@@ -1054,7 +1205,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </article>
       </section>
 
-      <section class="planned-controls" aria-label="Planned controls">
+      <section
+        :if={@active_tab == "overview"}
+        class="planned-controls"
+        aria-label="Planned controls"
+      >
         <div>
           <h2>Planned controls</h2>
           <p>Visible for layout review. No action or approval handlers are installed.</p>
@@ -1066,7 +1221,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </div>
       </section>
 
-      <details class="about-panel">
+      <details :if={@active_tab == "overview"} class="about-panel">
         <summary>About this agent</summary>
         <div class="about-content">
           <section>
@@ -1097,6 +1252,62 @@ defmodule JidoDelvetownWeb.DashboardLive do
           </section>
         </div>
       </details>
+
+      <section
+        :if={@active_tab == "simulated-posts"}
+        id="simulated-posts-panel"
+        class="panel simulated-panel"
+        role="tabpanel"
+        aria-labelledby="simulated-posts-tab"
+      >
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">SQLite dry-run history</p>
+            <h2>Simulated posts</h2>
+          </div>
+          <span class="badge safe">Local only</span>
+        </div>
+
+        <p class="simulated-intro">
+          These drafts were selected by the agent during dry-run cycles. They were stored locally
+          and were not sent to DelveTown. This list refreshes every 3 seconds.
+        </p>
+
+        <p :if={inspection_list(@inspection, [:simulated_posts]) == []} class="empty">
+          No simulated posts yet. A selected reply, welcome, or original post will appear here.
+        </p>
+
+        <ol
+          :if={inspection_list(@inspection, [:simulated_posts]) != []}
+          class="simulated-list"
+        >
+          <li
+            :for={post <- inspection_list(@inspection, [:simulated_posts])}
+            class="simulated-card"
+          >
+            <div class="simulated-card-header">
+              <span class="badge idle">{state_label(map_value(post, :action, "post"))}</span>
+              <time>{display(map_value(post, :simulated_at))}</time>
+            </div>
+            <blockquote class="simulated-draft">{simulated_text(post)}</blockquote>
+            <div class="simulated-meta">
+              <span><strong>Intent:</strong> {display(map_value(post, :intent))}</span>
+              <span><strong>Topic:</strong> {display(map_value(post, :topic))}</span>
+              <span><strong>Format:</strong> {state_label(map_value(post, :response_format))}</span>
+              <span><strong>Reason:</strong> {display(map_value(post, :reason))}</span>
+            </div>
+            <a
+              :if={post_url(map_value(post, :record_uri))}
+              class="source-link"
+              href={post_url(map_value(post, :record_uri))}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View source context ↗
+            </a>
+          </li>
+        </ol>
+      </section>
 
       <p class="footer-note">
         Local read-only dashboard on port {@port}. Browser controls cannot create protocol effects.
@@ -1142,6 +1353,9 @@ defmodule JidoDelvetownWeb.DashboardLive do
   end
 
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_ms)
+
+  defp active_tab(%{"tab" => "simulated-posts"}), do: "simulated-posts"
+  defp active_tab(_params), do: "overview"
 
   defp safe_read(fun) do
     case fun.() do
@@ -1232,6 +1446,16 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp event_states, do: ~w(pending claimed completed ignored failed)
   defp effect_states, do: ~w(reserved uncertain completed permanent_failure)
+
+  defp tab_class(active_tab, tab) when active_tab == tab, do: "active"
+  defp tab_class(_active_tab, _tab), do: ""
+
+  defp simulated_text(post) do
+    case map_value(post, :text) do
+      text when is_binary(text) and text != "" -> text
+      _text -> "Draft text was not stored for this older simulated action."
+    end
+  end
 
   defp state_label(value) do
     value

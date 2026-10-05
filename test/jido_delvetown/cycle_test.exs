@@ -185,7 +185,11 @@ defmodule JidoDelvetown.CycleTest do
     assert state.last_run.effects == 0
     assert state.notifications.processed[uri].status == "simulated"
     assert state.budget.replies == 1
-    assert Repo.get_by!(InteractionEvent, record_uri: uri).state == "completed"
+    event = Repo.get_by!(InteractionEvent, record_uri: uri)
+    assert event.state == "completed"
+    assert event.payload["text"] == "Give each independent failure one supervised process."
+    assert event.payload["topic"] == "OTP"
+    assert event.payload["model_reason"] == "A direct technical question"
     assert Repo.get!(Actor, "did:plc:simulated").contact_count == 1
     assert Repo.get!(Conversation, root_uri).turn_count == 1
     refute_received {:create_record, _collection, _record, _rkey}

@@ -39,11 +39,75 @@ defmodule JidoDelvetown.InspectionTest do
            }
 
     assert snapshot.actors.recent == []
+    assert snapshot.simulated_posts == []
     assert snapshot.scans == []
     assert snapshot.effects.completed_receipts == []
     assert snapshot.sqlite.migrations.status == "current"
     assert snapshot.sqlite.migrations.pending == []
     assert snapshot.sqlite.legacy_imports == []
+  end
+
+  test "simulated posts expose only durable draft fields in newest-first order" do
+    older = ~U[2026-10-05 11:00:00.000000Z]
+    newer = ~U[2026-10-05 12:00:00.000000Z]
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "event:simulated-reply",
+      kind: "reply",
+      actor_did: "did:plc:member",
+      record_uri: "at://did:plc:member/town.delve.feed.post/reply",
+      occurred_at: older,
+      state: "completed",
+      payload: %{
+        "action" => "reply",
+        "cycle_status" => "simulated",
+        "intent" => "answer_direct_request",
+        "model_reason" => "A direct question",
+        "private_model_context" => "must stay hidden",
+        "response_format" => "state_machine_sketch",
+        "text" => "Give the failure boundary one owner.",
+        "topic" => "OTP"
+      },
+      terminal_at: older
+    })
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "event:simulated-welcome",
+      kind: "new_member",
+      actor_did: "did:plc:new-member",
+      occurred_at: newer,
+      state: "completed",
+      payload: %{
+        "action" => "welcome",
+        "cycle_status" => "simulated",
+        "text" => "Welcome to DelveTown. What are you building?"
+      },
+      terminal_at: newer
+    })
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "event:acted-post",
+      kind: "timeline",
+      occurred_at: newer,
+      state: "completed",
+      payload: %{
+        "action" => "post",
+        "cycle_status" => "acted",
+        "text" => "This public post is not a simulation."
+      },
+      terminal_at: newer
+    })
+
+    snapshot = Inspection.snapshot(simulated_limit: 2)
+
+    assert [welcome, reply] = snapshot.simulated_posts
+    assert welcome.action == "welcome"
+    assert welcome.text == "Welcome to DelveTown. What are you building?"
+    assert reply.action == "reply"
+    assert reply.topic == "OTP"
+    assert reply.response_format == "state_machine_sketch"
+    refute inspect(snapshot.simulated_posts) =~ "must stay hidden"
+    refute inspect(snapshot.simulated_posts) =~ "This public post"
   end
 
   test "active memory exposes bounded actor, conversation, scan, and receipt fields" do

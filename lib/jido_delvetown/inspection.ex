@@ -17,14 +17,17 @@ defmodule JidoDelvetown.Inspection do
 
   @event_states ["pending", "claimed", "completed", "ignored", "failed"]
   @effect_states ["reserved", "uncertain", "completed", "permanent_failure"]
+  @simulated_post_actions ["post", "reply", "welcome"]
   @default_limit 8
 
   def snapshot(opts \\ []) do
     repo = Keyword.get(opts, :repo, Repo)
     limit = opts |> Keyword.get(:limit, @default_limit) |> max(0)
+    simulated_limit = opts |> Keyword.get(:simulated_limit, 25) |> max(0)
 
     %{
       events: %{counts: grouped_counts(repo, InteractionEvent, :state, @event_states)},
+      simulated_posts: simulated_posts(repo, simulated_limit),
       actors: %{recent: recent_actors(repo, limit)},
       conversations: %{
         counts: grouped_counts(repo, Conversation, :status, ["active", "closed"]),
@@ -66,6 +69,32 @@ defmodule JidoDelvetown.Inspection do
           contact_count: actor.contact_count,
           welcome_status: actor.welcome_status,
           opted_out?: actor.opted_out
+        }
+      )
+    )
+    |> Enum.map(&encode_times/1)
+  end
+
+  defp simulated_posts(repo, limit) do
+    repo.all(
+      from(event in InteractionEvent,
+        where:
+          event.state == "completed" and
+            fragment("json_extract(?, '$.cycle_status')", event.payload) == "simulated" and
+            fragment("json_extract(?, '$.action')", event.payload) in ^@simulated_post_actions,
+        order_by: [desc: event.terminal_at, asc: event.event_key],
+        limit: ^limit,
+        select: %{
+          event_key: event.event_key,
+          action: fragment("json_extract(?, '$.action')", event.payload),
+          text: fragment("json_extract(?, '$.text')", event.payload),
+          topic: fragment("json_extract(?, '$.topic')", event.payload),
+          reason: fragment("json_extract(?, '$.model_reason')", event.payload),
+          response_format: fragment("json_extract(?, '$.response_format')", event.payload),
+          intent: fragment("json_extract(?, '$.intent')", event.payload),
+          actor_did: event.actor_did,
+          record_uri: event.record_uri,
+          simulated_at: event.terminal_at
         }
       )
     )
