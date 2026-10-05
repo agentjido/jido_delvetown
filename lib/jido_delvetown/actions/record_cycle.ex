@@ -34,6 +34,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       intent: cycle.intent,
       action: decision.action,
       candidate_id: candidate_id(cycle.candidate),
+      record_uri: receipt_uri(cycle.receipt),
       summary: summary(cycle),
       proposal: Map.take(decision, [:text, :topic, :reason]),
       reads: cycle.reads,
@@ -171,6 +172,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
         :intent,
         :action,
         :candidate_id,
+        :record_uri,
         :reads,
         :effects,
         :skips,
@@ -185,6 +187,12 @@ defmodule JidoDelvetown.Actions.RecordCycle do
 
   defp candidate_id(%{id: id}), do: id
   defp candidate_id(_candidate), do: nil
+
+  defp receipt_uri(%{receipt: receipt}), do: receipt_uri(receipt)
+  defp receipt_uri(%{"receipt" => receipt}), do: receipt_uri(receipt)
+  defp receipt_uri(%{uri: uri}) when is_binary(uri), do: uri
+  defp receipt_uri(%{"uri" => uri}) when is_binary(uri), do: uri
+  defp receipt_uri(_receipt), do: nil
 
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason

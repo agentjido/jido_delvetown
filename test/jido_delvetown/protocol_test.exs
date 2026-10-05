@@ -64,6 +64,11 @@ defmodule JidoDelvetown.ProtocolTest do
     assert record["$type"] == "town.delve.feed.like"
     assert is_binary(rkey)
 
+    assert [%{type: :create_record, data: %{record_uri: record_uri}} | _events] =
+             Store.recent_events(@test_store, 1)
+
+    assert record_uri == "at://did:plc:bot/town.delve.feed.like/#{rkey}"
+
     assert {:ok, %{reused?: true}} = LikePost.run(params, %{})
     refute_received {:create_record, _collection, _record, _rkey}
   end

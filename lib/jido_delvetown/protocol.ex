@@ -126,6 +126,7 @@ defmodule JidoDelvetown.Protocol do
       audit(:create_record, %{
         collection: effect.collection,
         rkey: effect.rkey,
+        record_uri: receipt_uri(receipt),
         result: :ok,
         reconciled?: reconciled?
       })
@@ -190,6 +191,10 @@ defmodule JidoDelvetown.Protocol do
 
   defp outcome({:ok, _value}), do: :ok
   defp outcome({:error, _reason}), do: :error
+
+  defp receipt_uri(%{uri: uri}) when is_binary(uri), do: uri
+  defp receipt_uri(%{"uri" => uri}) when is_binary(uri), do: uri
+  defp receipt_uri(_receipt), do: nil
 
   defp audit(type, data) do
     _result = Store.add_event(type, data, store())
