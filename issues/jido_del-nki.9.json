@@ -1,6 +1,7 @@
 {
   "assignee": "",
   "blocked_by": [
+    "jido_del-iy2.7",
     "jido_del-nki.6"
   ],
   "blocks": [],
@@ -13,5 +14,5 @@
   "status": "open",
   "title": "Verify one ReqLLM image from generation through live publication",
   "type": "task",
-  "updated_at": "2026-10-06T01:50:18Z"
+  "updated_at": "2026-10-06T01:50:19Z"
 }
