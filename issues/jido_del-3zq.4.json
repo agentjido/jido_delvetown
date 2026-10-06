@@ -4,7 +4,8 @@
     "jido_del-3zq.1"
   ],
   "blocks": [
-    "jido_del-3zq.11"
+    "jido_del-3zq.11",
+    "jido_del-nki.8"
   ],
   "created": "2026-10-06T01:07:19Z",
   "description": "Introduce one internal owner for locating the AgentServer and sending reactive, proactive, member, and review Signals. Make the public JidoDelvetown facade and Oban workers call this owner. Remove the runtime dependency cycle JidoDelvetown to Automation to ReactiveParticipationWorker to JidoDelvetown. Preserve signal names, timeouts, result shapes, worker retries, and test injection. Acceptance: mix xref graph --format cycles reports no cycle; public operator functions behave as before; worker tests pass.",
@@ -15,5 +16,5 @@
   "status": "open",
   "title": "Add an internal participation cycle runner",
   "type": "task",
-  "updated_at": "2026-10-06T01:07:30Z"
+  "updated_at": "2026-10-06T01:50:18Z"
 }
