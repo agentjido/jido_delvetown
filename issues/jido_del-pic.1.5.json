@@ -7,14 +7,16 @@
     "jido_del-pic.1.12",
     "jido_del-pic.2.3"
   ],
+  "closed_at": "2026-10-06T12:15:26Z",
+  "close_reason": "Encrypted the DelveTown app password with a local owner-only AES-256-GCM key, redacted public output and revision data, and added security and idempotence tests.",
   "created": "2026-10-06T01:19:48Z",
   "description": "Encrypt the DelveTown app password before it enters SQLite. Generate local key material on first start and prevent secret values from entering logs or UI output.",
   "id": "jido_del-pic.1.5",
   "labels": [],
   "parent": "jido_del-pic.1",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Add secure DelveTown credential storage",
   "type": "task",
-  "updated_at": "2026-10-06T12:10:13Z"
+  "updated_at": "2026-10-06T12:15:26Z"
 }
