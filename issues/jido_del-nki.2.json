@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-nki.1"
+  ],
   "blocks": [],
   "created": "2026-10-06T01:49:52Z",
   "description": "Store generation request keys, provider, model, prompt, options, state, attempt count, usage, response metadata, failure data, artifact link, and timestamps. Reserve before the remote call, reuse completed results, and do not automatically retry an uncertain request.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Add durable image generation requests and receipts",
   "type": "task",
-  "updated_at": "2026-10-06T01:49:52Z"
+  "updated_at": "2026-10-06T01:50:18Z"
 }

@@ -3,7 +3,9 @@
   "blocked_by": [
     "jido_del-iy2.6"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-nki.2"
+  ],
   "created": "2026-10-06T01:49:52Z",
   "description": "Define the provider-neutral generator interface, supported inputs, output bytes, media metadata, usage data, errors, timeouts, and provenance. Use the verified OpenAI ReqLLM call as the first compatibility target.",
   "id": "jido_del-nki.1",
