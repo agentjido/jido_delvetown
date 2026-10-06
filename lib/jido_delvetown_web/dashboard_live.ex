@@ -3,7 +3,8 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   use Phoenix.LiveView
 
-  alias JidoDelvetown.{Automation, ImagePublisher, ManualPublisher, Personality}
+  alias JidoDelvetown.{Automation, ImagePublisher, ManualPublisher}
+  alias JidoDelvetownWeb.DashboardSnapshot
 
   @refresh_ms 3_000
 
@@ -12,7 +13,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
     if connected?(socket), do: schedule_refresh()
 
     assigns =
-      snapshot()
+      DashboardSnapshot.load()
       |> Map.put(:active_tab, active_tab(params))
       |> Map.put(:publish_notice, nil)
       |> Map.put(:like_publish_notice, nil)
@@ -24,7 +25,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   @impl true
   def handle_info(:refresh, socket) do
     schedule_refresh()
-    {:noreply, assign(socket, snapshot())}
+    {:noreply, assign(socket, DashboardSnapshot.load())}
   end
 
   @impl true
@@ -44,7 +45,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(snapshot())
+     |> assign(DashboardSnapshot.load())
      |> assign(:active_tab, "simulated-posts")
      |> assign(:publish_notice, notice)}
   end
@@ -66,7 +67,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(snapshot())
+     |> assign(DashboardSnapshot.load())
      |> assign(:active_tab, "simulated-posts")
      |> assign(:like_publish_notice, notice)}
   end
@@ -88,7 +89,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(snapshot())
+     |> assign(DashboardSnapshot.load())
      |> assign(:active_tab, "image-drafts")
      |> assign(:image_publish_notice, notice)}
   end
@@ -103,7 +104,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(snapshot())
+     |> assign(DashboardSnapshot.load())
      |> assign(:active_tab, "overview")
      |> assign(:reactive_review, feedback)}
   end
@@ -118,7 +119,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(snapshot())
+     |> assign(DashboardSnapshot.load())
      |> assign(:active_tab, "overview")
      |> assign(:proactive_review, feedback)}
   end
@@ -1892,111 +1893,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
     """
   end
 
-  defp snapshot do
-    status_result = safe_read(&JidoDelvetown.status/0)
-    status = value_or_empty(status_result)
-    events = safe_read(fn -> JidoDelvetown.recent_events(12) end) |> value_or_empty()
-    inspection_result = safe_read(fn -> JidoDelvetown.inspect_state(limit: 6) end)
-    inspection = value_or_empty(inspection_result)
-    character = Personality.character()
-    contract = character.extensions.delvetown
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
-
-    %{
-      page_title: "AgentJido / DelveTown",
-      status: status,
-      status_error: error_text(status_result),
-      operational_state: operational_state(status_result, status),
-      budget: map_value(status, :budget, %{}),
-      decision: map_value(status, :decision, %{}),
-      last_cycle: map_value(status, :last_cycle, %{}),
-      last_run: map_value(status, :last_run, %{}),
-      workflow_events: list_value(events, :workflow),
-      agent_events: list_value(events, :agent),
-      inspection: inspection,
-      inspection_error: error_text(inspection_result),
-      character: %{
-        name: character.name,
-        mission: contract.mission,
-        traits: character.personality.traits,
-        topical_scope: contract.topical_scope
-      },
-      disclosure: Personality.disclosure(),
-      reactive_review: review_controller().reactive_review_status(),
-      proactive_review: review_controller().proactive_review_status(),
-      manual_publish_enabled: JidoDelvetown.Config.manual_publish_enabled?(),
-      port: JidoDelvetown.Config.dashboard_port(),
-      refreshed_at: DateTime.to_iso8601(now),
-      refreshed_label: Calendar.strftime(now, "%H:%M:%S UTC")
-    }
-  end
-
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_ms)
 
   defp active_tab(%{"tab" => "simulated-posts"}), do: "simulated-posts"
   defp active_tab(%{"tab" => "image-drafts"}), do: "image-drafts"
   defp active_tab(_params), do: "overview"
-
-  defp safe_read(fun) do
-    case fun.() do
-      {:error, reason} -> {:error, reason}
-      value -> {:ok, value}
-    end
-  rescue
-    error -> {:error, error}
-  catch
-    :exit, reason -> {:error, reason}
-  end
-
-  defp value_or_empty({:ok, value}) when is_map(value), do: value
-  defp value_or_empty(_result), do: %{}
-
-  defp error_text({:error, reason}), do: inspect(reason, pretty: true, limit: 20)
-  defp error_text(_result), do: nil
-
-  defp operational_state({:error, _reason}, _status) do
-    %{
-      key: "attention",
-      label: "Needs attention",
-      effect: "The Agent runtime is unavailable. Scheduled work cannot run.",
-      next: "Start the local runtime and wait for the next refresh."
-    }
-  end
-
-  defp operational_state(_result, status) do
-    cond do
-      map_value(status, :writes_enabled?, false) ->
-        %{
-          key: "active",
-          label: "Writes enabled",
-          effect: "Scheduled Agent work can create public protocol effects.",
-          next: "Use the review path before any future one-click action."
-        }
-
-      map_value(status, :dry_run_mark_actioned?, false) ->
-        %{
-          key: "safe",
-          label: "Dry run: actions simulated",
-          effect: "Protocol effects are blocked. Selected actions advance local dry-run memory.",
-          next: "A simulated action is not published and will not run again."
-        }
-
-      true ->
-        %{
-          key: "safe",
-          label: "Safe: writes off",
-          effect: "Protocol effects are blocked. Review cycles can inspect and propose.",
-          next: nil
-        }
-    end
-  end
-
-  defp list_value(map, key) do
-    case map_value(map, key, []) do
-      value when is_list(value) -> value
-      _value -> []
-    end
-  end
 
   defp inspection_value(inspection, path, default \\ nil)
 
