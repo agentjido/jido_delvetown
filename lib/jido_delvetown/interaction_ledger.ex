@@ -175,7 +175,8 @@ defmodule JidoDelvetown.InteractionLedger do
         topic: Map.get(decision, :topic),
         model_reason: Map.get(decision, :reason),
         response_format: Map.get(decision, :format),
-        selection: Map.get(cycle, :selection, %{})
+        selection: Map.get(cycle, :selection, %{}),
+        publication_target: publication_target(candidate)
       }
     }
 
@@ -217,6 +218,23 @@ defmodule JidoDelvetown.InteractionLedger do
   def actor(did, opts \\ []), do: repo(opts).get(Actor, did)
   def conversation(root_uri, opts \\ []), do: repo(opts).get(Conversation, root_uri)
   def event(event_key, opts \\ []), do: repo(opts).get(InteractionEvent, event_key)
+
+  def record_manual_publication(event_key, details, opts \\ [])
+      when is_binary(event_key) and is_map(details) do
+    repo = repo(opts)
+
+    case repo.get(InteractionEvent, event_key) do
+      nil ->
+        {:error, :not_found}
+
+      event ->
+        payload = Map.put(event.payload || %{}, "manual_publication", json_safe(details))
+
+        event
+        |> Ecto.Changeset.change(payload: payload, updated_at: now())
+        |> repo.update()
+    end
+  end
 
   def processable_event?(event_key, opts \\ []) when is_binary(event_key) do
     case event(event_key, opts) do
@@ -287,6 +305,14 @@ defmodule JidoDelvetown.InteractionLedger do
          :ok <- remember_conversation(candidate, cycle, decision, at) do
       :ok
     end
+  end
+
+  defp publication_target(candidate) do
+    %{
+      uri: Map.get(candidate, :uri),
+      cid: Map.get(candidate, :cid),
+      root: Map.get(candidate, :root)
+    }
   end
 
   def context_for(candidate, opts \\ []) when is_map(candidate) do

@@ -52,7 +52,22 @@ defmodule JidoDelvetown.Protocol do
       when is_binary(effect_key) and is_binary(collection) and is_map(record) and
              is_list(opts) do
     with :ok <- writes_enabled(),
-         :ok <- allowed_collection(collection),
+         {:ok, result} <- create_record_with_effect(effect_key, collection, record, opts) do
+      {:ok, result}
+    end
+  end
+
+  def create_manual_record(effect_key, collection, record, opts \\ [])
+      when is_binary(effect_key) and is_binary(collection) and is_map(record) and
+             is_list(opts) do
+    with :ok <- manual_publish_enabled(),
+         {:ok, result} <- create_record_with_effect(effect_key, collection, record, opts) do
+      {:ok, result}
+    end
+  end
+
+  defp create_record_with_effect(effect_key, collection, record, opts) do
+    with :ok <- allowed_collection(collection),
          {:ok, session} <- session_module().session(),
          {:ok, effect} <-
            Store.reserve_effect(effect_key, collection, effect_attributes(opts), store()) do
@@ -299,6 +314,12 @@ defmodule JidoDelvetown.Protocol do
 
   defp writes_enabled do
     if Config.write_enabled?(), do: :ok, else: {:error, :writes_disabled}
+  end
+
+  defp manual_publish_enabled do
+    if Config.manual_publish_enabled?(),
+      do: :ok,
+      else: {:error, :manual_publish_disabled}
   end
 
   defp notification_updates_enabled do

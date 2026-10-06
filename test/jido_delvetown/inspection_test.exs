@@ -64,6 +64,11 @@ defmodule JidoDelvetown.InspectionTest do
         "intent" => "answer_direct_request",
         "model_reason" => "A direct question",
         "private_model_context" => "must stay hidden",
+        "manual_publication" => %{
+          "status" => "completed",
+          "published_at" => "2026-10-05T12:05:00Z",
+          "uri" => "at://did:plc:agent/town.delve.feed.post/published"
+        },
         "response_format" => "state_machine_sketch",
         "text" => "Give the failure boundary one owner.",
         "topic" => "OTP"
@@ -106,6 +111,9 @@ defmodule JidoDelvetown.InspectionTest do
     assert reply.action == "reply"
     assert reply.topic == "OTP"
     assert reply.response_format == "state_machine_sketch"
+    assert reply.published_status == "completed"
+    assert reply.published_at == "2026-10-05T12:05:00Z"
+    assert reply.published_uri == "at://did:plc:agent/town.delve.feed.post/published"
     refute inspect(snapshot.simulated_posts) =~ "must stay hidden"
     refute inspect(snapshot.simulated_posts) =~ "This public post"
   end

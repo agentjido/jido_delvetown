@@ -76,6 +76,7 @@ defmodule JidoDelvetown do
         schedule_enabled?: Automation.running?(),
         cron: Automation.reactive_cron(),
         writes_enabled?: Config.write_enabled?(),
+        manual_publish_enabled?: Config.manual_publish_enabled?(),
         dry_run_mark_actioned?: Config.dry_run_mark_actioned?(),
         mark_notifications_seen?: Config.mark_notifications_seen?(),
         budget: agent.state.budget,

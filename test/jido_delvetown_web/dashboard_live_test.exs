@@ -3,7 +3,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
   alias JidoDelvetownWeb.DashboardLive
 
-  test "renders agent state without interactive event handlers" do
+  test "renders agent state without active overview controls" do
     html = render_dashboard()
 
     assert html =~ "AgentJido"
@@ -41,13 +41,14 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "published-reply"
     assert html =~ "disabled"
     refute html =~ "phx-click"
-    refute function_exported?(DashboardLive, :handle_event, 3)
+    assert function_exported?(DashboardLive, :handle_event, 3)
   end
 
   test "renders durable simulated drafts in the simulated posts tab" do
     assigns =
       base_assigns()
       |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :simulated_posts], [
         %{
           event_key: "event:simulated-reply",
@@ -66,12 +67,39 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
     assert html =~ ~s(id="simulated-posts-panel")
     assert html =~ "SQLite dry-run history"
-    assert html =~ "Local only"
+    assert html =~ "Manual publish ready"
     assert html =~ "Give &amp; keep each failure boundary &lt;small&gt;."
     assert html =~ "State machine sketch"
     assert html =~ "source-post"
+    assert html =~ "Manual publish ready"
+    assert html =~ "Publish to DelveTown"
+    assert html =~ ~s(phx-click="publish_simulated")
+    assert html =~ ~s(phx-value-event-key="event:simulated-reply")
+    refute html =~ ~s(disabled="")
     refute html =~ "Participation proposal"
-    refute html =~ "phx-click"
+  end
+
+  test "replaces the publish button with the saved publication link" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:manual_publish_enabled, true)
+      |> put_in([:inspection, :simulated_posts], [
+        %{
+          event_key: "event:published-reply",
+          action: "reply",
+          text: "This draft is now public.",
+          published_status: "completed",
+          published_uri: "at://did:plc:agentjido/town.delve.feed.post/published-rkey"
+        }
+      ])
+
+    html = render_dashboard(assigns)
+
+    assert html =~ "Published"
+    assert html =~ "View published post"
+    assert html =~ "/profile/agentjido.test/post/published-rkey"
+    refute html =~ "Publish to DelveTown"
   end
 
   test "shows the simulated-post empty state" do
@@ -255,6 +283,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
         }
       },
       inspection_error: nil,
+      manual_publish_enabled: false,
+      publish_notice: nil,
       character: %{
         name: "AgentJido",
         mission: "Make BEAM agent engineering easier to understand.",

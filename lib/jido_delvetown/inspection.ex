@@ -92,6 +92,11 @@ defmodule JidoDelvetown.Inspection do
           reason: fragment("json_extract(?, '$.model_reason')", event.payload),
           response_format: fragment("json_extract(?, '$.response_format')", event.payload),
           intent: fragment("json_extract(?, '$.intent')", event.payload),
+          published_status:
+            fragment("json_extract(?, '$.manual_publication.status')", event.payload),
+          published_at:
+            fragment("json_extract(?, '$.manual_publication.published_at')", event.payload),
+          published_uri: fragment("json_extract(?, '$.manual_publication.uri')", event.payload),
           actor_did: event.actor_did,
           record_uri: event.record_uri,
           simulated_at: event.terminal_at

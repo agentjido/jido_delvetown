@@ -62,6 +62,7 @@ defmodule JidoDelvetown.InteractionLedgerTest do
       candidate: %{
         id: "notification-1",
         uri: "at://did:plc:member/town.delve.feed.post/reply",
+        cid: "reply-cid",
         indexed_at: "2026-10-05T11:59:00Z",
         author: %{did: "did:plc:member", handle: "member.test", display_name: "Member"},
         root: %{uri: "at://did:plc:root/town.delve.feed.post/root", cid: "root-cid"}
@@ -79,9 +80,43 @@ defmodule JidoDelvetown.InteractionLedgerTest do
              Ledger.conversation("at://did:plc:root/town.delve.feed.post/root")
 
     assert %InteractionEvent{state: "completed", attempt_count: 1} =
+             event =
              Repo.one!(
                from(event in InteractionEvent, where: event.source_id == "notification-1")
              )
+
+    assert event.payload["publication_target"] == %{
+             "cid" => "reply-cid",
+             "root" => %{
+               "cid" => "root-cid",
+               "uri" => "at://did:plc:root/town.delve.feed.post/root"
+             },
+             "uri" => "at://did:plc:member/town.delve.feed.post/reply"
+           }
+  end
+
+  test "records a manual publication on a completed event" do
+    now = ~U[2026-10-05 12:00:00.000000Z]
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "event:manual-publication",
+      kind: "reply",
+      state: "completed",
+      payload: %{"action" => "reply", "cycle_status" => "simulated"},
+      occurred_at: now,
+      terminal_at: now
+    })
+
+    assert {:ok, event} =
+             Ledger.record_manual_publication("event:manual-publication", %{
+               status: "completed",
+               uri: "at://did:plc:bot/town.delve.feed.post/reply"
+             })
+
+    assert event.payload["manual_publication"] == %{
+             "status" => "completed",
+             "uri" => "at://did:plc:bot/town.delve.feed.post/reply"
+           }
   end
 
   test "a simulated welcome counts as local outreach without an effect" do

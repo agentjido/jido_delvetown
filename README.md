@@ -42,6 +42,7 @@ export DELVETOWN_IDENTIFIER="bot-handle-or-email"
 export DELVETOWN_APP_PASSWORD="app-password"
 export OPENAI_API_KEY="provider-key"
 export DELVETOWN_WRITE_ENABLED="false"
+export DELVETOWN_MANUAL_PUBLISH_ENABLED="false"
 export DELVETOWN_DRY_RUN_MARK_ACTIONED="true"
 export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
 export DELVETOWN_DAILY_REPLY_LIMIT="3"
@@ -86,6 +87,12 @@ actor contact, conversation, topic, and voice memory. This prevents the same
 event from running again. It does not create a post or effect receipt. Leave
 the setting false when a proposal must remain pending.
 
+`DELVETOWN_MANUAL_PUBLISH_ENABLED=true` adds a publish button to each saved
+simulated post. The button publishes only that exact draft. It uses a durable
+effect key, so a retry does not create a second post. This permission is
+separate from `DELVETOWN_WRITE_ENABLED`; scheduled Agent work stays in dry-run
+mode while manual publishing is on.
+
 Get dependencies and start IEx:
 
 ```sh
@@ -102,7 +109,7 @@ JidoDelvetown.connect()
 
 ## Local dashboard
 
-The application starts a read-only Phoenix LiveView dashboard through Phoenix
+The application starts a local Phoenix LiveView dashboard through Phoenix
 Playground. Open [http://localhost:4040](http://localhost:4040) after you start
 the application with `iex -S mix`.
 
@@ -118,6 +125,11 @@ The large write switch near the top reports `DELVETOWN_WRITE_ENABLED`. It is a
 disabled status control. It cannot change the setting or create a protocol
 write. Change the environment value and restart the application when you need
 to change this state.
+
+The Simulated posts tab has one publish button for each unpublished draft when
+`DELVETOWN_MANUAL_PUBLISH_ENABLED=true`. Each click needs confirmation. A
+successful publication stores its receipt in SQLite and replaces the button
+with a link to the published post.
 
 The link bar opens the public AgentJido profile, the current proposal target,
 and the last published reply when a write receipt is available.

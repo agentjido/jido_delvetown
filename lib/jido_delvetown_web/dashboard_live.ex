@@ -3,7 +3,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   use Phoenix.LiveView
 
-  alias JidoDelvetown.Personality
+  alias JidoDelvetown.{ManualPublisher, Personality}
 
   @refresh_ms 3_000
 
@@ -11,7 +11,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
   def mount(params, _session, socket) do
     if connected?(socket), do: schedule_refresh()
 
-    assigns = snapshot() |> Map.put(:active_tab, active_tab(params))
+    assigns =
+      snapshot()
+      |> Map.put(:active_tab, active_tab(params))
+      |> Map.put(:publish_notice, nil)
+
     {:ok, assign(socket, assigns)}
   end
 
@@ -19,6 +23,28 @@ defmodule JidoDelvetownWeb.DashboardLive do
   def handle_info(:refresh, socket) do
     schedule_refresh()
     {:noreply, assign(socket, snapshot())}
+  end
+
+  @impl true
+  def handle_event("publish_simulated", %{"event_key" => event_key}, socket) do
+    notice =
+      case publisher().publish(event_key) do
+        {:ok, publication} ->
+          %{
+            kind: "safe",
+            text: "The draft was published to DelveTown.",
+            uri: map_value(publication, :uri)
+          }
+
+        {:error, reason} ->
+          %{kind: "attention", text: publish_error(reason), uri: nil}
+      end
+
+    {:noreply,
+     socket
+     |> assign(snapshot())
+     |> assign(:active_tab, "simulated-posts")
+     |> assign(:publish_notice, notice)}
   end
 
   @impl true
@@ -664,6 +690,27 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
         .simulated-meta strong { color: var(--text); font-weight: 650; }
 
+        .publish-notice {
+          margin-bottom: 14px;
+          padding: 11px 13px;
+          border: 1px solid rgba(117, 230, 168, 0.48);
+          border-radius: 9px;
+          background: rgba(19, 60, 42, 0.5);
+          color: var(--text);
+        }
+
+        .publish-notice.attention {
+          border-color: rgba(255, 148, 143, 0.55);
+          background: rgba(69, 31, 32, 0.48);
+        }
+
+        .simulated-actions {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 9px 14px;
+        }
+
         .source-link {
           color: var(--cyan);
           font-size: 12px;
@@ -672,6 +719,35 @@ defmodule JidoDelvetownWeb.DashboardLive do
         }
 
         .source-link:hover { text-decoration: underline; }
+
+        .publish-button {
+          min-height: 38px;
+          margin-left: auto;
+          padding: 8px 13px;
+          border: 1px solid rgba(117, 230, 168, 0.65);
+          border-radius: 9px;
+          background: var(--green-deep);
+          color: var(--text);
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 720;
+        }
+
+        .publish-button:hover { border-color: var(--green); }
+
+        .publish-button:disabled {
+          border-color: var(--line);
+          background: #14231f;
+          color: var(--quiet);
+          cursor: not-allowed;
+        }
+
+        .published-state {
+          margin-left: auto;
+          color: var(--green);
+          font-size: 12px;
+          font-weight: 680;
+        }
 
         .planned-controls {
           display: grid;
@@ -1265,12 +1341,31 @@ defmodule JidoDelvetownWeb.DashboardLive do
             <p class="panel-kicker">SQLite dry-run history</p>
             <h2>Simulated posts</h2>
           </div>
-          <span class="badge safe">Local only</span>
+          <span class="badge safe">
+            {if @manual_publish_enabled, do: "Manual publish ready", else: "Local only"}
+          </span>
         </div>
 
         <p class="simulated-intro">
           These drafts were selected by the agent during dry-run cycles. They were stored locally
-          and were not sent to DelveTown. This list refreshes every 3 seconds.
+          and were not sent to DelveTown. A publish button sends only the selected draft. Scheduled
+          agent writes stay off. This list refreshes every 3 seconds.
+        </p>
+
+        <p
+          :if={@publish_notice}
+          class={"publish-notice #{map_value(@publish_notice, :kind)}"}
+          role="status"
+        >
+          {map_value(@publish_notice, :text)}
+          <a
+            :if={post_url(map_value(@publish_notice, :uri), session_actor(@status))}
+            href={post_url(map_value(@publish_notice, :uri), session_actor(@status))}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View published post ↗
+          </a>
         </p>
 
         <p :if={inspection_list(@inspection, [:simulated_posts]) == []} class="empty">
@@ -1296,21 +1391,45 @@ defmodule JidoDelvetownWeb.DashboardLive do
               <span><strong>Format:</strong> {state_label(map_value(post, :response_format))}</span>
               <span><strong>Reason:</strong> {display(map_value(post, :reason))}</span>
             </div>
-            <a
-              :if={post_url(map_value(post, :record_uri))}
-              class="source-link"
-              href={post_url(map_value(post, :record_uri))}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View source context ↗
-            </a>
+            <div class="simulated-actions">
+              <a
+                :if={post_url(map_value(post, :record_uri))}
+                class="source-link"
+                href={post_url(map_value(post, :record_uri))}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View source context ↗
+              </a>
+              <a
+                :if={published_post_url(post, @status)}
+                class="source-link"
+                href={published_post_url(post, @status)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View published post ↗
+              </a>
+              <span :if={published?(post)} class="published-state">Published</span>
+              <button
+                :if={not published?(post)}
+                type="button"
+                class="publish-button"
+                phx-click="publish_simulated"
+                phx-value-event-key={map_value(post, :event_key)}
+                phx-disable-with="Publishing…"
+                data-confirm="Publish this exact draft to DelveTown?"
+                disabled={not @manual_publish_enabled}
+              >
+                Publish to DelveTown
+              </button>
+            </div>
           </li>
         </ol>
       </section>
 
       <p class="footer-note">
-        Local read-only dashboard on port {@port}. Browser controls cannot create protocol effects.
+        Local dashboard on port {@port}. Scheduled protocol writes remain controlled by the write lock.
       </p>
     </div>
     """
@@ -1346,6 +1465,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
         topical_scope: contract.topical_scope
       },
       disclosure: Personality.disclosure(),
+      manual_publish_enabled: JidoDelvetown.Config.manual_publish_enabled?(),
       port: JidoDelvetown.Config.dashboard_port(),
       refreshed_at: DateTime.to_iso8601(now),
       refreshed_label: Calendar.strftime(now, "%H:%M:%S UTC")
@@ -1456,6 +1576,24 @@ defmodule JidoDelvetownWeb.DashboardLive do
       _text -> "Draft text was not stored for this older simulated action."
     end
   end
+
+  defp published?(post), do: map_value(post, :published_status) == "completed"
+
+  defp published_post_url(post, status) do
+    post_url(map_value(post, :published_uri), session_actor(status))
+  end
+
+  defp publish_error(:manual_publish_disabled),
+    do: "Manual publishing is off. Set DELVETOWN_MANUAL_PUBLISH_ENABLED=true and restart."
+
+  defp publish_error(:not_found), do: "The saved simulated draft was not found."
+  defp publish_error(:not_simulated), do: "This item is not a simulated draft."
+  defp publish_error(:invalid_draft_text), do: "The saved draft text is not valid."
+  defp publish_error(:missing_reply_target), do: "The reply target could not be loaded."
+  defp publish_error(_reason), do: "DelveTown did not accept the draft. Check the local logs."
+
+  defp publisher,
+    do: Application.get_env(:jido_delvetown, :manual_publisher, ManualPublisher)
 
   defp state_label(value) do
     value

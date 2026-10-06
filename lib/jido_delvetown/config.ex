@@ -87,6 +87,10 @@ defmodule JidoDelvetown.Config do
     enabled?("DELVETOWN_WRITE_ENABLED")
   end
 
+  def manual_publish_enabled? do
+    enabled?("DELVETOWN_MANUAL_PUBLISH_ENABLED")
+  end
+
   def dry_run_mark_actioned? do
     enabled?("DELVETOWN_DRY_RUN_MARK_ACTIONED")
   end
