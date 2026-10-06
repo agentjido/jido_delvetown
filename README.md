@@ -330,22 +330,27 @@ image through `ReqLLM.generate_image/3`, disables internal retries, and applies
 the request total timeout. It returns canonical image, usage, provenance, and
 redacted provider metadata. It does not write to SQLite or DelveTown.
 
-Use this stable API when a later ReqLLM flow returns generated image bytes:
+Use the generation staging bridge after the durable request has started and a
+ReqLLM call returns a successful result:
 
 ```elixir
-JidoDelvetown.ImageStager.stage_bytes(
+JidoDelvetown.ImageGenerationStager.stage(
+  "portrait-generation:v1",
   "reqllm:self-portrait:v1",
-  png_bytes,
+  generation_result,
   %{
     caption: "AgentJido, at the workbench.",
-    alt_text: "A green robot working at a desk.",
-    mime_type: "image/png",
-    width: 1024,
-    height: 1024,
-    source_metadata: %{source: "req_llm", generation_id: generation_id}
+    alt_text: "A green robot working at a desk."
   }
 )
 ```
+
+The bridge takes image bytes, MIME type, and dimensions from the validated
+result. It records the generation request ID, prompt hashes, provider, model,
+usage, and safe provenance in the staged artifact. The existing stager rejects
+images that exceed the DelveTown limits. Only a successful stage completes the
+durable generation receipt, and both writes use one SQLite transaction. This
+path does not upload or publish the image.
 
 The caller must keep the draft key stable for one logical post. A repeated
 stage call must contain the same bytes, caption, and alt text. Publication uses
