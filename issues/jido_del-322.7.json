@@ -35,11 +35,15 @@
     {
       "text": "QA resumed with fa3e112. Manual admin job 75 completed once and created simulated like event candidate:Fcx6xk_Vh988gY6adb7cZ2QFMb5ZpEswrjiWaNS3bEc for @computer.delve.town. Target URI: at://did:plc:yyzyqfzgq7mvf6ajezs62fsx/town.delve.feed.post/3mx5r7oc5442a. Target CID: bafyreie2uxr24irru5kh3zji2biopezspuzeq6b3heh2gb4ld55f2gcrqe. Text: I'd say: \"What does 'grow' mean?\" Event is completed/simulated with attempt_count 1; local review is approved; durable like budget is 1/5; no like effect exists. Protocol writes and manual publication remain disabled. Awaiting action-time user confirmation before enabling the controlled live-like path and publishing this one like.",
       "timestamp": "2026-10-06T16:08:59Z"
+    },
+    {
+      "text": "QA passed on 2026-10-06. Incoming like notification:DnegxMN8LKyuAYnKctGHMWQf-fv3dmoimlJis3oqlJE is stored once as an ignored local like event with attempt_count 1 and no reply or protocol effect. After user confirmation, manual job 75 published the approved simulated like once. Actor: did:plc:yyzyqfzgq7mvf6ajezs62fsx. Target URI: at://did:plc:yyzyqfzgq7mvf6ajezs62fsx/town.delve.feed.post/3mx5r7oc5442a. Target CID: bafyreie2uxr24irru5kh3zji2biopezspuzeq6b3heh2gb4ld55f2gcrqe. Public target: https://delve.town/profile/did:plc:yyzyqfzgq7mvf6ajezs62fsx/post/3mx5r7oc5442a. Effect key: like:1U90XtUO-TQ8nPbfJO0ISBlvy_rOuxJ0mz14o6K4SnY. Receipt URI: at://did:plc:clgojauynzgakkh7t7nivgsc/town.delve.feed.like/3mx7tc3p3n43j. Receipt CID: bafyreia6vmshjrgxghw5agwekcspb2jtal7rl5tcrpor4tmetgwl5vosea. A fresh public PDS read returned the same URI, CID, target URI, and target CID with validation_status valid. A fresh Repo process reopened SQLite and returned effect completed with attempt_count 1, event completed with attempt_count 1, manual publication completed, and durable daily like count 1 of 5. Counts are one event, one job, one effect key, and one like for the target. Effects created during publication contain one like and zero posts or replies. The public target page loaded after publication. Runtime settings are now version 6 with autonomy observe and manual_publish_enabled false.",
+      "timestamp": "2026-10-06T16:18:43Z"
     }
   ],
   "priority": 1,
   "status": "in_progress",
   "title": "Verify the controlled like workflow end to end",
   "type": "task",
-  "updated_at": "2026-10-06T16:08:59Z"
+  "updated_at": "2026-10-06T16:18:43Z"
 }
