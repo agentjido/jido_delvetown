@@ -1416,7 +1416,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
                 type="button"
                 class="publish-button"
                 phx-click="publish_simulated"
-                phx-value-event-key={map_value(post, :event_key)}
+                phx-value-event_key={map_value(post, :event_key)}
                 phx-disable-with="Publishing…"
                 data-confirm="Publish this exact draft to DelveTown?"
                 disabled={not @manual_publish_enabled}

@@ -74,7 +74,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "Manual publish ready"
     assert html =~ "Publish to DelveTown"
     assert html =~ ~s(phx-click="publish_simulated")
-    assert html =~ ~s(phx-value-event-key="event:simulated-reply")
+    assert html =~ ~s(phx-value-event_key="event:simulated-reply")
+    refute html =~ "phx-value-event-key"
     refute html =~ ~s(disabled="")
     refute html =~ "Participation proposal"
   end
