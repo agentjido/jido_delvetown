@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-322.1"
+  ],
   "blocks": [],
   "created": "2026-10-06T00:59:44Z",
   "description": "Run QA across incoming recognition and outgoing controlled publication. First prove that a live incoming like becomes one local social-signal event without a reply. Then run a manual proactive review, inspect one simulated like, approve one live like, and verify it through protocol readback and the public DelveTown page after a fresh load. Restart or reopen durable state before the final receipt check. Confirm the actor, target URI and CID, effect key, budget update, no duplicate job, no duplicate like, and no unintended post or reply. Record the public target URL and evidence in this issue. If any check fails, report failure and create or link a corrective issue.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Verify the controlled like workflow end to end",
   "type": "task",
-  "updated_at": "2026-10-06T00:59:44Z"
+  "updated_at": "2026-10-06T00:59:53Z"
 }

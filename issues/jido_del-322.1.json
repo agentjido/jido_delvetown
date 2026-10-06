@@ -1,7 +1,9 @@
 {
   "assignee": "",
   "blocked_by": [],
-  "blocks": [],
+  "blocks": [
+    "jido_del-322.7"
+  ],
   "created": "2026-10-06T00:59:44Z",
   "description": "Normalize DelveTown like and liked notification reasons into a stable like event instead of unknown. Persist the actor, notification identity, target URI or reason subject, target CID when available, and occurrence time. Treat an incoming like as a social signal, not as a direct request and not as a reason to publish a reply. Acceptance: repeated scans create one durable event; the event reaches a terminal local state; actor memory records the observed interaction once; reply and mention priority is unchanged; tests cover supported raw reasons, missing optional fields, duplicate delivery, and an unknown reason.",
   "id": "jido_del-322.1",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Recognize incoming like notifications",
   "type": "task",
-  "updated_at": "2026-10-06T00:59:44Z"
+  "updated_at": "2026-10-06T00:59:53Z"
 }
