@@ -15,6 +15,30 @@ defmodule JidoDelvetown.CycleTest do
   alias JidoDelvetown.Storage.{Actor, Conversation, InteractionEvent, ScanState}
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport, RuntimeSettings}
 
+  defmodule FakeParticipationImageGeneration do
+    def proposal_context(mode) do
+      send(owner(), {:image_generation_context, mode})
+
+      %{
+        allowed?: true,
+        mode: mode,
+        operation: "generate_and_stage_image",
+        daily_budget: %{used: 0, limit: 1, remaining: 1},
+        will_generate_and_stage?: true,
+        will_upload?: false,
+        will_publish?: false
+      }
+    end
+
+    def generate(cycle, decision) do
+      send(owner(), {:generate_participation_image, cycle, decision})
+
+      Application.fetch_env!(:jido_delvetown, :participation_image_generation_result)
+    end
+
+    defp owner, do: Application.fetch_env!(:jido_delvetown, :test_owner)
+  end
+
   setup do
     Enum.each([ScanState, InteractionEvent, Conversation, Actor], &Repo.delete_all/1)
 
@@ -22,6 +46,8 @@ defmodule JidoDelvetown.CycleTest do
       :session_module,
       :transport,
       :decision_module,
+      :participation_image_generation,
+      :participation_image_generation_result,
       :query_results,
       :decision_result,
       :test_owner
@@ -31,6 +57,13 @@ defmodule JidoDelvetown.CycleTest do
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
+
+    Application.put_env(
+      :jido_delvetown,
+      :participation_image_generation,
+      FakeParticipationImageGeneration
+    )
+
     Application.put_env(:jido_delvetown, :test_owner, self())
 
     restore_settings =
@@ -337,6 +370,94 @@ defmodule JidoDelvetown.CycleTest do
     assert state.last_run.action == "post"
     assert state.budget.posts == 0
     assert state.proactive.last_post_at == ""
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
+  test "a policy-approved image proposal stages one draft without a social write" do
+    configure_reads(%{
+      "town.delve.notification.listNotifications" => {:ok, %{"notifications" => []}},
+      "town.delve.feed.getTimeline" =>
+        {:ok,
+         %{
+           "feed" => [
+             %{
+               "post" => %{
+                 "uri" => "at://did:plc:author/town.delve.feed.post/quiet-image",
+                 "cid" => "quiet-image-cid",
+                 "author" => %{"did" => "did:plc:author", "handle" => "author.test"},
+                 "record" => %{"text" => "A calm note without a question"}
+               }
+             }
+           ]
+         }}
+    })
+
+    decision = %{
+      action: "post",
+      text: "A process boundary is also a failure ownership boundary.",
+      topic: "OTP boundaries",
+      reason: "A visual field note",
+      image_prompt: "A clean technical diagram of three supervised BEAM processes",
+      image_alt_text: "Three BEAM processes are linked under one supervisor."
+    }
+
+    generation_result = %{
+      draft_id: "participation:proactive:test",
+      generation_request_id: "participation:proactive:test",
+      artifact_digest: String.duplicate("a", 64),
+      draft_state: "staged",
+      generation_state: :completed,
+      provider_call_performed?: true,
+      reused?: false,
+      uploaded_by_command?: false,
+      published_by_command?: false,
+      provenance: %{"provider" => "openai"},
+      usage: %{"generated_images" => 1},
+      settings: %{scope: "default", schema_version: 1, version: 1}
+    }
+
+    Application.put_env(:jido_delvetown, :decision_result, {:ok, decision})
+
+    Application.put_env(
+      :jido_delvetown,
+      :participation_image_generation_result,
+      {:ok, generation_result}
+    )
+
+    assert {:ok, state} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "review"}, context())
+
+    assert state.last_run.status == "generated"
+    assert state.last_run.action == "post"
+    assert state.last_run.image_generation == generation_result
+    assert state.last_run.proposal.image_prompt == decision.image_prompt
+    assert state.last_run.proposal.image_alt_text == decision.image_alt_text
+    assert state.last_cycle.image_generation == generation_result
+    assert state.budget.posts == 0
+    assert state.proactive.last_post_at == ""
+
+    assert_received {:image_generation_context, "proactive"}
+    assert_received {:decision, "publish_daily_note", payload}
+    assert payload.image_generation.allowed?
+
+    assert_received {:generate_participation_image, generated_cycle, generated_decision}
+    assert generated_cycle.candidate.id == "daily:#{state.budget.date}"
+    assert Map.take(generated_decision, Map.keys(decision)) == decision
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    event = Repo.get_by!(InteractionEvent, source_id: "daily:#{state.budget.date}")
+    assert event.state == "completed"
+    assert event.payload["image_prompt"] == decision.image_prompt
+    assert event.payload["image_alt_text"] == decision.image_alt_text
+    assert event.payload["image_generation"]["draft_id"] == generation_result.draft_id
+    assert event.payload["image_generation"]["published_by_command?"] == false
+
+    assert {:ok, repeated} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "review"}, %{agent_state: state})
+
+    assert repeated.last_run.status == "skipped"
+    assert repeated.last_run.proposal.reason == "no_eligible_work"
+    refute_received {:generate_participation_image, _cycle, _decision}
     refute_received {:create_record, _collection, _record, _rkey}
   end
 

@@ -45,6 +45,9 @@ defmodule JidoDelvetown.CycleRecorder do
           cycle_status: cycle.status,
           text: Map.get(decision, :text),
           topic: Map.get(decision, :topic),
+          image_prompt: Map.get(decision, :image_prompt),
+          image_alt_text: Map.get(decision, :image_alt_text),
+          image_generation: image_generation_receipt(Map.get(cycle, :image_generation)),
           model_reason: Map.get(decision, :reason),
           response_format: Map.get(decision, :format),
           selection: Map.get(cycle, :selection, %{}),
@@ -179,6 +182,25 @@ defmodule JidoDelvetown.CycleRecorder do
       text when is_binary(text) -> String.slice(text, 0, @like_review_text_limit)
       _text -> nil
     end
+  end
+
+  defp image_generation_receipt(nil), do: nil
+
+  defp image_generation_receipt(result) do
+    Map.take(result, [
+      :draft_id,
+      :generation_request_id,
+      :artifact_digest,
+      :draft_state,
+      :generation_state,
+      :provider_call_performed?,
+      :reused?,
+      :uploaded_by_command?,
+      :published_by_command?,
+      :provenance,
+      :usage,
+      :settings
+    ])
   end
 
   defp candidate_event_key(kind, id) do

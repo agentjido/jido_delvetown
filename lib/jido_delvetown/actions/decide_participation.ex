@@ -8,6 +8,7 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   alias JidoDelvetown.Actions.SelectIntent
   alias JidoDelvetown.CreativeFormats
   alias JidoDelvetown.FriendList
+  alias JidoDelvetown.ParticipationImageGeneration
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Settings.Behavior
 
@@ -44,6 +45,18 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
                      name: :reason,
                      type: :string,
                      constraints: %{min_length: 1, max_length: 240}
+                   },
+                   %{
+                     name: :image_prompt,
+                     type: :string,
+                     optional: true,
+                     constraints: %{min_length: 1, max_length: 4000}
+                   },
+                   %{
+                     name: :image_alt_text,
+                     type: :string,
+                     optional: true,
+                     constraints: %{min_length: 1, max_length: 1000}
                    }
                  ]
                },
@@ -77,7 +90,8 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
         friends: FriendList.for_context(),
         budget: cycle.state.budget,
         recent_topics: cycle.state.proactive.recent_topics,
-        response_format: cycle.response_format
+        response_format: cycle.response_format,
+        image_generation: image_generation_module().proposal_context(cycle.kind)
       }
 
       case decision_module().choose(cycle.intent, payload, context) do
@@ -131,13 +145,17 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   end
 
   defp normalize({:ok, prediction}) do
+    decision = %{
+      action: Imp.get(prediction, :action),
+      text: Imp.get(prediction, :text),
+      topic: Imp.get(prediction, :topic),
+      reason: Imp.get(prediction, :reason)
+    }
+
     {:ok,
-     %{
-       action: Imp.get(prediction, :action),
-       text: Imp.get(prediction, :text),
-       topic: Imp.get(prediction, :topic),
-       reason: Imp.get(prediction, :reason)
-     }}
+     decision
+     |> maybe_put(:image_prompt, Imp.get(prediction, :image_prompt))
+     |> maybe_put(:image_alt_text, Imp.get(prediction, :image_alt_text))}
   end
 
   defp normalize({:error, _reason}), do: {:error, :decision_failed}
@@ -145,6 +163,17 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   defp decision_module do
     Application.get_env(:jido_delvetown, :decision_module, __MODULE__)
   end
+
+  defp image_generation_module do
+    Application.get_env(
+      :jido_delvetown,
+      :participation_image_generation,
+      ParticipationImageGeneration
+    )
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp allowed_actions(payload, intent_actions) do
     actions =

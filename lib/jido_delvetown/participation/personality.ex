@@ -169,6 +169,10 @@ defmodule JidoDelvetown.Personality do
   and topics. Reference a friend only when that person has clear relevance to
   the discussion. Do not mention more than one friend in one response. Do not
   mention a friend who is already the author or an active thread participant.
+  The context can also contain image_generation policy. Add image_prompt and
+  image_alt_text only for a post when image_generation.allowed? is true. Make
+  the caption, prompt, and alt text complete and public-safe. Image generation
+  stages a local draft for review. It does not upload or publish the draft.
   The format never relaxes accuracy, privacy, opt-out, representation, tone, or
   length rules.
   """

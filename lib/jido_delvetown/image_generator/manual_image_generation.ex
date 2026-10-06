@@ -4,6 +4,7 @@ defmodule JidoDelvetown.ManualImageGeneration.Plan do
   alias JidoDelvetown.ImageGenerator.Request
 
   @type t :: %__MODULE__{
+          mode: String.t(),
           request_key: String.t(),
           draft_id: String.t(),
           caption: String.t(),
@@ -17,6 +18,7 @@ defmodule JidoDelvetown.ManualImageGeneration.Plan do
         }
 
   @enforce_keys [
+    :mode,
     :request_key,
     :draft_id,
     :caption,
@@ -72,9 +74,10 @@ defmodule JidoDelvetown.ManualImageGeneration do
   def plan(attrs, opts \\ [])
 
   def plan(attrs, opts) when (is_map(attrs) or is_list(attrs)) and is_list(opts) do
-    with {:ok, input} <- normalize_input(attrs),
-         {:ok, initial_policy} <- authorize(opts, false),
-         {:ok, request} <- request(input, initial_policy),
+    with {:ok, mode} <- generation_mode(opts),
+         {:ok, input} <- normalize_input(attrs),
+         {:ok, initial_policy} <- authorize(mode, opts, false),
+         {:ok, request} <- request(input, initial_policy, mode),
          :ok <- ImageGenerationRequests.validate_key(input.key),
          :ok <-
            ImageDrafts.validate_draft_input(input.key, %{
@@ -82,10 +85,11 @@ defmodule JidoDelvetown.ManualImageGeneration do
              alt_text: input.alt_text
            }),
          {:ok, estimate} <- preflight(input, request),
-         {:ok, policy} <- authorize(opts, estimate.provider_calls == 1),
+         {:ok, policy} <- authorize(mode, opts, estimate.provider_calls == 1),
          :ok <- same_settings(initial_policy.settings, policy.settings) do
       {:ok,
        %Plan{
+         mode: mode,
          request_key: input.key,
          draft_id: input.key,
          caption: input.caption,
@@ -137,7 +141,7 @@ defmodule JidoDelvetown.ManualImageGeneration do
   def execute(%Plan{} = plan, opts) when is_list(opts) do
     with :ok <- validate_plan(plan),
          :ok <- validate_execution_opts(opts),
-         {:ok, policy} <- authorize(opts, false),
+         {:ok, policy} <- authorize(plan.mode, opts, false),
          :ok <- same_settings(plan.settings, policy.settings),
          :ok <- request_matches_policy(plan, policy),
          {:ok, reservation} <-
@@ -153,7 +157,7 @@ defmodule JidoDelvetown.ManualImageGeneration do
   end
 
   defp continue(plan, %{state: :reserved}, _policy, opts) do
-    with {:ok, policy} <- authorize(opts, true),
+    with {:ok, policy} <- authorize(plan.mode, opts, true),
          :ok <- same_settings(plan.settings, policy.settings),
          {:ok, started} <-
            ImageGenerationRequests.begin_attempt(
@@ -273,7 +277,7 @@ defmodule JidoDelvetown.ManualImageGeneration do
     end
   end
 
-  defp request(input, policy) do
+  defp request(input, policy, mode) do
     Request.new(%{
       prompt: input.prompt,
       provider: policy.provider,
@@ -284,22 +288,24 @@ defmodule JidoDelvetown.ManualImageGeneration do
       timeout_ms: policy.timeout_ms,
       provider_options: %{},
       metadata: %{
-        source: "manual_operator",
+        source: request_source(mode),
+        mode: mode,
         draft_id: input.key,
         settings: policy.settings
       }
     })
   end
 
-  defp authorize(opts, require_budget?) do
+  defp authorize(mode, opts, require_budget?) do
     opts
     |> settings_opts()
     |> Keyword.put(:require_budget, require_budget?)
-    |> then(&GenerationPolicy.authorize("manual", &1))
+    |> then(&GenerationPolicy.authorize(mode, &1))
   end
 
   defp validate_plan(plan) do
-    with {:ok, request} <- Request.new(plan.request),
+    with true <- plan.mode in GenerationPolicy.modes(),
+         {:ok, request} <- Request.new(plan.request),
          true <- Request.fingerprint(request) == plan.request_fingerprint,
          true <- plan.request_key == plan.draft_id,
          :ok <- ImageGenerationRequests.validate_key(plan.request_key),
@@ -329,7 +335,8 @@ defmodule JidoDelvetown.ManualImageGeneration do
       request.provider == policy.provider and valid_operator_request?(request) and
         request.output_format == policy.output_format and request.timeout_ms == policy.timeout_ms and
         request.provider_options == %{} and
-        map_value(request.metadata, :source) == "manual_operator" and
+        map_value(request.metadata, :source) == request_source(plan.mode) and
+        map_value(request.metadata, :mode) == plan.mode and
         map_value(request.metadata, :draft_id) == plan.draft_id and
         map_value(metadata_settings, :scope) == policy.settings.scope and
         map_value(metadata_settings, :schema_version) == policy.settings.schema_version and
@@ -426,6 +433,16 @@ defmodule JidoDelvetown.ManualImageGeneration do
   defp display_size(:auto), do: "auto"
   defp display_size({width, height}), do: "#{width}x#{height}"
   defp display_size(nil), do: nil
+
+  defp generation_mode(opts) do
+    case Keyword.get(opts, :mode, "manual") do
+      mode when mode in ["manual", "proactive", "reactive"] -> {:ok, mode}
+      mode -> {:error, {:invalid_image_generation_mode, mode}}
+    end
+  end
+
+  defp request_source("manual"), do: "manual_operator"
+  defp request_source(mode), do: "#{mode}_participation"
 
   defp settings_opts(opts), do: Keyword.take(opts, [:repo, :scope, :now])
   defp request_opts(opts), do: Keyword.take(opts, [:repo, :now])

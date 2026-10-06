@@ -63,8 +63,17 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       action: decision.action,
       candidate_id: candidate_id(cycle.candidate),
       record_uri: receipt_uri(cycle.receipt),
+      image_generation: Map.get(cycle, :image_generation),
       summary: summary(cycle),
-      proposal: Map.take(decision, [:text, :topic, :reason, :format]),
+      proposal:
+        Map.take(decision, [
+          :text,
+          :topic,
+          :reason,
+          :format,
+          :image_prompt,
+          :image_alt_text
+        ]),
       selection: Map.get(cycle, :selection, %{}),
       reads: cycle.reads,
       effects: cycle.effects,
@@ -226,6 +235,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
         :action,
         :candidate_id,
         :record_uri,
+        :image_generation,
         :selection,
         :reads,
         :effects,
@@ -259,6 +269,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       selection: Map.get(cycle, :selection, %{}),
       response_format: Map.get(decision, :format),
       model_reason: Map.get(decision, :reason),
+      image_generation: image_generation_audit(Map.get(cycle, :image_generation)),
       completed_at: completed_at
     })
   end
@@ -266,6 +277,23 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason
   defp error_text(_reason), do: "operation_failed"
+
+  defp image_generation_audit(nil), do: nil
+
+  defp image_generation_audit(result) do
+    Map.take(result, [
+      :draft_id,
+      :generation_request_id,
+      :artifact_digest,
+      :draft_state,
+      :generation_state,
+      :provider_call_performed?,
+      :reused?,
+      :uploaded_by_command?,
+      :published_by_command?,
+      :settings
+    ])
+  end
 
   defp now, do: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 end

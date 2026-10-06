@@ -418,7 +418,13 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     put_in(state, [:notifications, :processed], processed)
   end
 
-  defp daily_note_due?(state, limits), do: state.budget.posts < limits.daily_post_limit
+  defp daily_note_due?(state, limits) do
+    candidate_id = "daily:#{state.budget.date}"
+    prior_status = get_in(state, [:notifications, :processed, candidate_id, :status])
+
+    state.budget.posts < limits.daily_post_limit and
+      prior_status not in ["generated", "acted", "simulated"]
+  end
 
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason

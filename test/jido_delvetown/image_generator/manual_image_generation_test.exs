@@ -196,6 +196,37 @@ defmodule JidoDelvetown.ManualImageGenerationTest do
     assert ImageGenerationRequests.get(input().key).attempt_count == 1
   end
 
+  test "uses an explicit participation mode without changing manual defaults", context do
+    enable_generation(context.scope, ["manual", "proactive"])
+
+    assert {:ok, manual_plan} = ManualImageGeneration.plan(input(), policy_opts(context))
+    assert manual_plan.mode == "manual"
+    assert manual_plan.request.metadata["source"] == "manual_operator"
+    assert manual_plan.request.metadata["mode"] == "manual"
+
+    proactive_input = %{input() | key: "participation:proactive:test"}
+
+    assert {:ok, plan} =
+             ManualImageGeneration.plan(
+               proactive_input,
+               Keyword.put(policy_opts(context), :mode, "proactive")
+             )
+
+    assert plan.mode == "proactive"
+    assert plan.request.metadata["source"] == "proactive_participation"
+    assert plan.request.metadata["mode"] == "proactive"
+
+    assert {:ok, _saved} =
+             ManualImageGeneration.execute(
+               plan,
+               execution_opts(context, SuccessfulGenerator)
+             )
+
+    assert_receive {:generate_image, request}
+    assert request.metadata["source"] == "proactive_participation"
+    assert request.metadata["mode"] == "proactive"
+  end
+
   test "stops when settings change after the preview", context do
     enable_generation(context.scope)
     assert {:ok, plan} = ManualImageGeneration.plan(input(), policy_opts(context))
@@ -244,12 +275,12 @@ defmodule JidoDelvetown.ManualImageGenerationTest do
     }
   end
 
-  defp enable_generation(scope) do
+  defp enable_generation(scope, modes \\ ["manual"]) do
     assert {:ok, _settings} =
              Settings.update(
                %{
                  image_generation_enabled: true,
-                 image_generation_allowed_modes: ["manual"],
+                 image_generation_allowed_modes: modes,
                  daily_image_generation_limit: 1
                },
                scope: scope,

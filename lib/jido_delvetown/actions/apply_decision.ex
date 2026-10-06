@@ -14,7 +14,7 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     WelcomeActor
   }
 
-  alias JidoDelvetown.{OutgoingLikePolicy, WelcomePost}
+  alias JidoDelvetown.{OutgoingLikePolicy, ParticipationImageGeneration, WelcomePost}
   alias JidoDelvetown.Settings.Behavior
 
   @impl true
@@ -40,6 +40,14 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
   defp apply(%{decision: %{action: "acknowledge"}} = cycle),
     do: Map.merge(cycle, %{status: "acknowledged", effects: 0, receipt: nil})
+
+  defp apply(%{decision: decision} = cycle) when is_map_key(decision, :image_prompt) do
+    generate_image_draft(cycle)
+  end
+
+  defp apply(%{decision: decision} = cycle) when is_map_key(decision, :image_alt_text) do
+    generate_image_draft(cycle)
+  end
 
   defp apply(cycle) do
     case Behavior.action_disposition(cycle.mode) do
@@ -103,6 +111,9 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
       action == "welcome" and not valid_text?(cycle.decision.text) ->
         {:error, :invalid_welcome_text}
+
+      image_proposal?(cycle.decision) and not valid_image_proposal?(cycle.decision) ->
+        {:error, :invalid_participation_image_proposal}
 
       action == "reply" and not valid_reply_target?(cycle.candidate) ->
         {:error, :invalid_reply_target}
@@ -186,6 +197,21 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
   defp valid_text?(text), do: is_binary(text) and String.length(text) in 1..300
 
+  defp image_proposal?(decision),
+    do: Map.has_key?(decision, :image_prompt) or Map.has_key?(decision, :image_alt_text)
+
+  defp valid_image_proposal?(%{
+         action: "post",
+         image_prompt: prompt,
+         image_alt_text: alt_text
+       }),
+       do: valid_bounded_text?(prompt, 4_000) and valid_bounded_text?(alt_text, 1_000)
+
+  defp valid_image_proposal?(_decision), do: false
+
+  defp valid_bounded_text?(text, limit),
+    do: is_binary(text) and String.trim(text) != "" and String.length(text) <= limit
+
   defp valid_reply_target?(%{
          uri: uri,
          cid: cid,
@@ -239,7 +265,38 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
   defp effect_count(%{reused?: true}), do: 0
   defp effect_count(_receipt), do: 1
 
+  defp generate_image_draft(cycle) do
+    case image_generation_module().generate(cycle, cycle.decision) do
+      {:ok, result} ->
+        Map.merge(cycle, %{
+          status: "generated",
+          effects: 0,
+          receipt: nil,
+          image_generation: result
+        })
+
+      {:error, reason} ->
+        Map.merge(cycle, %{
+          status: "failed",
+          stage: "image_generation",
+          effects: 0,
+          receipt: nil,
+          errors: cycle.errors ++ [error_text(reason)]
+        })
+    end
+  end
+
+  defp image_generation_module do
+    Application.get_env(
+      :jido_delvetown,
+      :participation_image_generation,
+      ParticipationImageGeneration
+    )
+  end
+
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason
+  defp error_text({reason, _detail}) when is_atom(reason), do: Atom.to_string(reason)
+  defp error_text({reason, _detail, _cause}) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(_reason), do: "operation_failed"
 end
