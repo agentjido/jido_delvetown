@@ -2,7 +2,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
   @moduledoc false
 
   alias JidoDelvetown.{Automation, Personality}
-  alias JidoDelvetown.Settings.{Behavior, Connection, Console, Limits, Setup}
+  alias JidoDelvetown.Settings.{Behavior, Connection, Console, ImageGeneration, Limits, Setup}
   alias JidoDelvetownWeb.{DashboardDrafts, DashboardInbox, DashboardOverview, DashboardSettings}
 
   @page_title "AgentJido / DelveTown"
@@ -16,6 +16,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     connection_settings = Keyword.get(opts, :connection_settings, Connection)
     console_settings = Keyword.get(opts, :console_settings, Console)
     limits_settings = Keyword.get(opts, :limits_settings, Limits)
+    image_generation_settings = Keyword.get(opts, :image_generation_settings, ImageGeneration)
     setup_service = Keyword.get(opts, :setup_service, default_setup_service())
     settings_editor = Keyword.get(opts, :settings_editor, default_settings_editor())
     now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now() end) |> DateTime.truncate(:second)
@@ -33,6 +34,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     reactive_review = review_status(review_controller, :reactive_review_status, :reactive)
     proactive_review = review_status(review_controller, :proactive_review_status, :proactive)
     limits = settings_snapshot(limits_settings)
+    image_generation = settings_snapshot(image_generation_settings)
 
     overview =
       DashboardOverview.build(status, inspection, workflow_events, limits, now,
@@ -65,6 +67,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       overview: overview,
       inbox: inbox,
       drafts: drafts,
+      image_generation: image_generation,
       settings_editor: settings_editor_status,
       theme: setting_value(console_settings, :theme, "system"),
       setup: setup_status(setup_service),

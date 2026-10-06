@@ -114,6 +114,40 @@ defmodule JidoDelvetown.ManualImageGenerationTest do
     assert Repo.aggregate(ImageArtifact, :count, :digest) == 0
   end
 
+  test "accepts validated operator model, size, and quality selections", context do
+    enable_generation(context.scope)
+
+    selected =
+      input()
+      |> Map.put(:model, "gpt-image-1")
+      |> Map.put(:size, "1536x1024")
+      |> Map.put(:quality, "high")
+
+    assert {:ok, plan} = ManualImageGeneration.plan(selected, policy_opts(context))
+    estimate = ManualImageGeneration.estimate(plan)
+
+    assert estimate.model == "gpt-image-1"
+    assert estimate.size == "1536x1024"
+    assert estimate.quality == "high"
+
+    assert {:ok, _saved} =
+             ManualImageGeneration.execute(
+               plan,
+               execution_opts(context, SuccessfulGenerator)
+             )
+
+    assert_receive {:generate_image, request}
+    assert request.model == "gpt-image-1"
+    assert request.size == {1536, 1024}
+    assert request.quality == "high"
+
+    assert {:error, {:invalid_manual_image_generation_field, :size, _reason}} =
+             ManualImageGeneration.plan(
+               Map.put(input(), :size, "2048x2048"),
+               policy_opts(context)
+             )
+  end
+
   test "generates once, stages the draft, and reuses the durable result", context do
     enable_generation(context.scope)
     opts = execution_opts(context, SuccessfulGenerator)

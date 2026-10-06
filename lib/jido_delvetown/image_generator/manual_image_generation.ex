@@ -49,6 +49,7 @@ defmodule JidoDelvetown.ManualImageGeneration do
 
   alias JidoDelvetown.ImageGenerator.{ReqLLMAdapter, Request}
   alias JidoDelvetown.ManualImageGeneration.Plan
+  alias JidoDelvetown.Settings.Contract
   alias JidoDelvetown.Settings.ImageGeneration, as: GenerationPolicy
 
   @type execution_result :: %{
@@ -276,9 +277,9 @@ defmodule JidoDelvetown.ManualImageGeneration do
     Request.new(%{
       prompt: input.prompt,
       provider: policy.provider,
-      model: policy.model,
-      size: policy.size,
-      quality: policy.quality,
+      model: input.model || policy.model,
+      size: input.size || policy.size,
+      quality: input.quality || policy.quality,
       output_format: policy.output_format,
       timeout_ms: policy.timeout_ms,
       provider_options: %{},
@@ -325,8 +326,7 @@ defmodule JidoDelvetown.ManualImageGeneration do
     metadata_settings = map_value(request.metadata, :settings) || %{}
 
     valid? =
-      request.provider == policy.provider and request.model == policy.model and
-        request.size == policy.size and request.quality == policy.quality and
+      request.provider == policy.provider and valid_operator_request?(request) and
         request.output_format == policy.output_format and request.timeout_ms == policy.timeout_ms and
         request.provider_options == %{} and
         map_value(request.metadata, :source) == "manual_operator" and
@@ -338,14 +338,36 @@ defmodule JidoDelvetown.ManualImageGeneration do
     if valid?, do: :ok, else: {:error, :manual_image_generation_policy_mismatch}
   end
 
+  defp valid_operator_request?(request) do
+    with :ok <- Contract.validate(:image_generation_model, request.model),
+         :ok <- Contract.validate(:image_generation_size, display_size(request.size)),
+         :ok <- Contract.validate(:image_generation_quality, request.quality) do
+      true
+    else
+      _error -> false
+    end
+  end
+
   defp normalize_input(attrs) do
     attrs = if is_list(attrs), do: Map.new(attrs), else: attrs
 
     with {:ok, key} <- required_text(attrs, :key, true),
          {:ok, prompt} <- required_text(attrs, :prompt, false),
          {:ok, caption} <- required_text(attrs, :caption, false),
-         {:ok, alt_text} <- required_text(attrs, :alt_text, false) do
-      {:ok, %{key: key, prompt: prompt, caption: caption, alt_text: alt_text}}
+         {:ok, alt_text} <- required_text(attrs, :alt_text, false),
+         {:ok, model} <- optional_setting(attrs, :model, :image_generation_model),
+         {:ok, size} <- optional_setting(attrs, :size, :image_generation_size),
+         {:ok, quality} <- optional_setting(attrs, :quality, :image_generation_quality) do
+      {:ok,
+       %{
+         key: key,
+         prompt: prompt,
+         caption: caption,
+         alt_text: alt_text,
+         model: model,
+         size: size,
+         quality: quality
+       }}
     end
   rescue
     _error -> {:error, :invalid_manual_image_generation_input}
@@ -362,6 +384,31 @@ defmodule JidoDelvetown.ManualImageGeneration do
 
       _value ->
         {:error, {:missing_manual_image_generation_field, key}}
+    end
+  end
+
+  defp optional_setting(attrs, input_key, setting_key) do
+    case map_value(attrs, input_key) do
+      nil ->
+        {:ok, nil}
+
+      value when is_binary(value) ->
+        value = String.trim(value)
+
+        if value == "" do
+          {:ok, nil}
+        else
+          case Contract.validate(setting_key, value) do
+            :ok ->
+              {:ok, value}
+
+            {:error, reason} ->
+              {:error, {:invalid_manual_image_generation_field, input_key, reason}}
+          end
+        end
+
+      _value ->
+        {:error, {:invalid_manual_image_generation_field, input_key, :expected_string}}
     end
   end
 

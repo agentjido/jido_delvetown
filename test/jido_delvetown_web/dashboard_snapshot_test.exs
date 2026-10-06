@@ -103,6 +103,25 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     end
   end
 
+  defmodule HealthyImageGenerationSettings do
+    def current do
+      {:ok,
+       %{
+         enabled?: true,
+         provider: "openai",
+         model: "gpt-image-1-mini",
+         size: {1024, 1024},
+         quality: "medium",
+         output_format: :png,
+         timeout_ms: 120_000,
+         daily_limit: 2,
+         allowed_modes: ["manual"],
+         budget: %{used: 1, limit: 2, remaining: 1},
+         settings: %{scope: "active", schema_version: 1, version: 4}
+       }}
+    end
+  end
+
   defmodule HealthySetup do
     def status do
       {:ok,
@@ -158,6 +177,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         connection_settings: HealthyConnectionSettings,
         console_settings: HealthyConsoleSettings,
         limits_settings: HealthyLimitsSettings,
+        image_generation_settings: HealthyImageGenerationSettings,
         setup_service: HealthySetup,
         settings_editor: HealthySettingsEditor,
         now: ~U[2026-10-06 12:34:56.789Z]
@@ -212,6 +232,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.inbox.actionable_count == 0
     assert snapshot.drafts.total_count == 0
     assert snapshot.drafts.pending_count == 0
+    assert snapshot.image_generation.enabled?
+    assert snapshot.image_generation.budget.remaining == 1
     assert snapshot.theme == "dark"
     assert snapshot.setup.required?
     assert snapshot.setup.available?
@@ -234,6 +256,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         connection_settings: UnavailableDependency,
         console_settings: UnavailableDependency,
         limits_settings: UnavailableDependency,
+        image_generation_settings: UnavailableDependency,
         setup_service: UnavailableDependency,
         settings_editor: UnavailableDependency,
         now: ~U[2026-10-06 12:34:56Z]
@@ -266,6 +289,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert Enum.any?(snapshot.overview.attention, &(&1.key == "runtime"))
     assert snapshot.inbox.events == []
     assert snapshot.drafts.total_count == 0
+    assert snapshot.image_generation == %{}
     assert snapshot.theme == "system"
     refute snapshot.manual_publish_enabled
     assert snapshot.port == 4040

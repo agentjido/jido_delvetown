@@ -3,7 +3,14 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   use Phoenix.LiveView
 
-  alias JidoDelvetown.{Automation, DraftReviews, ImagePublisher, ManualPublisher}
+  alias JidoDelvetown.{
+    Automation,
+    DraftReviews,
+    ImagePublisher,
+    ManualImageGeneration,
+    ManualPublisher
+  }
+
   alias JidoDelvetown.Settings.{Console, Setup}
   alias JidoDelvetownWeb.{DashboardComponents, DashboardSettings, DashboardSnapshot}
 
@@ -23,6 +30,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
       |> Map.put(:publish_notice, nil)
       |> Map.put(:like_publish_notice, nil)
       |> Map.put(:image_publish_notice, nil)
+      |> Map.put(:image_generation_form, image_generation_form(snapshot.image_generation))
+      |> Map.put(:image_generation_plan, nil)
+      |> Map.put(:image_generation_preview, nil)
+      |> Map.put(:image_generation_notice, nil)
+      |> Map.put(:image_generation_status, "idle")
       |> Map.put(:draft_review_notice, nil)
       |> Map.put(:settings_notice, nil)
 
@@ -101,6 +113,75 @@ defmodule JidoDelvetownWeb.DashboardLive do
      |> assign(DashboardSnapshot.load())
      |> assign(:active_tab, "drafts")
      |> assign(:image_publish_notice, notice)}
+  end
+
+  @impl true
+  def handle_event("preview_image_generation", %{"image_generation" => params}, socket) do
+    form = image_generation_form(params, socket.assigns.image_generation)
+
+    case image_generator().plan(form) do
+      {:ok, plan} ->
+        {:noreply,
+         socket
+         |> assign(:active_tab, "drafts")
+         |> assign(:image_generation_form, form)
+         |> assign(:image_generation_plan, plan)
+         |> assign(:image_generation_preview, image_generator().estimate(plan))
+         |> assign(:image_generation_status, "ready")
+         |> assign(:image_generation_notice, %{
+           kind: "safe",
+           title: "Generation plan ready",
+           text: "Review the exact request. Generation will stage a local draft only."
+         })}
+
+      {:error, reason} ->
+        {:noreply,
+         socket
+         |> assign(:active_tab, "drafts")
+         |> assign(:image_generation_form, form)
+         |> assign(:image_generation_plan, nil)
+         |> assign(:image_generation_preview, nil)
+         |> assign(:image_generation_status, "failed")
+         |> assign(:image_generation_notice, image_generation_error_notice(reason))}
+    end
+  end
+
+  def handle_event("preview_image_generation", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:image_generation_status, "failed")
+     |> assign(
+       :image_generation_notice,
+       image_generation_error_notice(:invalid_manual_image_generation_input)
+     )}
+  end
+
+  @impl true
+  def handle_event("generate_image", _params, %{assigns: %{image_generation_plan: nil}} = socket) do
+    {:noreply,
+     assign(
+       socket,
+       :image_generation_notice,
+       image_generation_error_notice(:image_generation_preview_required)
+     )}
+  end
+
+  def handle_event("generate_image", _params, socket) do
+    plan = socket.assigns.image_generation_plan
+    generator = image_generator()
+
+    socket =
+      socket
+      |> assign(:active_tab, "drafts")
+      |> assign(:image_generation_status, "running")
+      |> assign(:image_generation_notice, %{
+        kind: "active",
+        title: "Generating image",
+        text: "The provider request is running. No upload or publication will occur."
+      })
+      |> start_async({:generate_image, plan.request_key}, fn -> generator.execute(plan) end)
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -248,6 +329,56 @@ defmodule JidoDelvetownWeb.DashboardLive do
   end
 
   @impl true
+  def handle_async({:generate_image, _request_key}, {:ok, {:ok, result}}, socket) do
+    snapshot = DashboardSnapshot.load()
+    response_id = map_value(map_value(result, :provenance, %{}), :response_id)
+
+    {:noreply,
+     socket
+     |> assign(snapshot)
+     |> assign(:active_tab, "drafts")
+     |> assign(:image_generation_form, image_generation_form(snapshot.image_generation))
+     |> assign(:image_generation_plan, nil)
+     |> assign(:image_generation_preview, nil)
+     |> assign(:image_generation_status, "completed")
+     |> assign(:image_generation_notice, %{
+       kind: "safe",
+       title: "Image draft staged",
+       text:
+         generation_completed_text(
+           map_value(result, :draft_id),
+           response_id,
+           map_value(result, :reused?, false)
+         )
+     })}
+  end
+
+  def handle_async({:generate_image, _request_key}, {:ok, {:error, reason}}, socket) do
+    {:noreply,
+     socket
+     |> assign(DashboardSnapshot.load())
+     |> assign(:active_tab, "drafts")
+     |> assign(:image_generation_plan, nil)
+     |> assign(:image_generation_preview, nil)
+     |> assign(:image_generation_status, "failed")
+     |> assign(:image_generation_notice, image_generation_error_notice(reason))}
+  end
+
+  def handle_async({:generate_image, _request_key}, {:exit, reason}, socket) do
+    {:noreply,
+     socket
+     |> assign(DashboardSnapshot.load())
+     |> assign(:active_tab, "drafts")
+     |> assign(:image_generation_plan, nil)
+     |> assign(:image_generation_preview, nil)
+     |> assign(:image_generation_status, "failed")
+     |> assign(
+       :image_generation_notice,
+       image_generation_error_notice({:image_generation_task_exit, reason})
+     )}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="console-root" data-theme={@theme}>
@@ -337,11 +468,61 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp image_publish_error(_reason),
     do: "DelveTown did not accept the image draft. Check the local logs."
 
+  defp image_generation_error_notice(reason) do
+    %{
+      kind: "attention",
+      title: "Image was not generated",
+      text: image_generation_error(reason)
+    }
+  end
+
+  defp image_generation_error(:image_generation_preview_required),
+    do: "Build and review a generation plan before you generate an image."
+
+  defp image_generation_error(:image_generation_disabled),
+    do: "Image generation is off in runtime settings."
+
+  defp image_generation_error({:image_generation_mode_not_allowed, "manual"}),
+    do: "Manual image generation is not allowed in runtime settings."
+
+  defp image_generation_error(:image_generation_daily_limit_reached),
+    do: "The daily image generation limit is reached."
+
+  defp image_generation_error(:image_generation_settings_changed),
+    do: "Image generation settings changed. Build a new plan and review it again."
+
+  defp image_generation_error(:generation_outcome_uncertain),
+    do: "The provider outcome is uncertain. Inspect the saved request before you retry."
+
+  defp image_generation_error({:missing_manual_image_generation_field, field}),
+    do: "Complete the #{image_generation_field_label(field)} field."
+
+  defp image_generation_error({:invalid_manual_image_generation_field, field, _reason}),
+    do: "Enter a valid #{image_generation_field_label(field)}."
+
+  defp image_generation_error({:generation_request_conflict, _field}),
+    do: "This request key already identifies a different generation request. Use a new key."
+
+  defp image_generation_error(:image_draft_key_conflict),
+    do: "This request key already identifies a different image draft. Use a new key."
+
+  defp image_generation_error({:image_generation_failed, _error}),
+    do: "The image provider did not complete the request. Review the saved failure below."
+
+  defp image_generation_error({:image_generation_stage_failed, _reason}),
+    do: "The generated image could not be saved as a local draft."
+
+  defp image_generation_error(_reason),
+    do: "The image request could not be completed. Check the saved request and local logs."
+
   defp publisher,
     do: Application.get_env(:jido_delvetown, :manual_publisher, ManualPublisher)
 
   defp image_publisher,
     do: Application.get_env(:jido_delvetown, :image_publisher, ImagePublisher)
+
+  defp image_generator,
+    do: Application.get_env(:jido_delvetown, :manual_image_generation, ManualImageGeneration)
 
   defp draft_reviews,
     do: Application.get_env(:jido_delvetown, :draft_reviews, DraftReviews)
@@ -506,6 +687,48 @@ defmodule JidoDelvetownWeb.DashboardLive do
     |> to_string()
     |> String.replace("_", " ")
   end
+
+  defp image_generation_field_label(field) do
+    field |> to_string() |> String.replace("_", " ")
+  end
+
+  defp generation_completed_text(draft_id, response_id, reused?) do
+    reuse_text = if reused?, do: " The durable result was reused.", else: ""
+    response_text = if is_binary(response_id), do: " Provider response: #{response_id}.", else: ""
+
+    "Draft #{draft_id} is ready for a separate publication review.#{response_text}#{reuse_text}"
+  end
+
+  defp image_generation_form(policy), do: image_generation_form(%{}, policy)
+
+  defp image_generation_form(params, policy) when is_map(params) do
+    %{
+      "key" => form_value(params, :key, next_image_generation_key()),
+      "prompt" => form_value(params, :prompt, ""),
+      "caption" => form_value(params, :caption, ""),
+      "alt_text" => form_value(params, :alt_text, ""),
+      "model" => form_value(params, :model, map_value(policy, :model, "gpt-image-1-mini")),
+      "size" => form_value(params, :size, image_generation_size(map_value(policy, :size))),
+      "quality" => form_value(params, :quality, map_value(policy, :quality, "medium"))
+    }
+  end
+
+  defp form_value(params, key, default) do
+    case Map.get(params, Atom.to_string(key), Map.get(params, key, default)) do
+      value when is_binary(value) -> value
+      _value -> default
+    end
+  end
+
+  defp next_image_generation_key do
+    timestamp = DateTime.utc_now() |> Calendar.strftime("%Y%m%dT%H%M%S")
+    "manual:web:#{timestamp}:#{System.unique_integer([:positive, :monotonic])}"
+  end
+
+  defp image_generation_size(:auto), do: "auto"
+  defp image_generation_size({width, height}), do: "#{width}x#{height}"
+  defp image_generation_size(value) when is_binary(value), do: value
+  defp image_generation_size(_value), do: "1024x1024"
 
   defp map_value(map, key, default \\ nil)
 

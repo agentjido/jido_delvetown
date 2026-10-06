@@ -51,7 +51,17 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     do: content(assign(assigns, :dashboard_section, :agent_information))
 
   @spec drafts(map()) :: Phoenix.LiveView.Rendered.t()
-  def drafts(assigns), do: content(assign(assigns, :dashboard_section, :drafts))
+  def drafts(assigns) do
+    assigns
+    |> assign_new(:image_generation, fn -> %{} end)
+    |> assign_new(:image_generation_form, fn -> %{} end)
+    |> assign_new(:image_generation_plan, fn -> nil end)
+    |> assign_new(:image_generation_preview, fn -> nil end)
+    |> assign_new(:image_generation_notice, fn -> nil end)
+    |> assign_new(:image_generation_status, fn -> "idle" end)
+    |> assign(:dashboard_section, :drafts)
+    |> content()
+  end
 
   @spec settings(map()) :: Phoenix.LiveView.Rendered.t()
   def settings(assigns), do: content(assign(assigns, :dashboard_section, :settings))
@@ -1265,6 +1275,145 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .draft-section { display: grid; gap: 12px; }
       .draft-section .panel-header { margin-bottom: 0; }
 
+      .image-generation-panel { display: grid; gap: 16px; }
+
+      .image-generation-form {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .image-generation-field {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 680;
+      }
+
+      .image-generation-field.full { grid-column: 1 / -1; }
+
+      .image-generation-field input,
+      .image-generation-field textarea,
+      .image-generation-field select {
+        width: 100%;
+        min-height: 42px;
+        padding: 9px 11px;
+        border: 1px solid var(--line-strong);
+        border-radius: 9px;
+        background: var(--surface-raised);
+        color: var(--text);
+        font: inherit;
+        font-weight: 500;
+      }
+
+      .image-generation-field textarea {
+        min-height: 92px;
+        resize: vertical;
+      }
+
+      .image-generation-field input:focus,
+      .image-generation-field textarea:focus,
+      .image-generation-field select:focus {
+        border-color: var(--cyan);
+        outline: 2px solid color-mix(in srgb, var(--cyan) 18%, transparent);
+        outline-offset: 1px;
+      }
+
+      .image-generation-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        grid-column: 1 / -1;
+      }
+
+      .image-generation-actions p {
+        margin: 0;
+        color: var(--quiet);
+        font-size: 12px;
+      }
+
+      .generation-review {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid color-mix(in srgb, var(--cyan) 42%, var(--line));
+        border-radius: 11px;
+        background: color-mix(in srgb, var(--cyan-deep) 30%, var(--surface-raised));
+      }
+
+      .generation-review-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .generation-copy-review { display: grid; gap: 8px; }
+
+      .generation-copy-review > div {
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-raised);
+      }
+
+      .generation-copy-review span {
+        color: var(--quiet);
+        font-size: 10px;
+        font-weight: 720;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .generation-copy-review p {
+        margin: 4px 0 0;
+        color: var(--text);
+        font-size: 13px;
+        white-space: pre-wrap;
+      }
+
+      .generation-review-grid > div,
+      .generation-activity-item {
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-raised);
+      }
+
+      .generation-review-grid span,
+      .generation-activity-item dt {
+        display: block;
+        color: var(--quiet);
+        font-size: 10px;
+        font-weight: 720;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .generation-review-grid strong {
+        display: block;
+        overflow-wrap: anywhere;
+        margin-top: 3px;
+        color: var(--text);
+        font-size: 12px;
+      }
+
+      .generation-activity {
+        display: grid;
+        gap: 9px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .generation-activity-item { display: grid; gap: 9px; }
+      .generation-activity-item dl { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; }
+      .generation-activity-item dd { margin: 2px 0 0; color: var(--text); font-size: 12px; }
+      .generation-prompt { margin: 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; }
+      .generation-failure { margin: 0; color: var(--red); font-size: 12px; }
+      .generation-safe-note { color: var(--green); font-size: 12px; font-weight: 680; }
+
       .draft-card {
         box-shadow: 0 1px 0 color-mix(in srgb, var(--line) 45%, transparent);
       }
@@ -1964,6 +2113,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .setup-steps { grid-template-columns: 1fr; }
         .setup-actions { align-items: stretch; flex-direction: column; }
         .setup-primary { width: 100%; }
+        .image-generation-form,
+        .generation-review-grid { grid-template-columns: 1fr; }
+        .image-generation-field.full { grid-column: auto; }
       }
 
       @media (max-width: 520px) {
@@ -3027,6 +3179,257 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         </p>
       </article>
 
+      <article
+        id="image-generation"
+        class="panel image-generation-panel"
+        aria-labelledby="image-generation-heading"
+      >
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Preview first · local staging only</p>
+            <h2 id="image-generation-heading">Generate image</h2>
+          </div>
+          <span class={"badge #{action_status_class(@image_generation_status)}"}>
+            {image_generation_status_label(@image_generation_status, @image_generation)}
+          </span>
+        </div>
+
+        <p class="simulated-intro">
+          Enter the image request and build a read-only plan. A second confirmed action calls the
+          provider and saves a local draft. It does not upload or publish the image. Publication
+          has a separate approval below.
+        </p>
+
+        <p
+          :if={@image_generation_notice}
+          class={"publish-notice #{map_value(@image_generation_notice, :kind)}"}
+          role="status"
+        >
+          <strong>{map_value(@image_generation_notice, :title)}</strong><br />
+          {map_value(@image_generation_notice, :text)}
+        </p>
+
+        <form
+          id="image-generation-form"
+          class="image-generation-form"
+          phx-submit="preview_image_generation"
+        >
+          <label class="image-generation-field full" for="image-generation-key">
+            Request key
+            <input
+              id="image-generation-key"
+              name="image_generation[key]"
+              value={image_generation_form_value(@image_generation_form, :key)}
+              maxlength="512"
+              required
+            />
+          </label>
+
+          <label class="image-generation-field full" for="image-generation-prompt">
+            Prompt <textarea
+              id="image-generation-prompt"
+              name="image_generation[prompt]"
+              maxlength="32000"
+              required
+            >{image_generation_form_value(@image_generation_form, :prompt)}</textarea>
+          </label>
+
+          <label class="image-generation-field" for="image-generation-caption">
+            Caption <textarea
+              id="image-generation-caption"
+              name="image_generation[caption]"
+              required
+            >{image_generation_form_value(@image_generation_form, :caption)}</textarea>
+          </label>
+
+          <label class="image-generation-field" for="image-generation-alt-text">
+            Alt text <textarea
+              id="image-generation-alt-text"
+              name="image_generation[alt_text]"
+              required
+            >{image_generation_form_value(@image_generation_form, :alt_text)}</textarea>
+          </label>
+
+          <label class="image-generation-field" for="image-generation-model">
+            Model
+            <input
+              id="image-generation-model"
+              name="image_generation[model]"
+              value={image_generation_form_value(@image_generation_form, :model)}
+              maxlength="255"
+              required
+            />
+          </label>
+
+          <label class="image-generation-field" for="image-generation-size">
+            Size
+            <select id="image-generation-size" name="image_generation[size]" required>
+              <option
+                :for={size <- image_generation_sizes()}
+                value={size}
+                selected={image_generation_form_value(@image_generation_form, :size) == size}
+              >
+                {size}
+              </option>
+            </select>
+          </label>
+
+          <label class="image-generation-field" for="image-generation-quality">
+            Quality
+            <select id="image-generation-quality" name="image_generation[quality]" required>
+              <option
+                :for={quality <- image_generation_qualities()}
+                value={quality}
+                selected={image_generation_form_value(@image_generation_form, :quality) == quality}
+              >
+                {state_label(quality)}
+              </option>
+            </select>
+          </label>
+
+          <div class="image-generation-actions">
+            <button
+              id="preview-image-generation"
+              type="submit"
+              class="review-button approve"
+              phx-disable-with="Building plan…"
+              disabled={
+                not image_generation_available?(@image_generation) or
+                  @image_generation_status == "running"
+              }
+            >
+              Review generation plan
+            </button>
+            <p>{image_generation_budget_label(@image_generation)}</p>
+          </div>
+        </form>
+
+        <section
+          :if={@image_generation_preview}
+          id="image-generation-review"
+          class="generation-review"
+          aria-label="Reviewed image generation plan"
+        >
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Exact provider request</p>
+              <h3>Ready for confirmation</h3>
+            </div>
+            <span class="badge safe">No upload · no publish</span>
+          </div>
+          <div class="generation-copy-review">
+            <div>
+              <span>Prompt</span>
+              <p>{image_generation_form_value(@image_generation_form, :prompt)}</p>
+            </div>
+            <div>
+              <span>Caption</span>
+              <p>{image_generation_form_value(@image_generation_form, :caption)}</p>
+            </div>
+            <div>
+              <span>Alt text</span>
+              <p>{image_generation_form_value(@image_generation_form, :alt_text)}</p>
+            </div>
+          </div>
+          <div class="generation-review-grid">
+            <div>
+              <span>Provider</span><strong>{map_value(@image_generation_preview, :provider)}</strong>
+            </div>
+            <div>
+              <span>Model</span><strong>{map_value(@image_generation_preview, :model)}</strong>
+            </div>
+            <div><span>Size</span><strong>{map_value(@image_generation_preview, :size)}</strong></div>
+            <div>
+              <span>Quality</span><strong>{map_value(@image_generation_preview, :quality)}</strong>
+            </div>
+            <div>
+              <span>Format</span><strong>{map_value(@image_generation_preview, :output_format)}</strong>
+            </div>
+            <div>
+              <span>Timeout</span><strong>{map_value(@image_generation_preview, :timeout_ms)} ms</strong>
+            </div>
+            <div>
+              <span>Provider calls</span><strong>{map_value(
+                @image_generation_preview,
+                :estimated_provider_calls
+              )}</strong>
+            </div>
+            <div>
+              <span>Settings</span><strong>{settings_reference_label(
+                map_value(@image_generation_preview, :settings)
+              )}</strong>
+            </div>
+          </div>
+          <div class="image-generation-actions">
+            <button
+              id="generate-reviewed-image"
+              type="button"
+              class="publish-button"
+              phx-click="generate_image"
+              phx-disable-with="Generating…"
+              data-confirm="Call the configured image provider and stage this exact image request? This can use a paid external service."
+              disabled={@image_generation_status == "running"}
+            >
+              Generate and stage draft
+            </button>
+            <span class="generation-safe-note">Publication still needs a separate approval.</span>
+          </div>
+        </section>
+
+        <section
+          :if={inspection_list(@inspection, [:image_generation_requests]) != []}
+          aria-labelledby="image-generation-activity-heading"
+        >
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Durable SQLite receipts</p>
+              <h3 id="image-generation-activity-heading">Recent generation activity</h3>
+            </div>
+            <span class="count">{length(inspection_list(@inspection, [:image_generation_requests]))}</span>
+          </div>
+          <ol class="generation-activity">
+            <li
+              :for={request <- inspection_list(@inspection, [:image_generation_requests])}
+              class="generation-activity-item"
+            >
+              <div class="simulated-card-header">
+                <span class={"badge #{action_status_class(map_value(request, :state))}"}>
+                  {state_label(map_value(request, :state))}
+                </span>
+                <time>{draft_time(request, :updated_at)}</time>
+              </div>
+              <p class="generation-prompt">{map_value(request, :prompt)}</p>
+              <dl>
+                <div>
+                  <dt>Request</dt><dd>{map_value(request, :request_key)}</dd>
+                </div>
+                <div>
+                  <dt>Provider</dt><dd>{map_value(request, :provider)}</dd>
+                </div>
+                <div>
+                  <dt>Model</dt><dd>{map_value(request, :model)}</dd>
+                </div>
+                <div>
+                  <dt>Size</dt><dd>{display(map_value(request, :size))}</dd>
+                </div>
+                <div>
+                  <dt>Quality</dt><dd>{display(map_value(request, :quality))}</dd>
+                </div>
+                <div>
+                  <dt>Usage</dt><dd>{image_generation_usage_label(request)}</dd>
+                </div>
+                <div>
+                  <dt>Provenance</dt><dd>{image_generation_provenance_label(request)}</dd>
+                </div>
+              </dl>
+              <p :if={map_value(request, :failure)} class="generation-failure">
+                {image_generation_failure_label(request)}
+              </p>
+            </li>
+          </ol>
+        </section>
+      </article>
+
       <article class="panel draft-section" aria-labelledby="text-drafts-heading">
         <div class="panel-header">
           <div>
@@ -3316,6 +3719,11 @@ defmodule JidoDelvetownWeb.DashboardComponents do
                 </div>
               </div>
               <p class="image-file-meta">{image_file_detail(draft)}</p>
+              <details :if={map_value(draft, :generation)} class="technical-details">
+                <summary>Generation provenance</summary>
+                <p>{image_generation_provenance_label(map_value(draft, :generation))}</p>
+                <p>{image_generation_usage_label(map_value(draft, :generation))}</p>
+              </details>
 
               <div class="simulated-actions">
                 <a
@@ -3957,6 +4365,88 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     dimensions = image_dimensions(artifact)
     digest = display(map_value(artifact, :digest))
     "#{mime_type} · #{byte_size} bytes · #{dimensions} · #{digest}"
+  end
+
+  defp image_generation_form_value(form, key) do
+    map_value(form, key, "")
+  end
+
+  defp image_generation_sizes, do: ~w(auto 1024x1024 1536x1024 1024x1536)
+  defp image_generation_qualities, do: ~w(auto low medium high)
+
+  defp image_generation_available?(policy) do
+    map_value(policy, :enabled?, false) and
+      "manual" in map_value(policy, :allowed_modes, [])
+  end
+
+  defp image_generation_status_label("ready", _policy), do: "Plan ready"
+  defp image_generation_status_label("running", _policy), do: "Generating"
+  defp image_generation_status_label("completed", _policy), do: "Draft staged"
+  defp image_generation_status_label("failed", _policy), do: "Needs attention"
+
+  defp image_generation_status_label(_status, policy) do
+    if image_generation_available?(policy), do: "Ready", else: "Generation off"
+  end
+
+  defp image_generation_budget_label(policy) do
+    budget = map_value(policy, :budget, %{})
+    used = map_value(budget, :used)
+    limit = map_value(budget, :limit)
+    remaining = map_value(budget, :remaining)
+
+    if Enum.all?([used, limit, remaining], &is_integer/1) do
+      "Daily budget: #{used} of #{limit} used · #{remaining} left"
+    else
+      "Daily budget is unavailable."
+    end
+  end
+
+  defp image_generation_usage_label(request) do
+    usage = map_value(request, :usage, %{})
+    images = map_value(usage, :generated_images)
+    cost = map_value(usage, :total_cost)
+    currency = map_value(usage, :currency)
+
+    cond do
+      is_number(cost) and is_binary(currency) ->
+        "#{display(images)} image · #{cost} #{currency}"
+
+      is_integer(images) ->
+        "#{images} image"
+
+      true ->
+        "Not recorded"
+    end
+  end
+
+  defp image_generation_provenance_label(request) do
+    provenance = map_value(request, :provenance, %{})
+    adapter = map_value(provenance, :adapter)
+    response_id = map_value(provenance, :response_id)
+
+    cond do
+      is_binary(adapter) and is_binary(response_id) -> "#{adapter} · #{response_id}"
+      is_binary(adapter) -> adapter
+      is_binary(response_id) -> response_id
+      true -> "Not recorded"
+    end
+  end
+
+  defp image_generation_failure_label(request) do
+    failure = map_value(request, :failure, %{})
+    kind = state_label(map_value(failure, :kind, "failure"))
+    message = map_value(failure, :message)
+
+    if is_binary(message) and message != "", do: "#{kind}: #{message}", else: kind
+  end
+
+  defp settings_reference_label(reference) do
+    scope = map_value(reference, :scope)
+    version = map_value(reference, :version)
+
+    if is_binary(scope) and is_integer(version),
+      do: "#{scope} v#{version}",
+      else: "Not recorded"
   end
 
   defp image_dimensions(artifact) do

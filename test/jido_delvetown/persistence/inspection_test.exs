@@ -12,6 +12,7 @@ defmodule JidoDelvetown.InspectionTest do
     ImageArtifact,
     DraftReview,
     ImageDraft,
+    ImageGenerationRequest,
     InteractionEvent,
     LegacyImport,
     ScanState
@@ -47,6 +48,7 @@ defmodule JidoDelvetown.InspectionTest do
     assert snapshot.simulated_posts == []
     assert snapshot.like_proposals == []
     assert snapshot.image_drafts == []
+    assert snapshot.image_generation_requests == []
     assert snapshot.scans == []
     assert snapshot.effects.completed_receipts == []
     assert snapshot.automation.proactive_review.cron == "5,35 * * * *"
@@ -198,6 +200,98 @@ defmodule JidoDelvetown.InspectionTest do
 
     assert draft.artifact.preview_data_url ==
              "data:image/png;base64,#{Base.encode64(bytes)}"
+  end
+
+  test "image generation activity exposes progress, failure, usage, and provenance" do
+    now = ~U[2026-10-06 15:00:00.000000Z]
+    bytes = <<0x89, 0x50, 0x4E, 0x47, "generated-preview">>
+
+    assert {:ok, staged} =
+             ImageDrafts.stage("image:generated", bytes, %{
+               caption: "A generated scene.",
+               alt_text: "A green robot draws a map.",
+               mime_type: "image/png",
+               width: 1024,
+               height: 1024,
+               source_metadata: %{
+                 source: "image_generation",
+                 generation_request_id: "generation:completed"
+               }
+             })
+
+    Repo.insert!(%ImageGenerationRequest{
+      request_key: "generation:completed",
+      request_fingerprint: String.duplicate("a", 64),
+      provider: "openai",
+      model: "gpt-image-1-mini",
+      prompt: "A green robot draws a map.",
+      options: %{
+        "size" => [1024, 1024],
+        "quality" => "medium",
+        "output_format" => "png",
+        "timeout_ms" => 120_000
+      },
+      request_metadata: %{
+        "settings" => %{"scope" => "active", "schema_version" => 1, "version" => 7}
+      },
+      state: "completed",
+      attempt_count: 1,
+      usage: %{"generated_images" => 1, "total_cost" => 0.02, "currency" => "USD"},
+      response_metadata: %{
+        "provenance" => %{
+          "adapter" => "req_llm",
+          "response_id" => "response_1",
+          "generated_at" => DateTime.to_iso8601(now),
+          "request_fingerprint" => String.duplicate("a", 64)
+        }
+      },
+      artifact_digest: staged.artifact.digest,
+      reserved_at: now,
+      attempted_at: now,
+      completed_at: now,
+      inserted_at: now,
+      updated_at: now
+    })
+
+    Repo.insert!(%ImageGenerationRequest{
+      request_key: "generation:failed",
+      request_fingerprint: String.duplicate("b", 64),
+      provider: "openai",
+      model: "gpt-image-1-mini",
+      prompt: "A failed prompt.",
+      options: %{"size" => "auto", "quality" => "low"},
+      request_metadata: %{},
+      state: "failed",
+      attempt_count: 1,
+      failure: %{
+        "kind" => "provider",
+        "message" => "The provider rejected the request.",
+        "outcome" => "failed",
+        "retryable" => false,
+        "details" => %{"secret" => "hidden"}
+      },
+      reserved_at: now,
+      attempted_at: now,
+      completed_at: now,
+      inserted_at: now,
+      updated_at: DateTime.add(now, 1, :second)
+    })
+
+    snapshot = Inspection.snapshot(image_limit: 2)
+    assert [failed, completed] = snapshot.image_generation_requests
+    assert failed.state == "failed"
+    assert failed.failure.kind == "provider"
+    assert failed.failure.message == "The provider rejected the request."
+    refute inspect(failed.failure) =~ "hidden"
+
+    assert completed.size == "1024x1024"
+    assert completed.usage["total_cost"] == 0.02
+    assert completed.provenance.response_id == "response_1"
+    assert completed.settings == %{scope: "active", schema_version: 1, version: 7}
+
+    assert [draft] = snapshot.image_drafts
+    assert draft.generation.request_key == "generation:completed"
+    assert draft.generation.provenance.adapter == "req_llm"
   end
 
   test "simulated posts expose only durable draft fields in newest-first order" do
@@ -519,6 +613,7 @@ defmodule JidoDelvetown.InspectionTest do
       [
         DraftReview,
         ImageDraft,
+        ImageGenerationRequest,
         ImageArtifact,
         AuditEvent,
         Effect,

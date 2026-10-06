@@ -87,6 +87,30 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     end
   end
 
+  defmodule FakeManualImageGeneration do
+    def plan(params) do
+      send(
+        Application.fetch_env!(:jido_delvetown, :test_owner),
+        {:image_generation_planned, params}
+      )
+
+      Application.fetch_env!(:jido_delvetown, :image_generation_plan_test_result)
+    end
+
+    def estimate(_plan) do
+      Application.fetch_env!(:jido_delvetown, :image_generation_estimate_test_result)
+    end
+
+    def execute(plan) do
+      send(
+        Application.fetch_env!(:jido_delvetown, :test_owner),
+        {:image_generation_executed, plan}
+      )
+
+      Application.fetch_env!(:jido_delvetown, :image_generation_execute_test_result)
+    end
+  end
+
   setup do
     old_controller = Application.get_env(:jido_delvetown, :reactive_review_controller)
     old_result = Application.get_env(:jido_delvetown, :reactive_review_test_result)
@@ -103,6 +127,17 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     old_draft_review_result = Application.get_env(:jido_delvetown, :draft_review_test_result)
     old_draft_review_approved = Application.get_env(:jido_delvetown, :draft_review_approved)
     old_manual_publisher = Application.get_env(:jido_delvetown, :manual_publisher)
+    old_manual_image_generation = Application.get_env(:jido_delvetown, :manual_image_generation)
+
+    old_image_generation_plan =
+      Application.get_env(:jido_delvetown, :image_generation_plan_test_result)
+
+    old_image_generation_estimate =
+      Application.get_env(:jido_delvetown, :image_generation_estimate_test_result)
+
+    old_image_generation_execute =
+      Application.get_env(:jido_delvetown, :image_generation_execute_test_result)
+
     old_dashboard_settings = Application.get_env(:jido_delvetown, :dashboard_settings)
 
     old_dashboard_settings_status =
@@ -135,7 +170,37 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     Application.put_env(:jido_delvetown, :test_owner, self())
     Application.put_env(:jido_delvetown, :draft_reviews, FakeDraftReviews)
     Application.put_env(:jido_delvetown, :manual_publisher, FakePublisher)
+
+    Application.put_env(
+      :jido_delvetown,
+      :manual_image_generation,
+      FakeManualImageGeneration
+    )
+
     Application.put_env(:jido_delvetown, :dashboard_settings, FakeDashboardSettings)
+
+    Application.put_env(
+      :jido_delvetown,
+      :image_generation_plan_test_result,
+      {:ok, %{request_key: "manual:web:test"}}
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :image_generation_estimate_test_result,
+      image_generation_preview()
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :image_generation_execute_test_result,
+      {:ok,
+       %{
+         draft_id: "manual:web:test",
+         reused?: false,
+         provenance: %{"response_id" => "response_1"}
+       }}
+    )
 
     Application.put_env(
       :jido_delvetown,
@@ -216,6 +281,10 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       restore_env(:draft_review_test_result, old_draft_review_result)
       restore_env(:draft_review_approved, old_draft_review_approved)
       restore_env(:manual_publisher, old_manual_publisher)
+      restore_env(:manual_image_generation, old_manual_image_generation)
+      restore_env(:image_generation_plan_test_result, old_image_generation_plan)
+      restore_env(:image_generation_estimate_test_result, old_image_generation_estimate)
+      restore_env(:image_generation_execute_test_result, old_image_generation_execute)
       restore_env(:manual_publisher_test_result, old_manual_publisher_result)
       restore_env(:dashboard_settings, old_dashboard_settings)
       restore_env(:dashboard_settings_test_status, old_dashboard_settings_status)
@@ -777,6 +846,135 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     refute html =~ "Publish like to DelveTown"
   end
 
+  test "previews an exact image generation plan before execution" do
+    params = %{
+      "key" => "manual:web:test",
+      "prompt" => "AgentJido maps an OTP supervision tree.",
+      "caption" => "Map the failure boundaries.",
+      "alt_text" => "A green robot draws a supervision tree.",
+      "model" => "gpt-image-1",
+      "size" => "1536x1024",
+      "quality" => "high"
+    }
+
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+      |> Phoenix.Component.assign(:active_tab, "drafts")
+
+    assert {:noreply, preview_socket} =
+             DashboardLive.handle_event(
+               "preview_image_generation",
+               %{"image_generation" => params},
+               socket
+             )
+
+    assert_received {:image_generation_planned, planned}
+    assert planned == params
+    assert preview_socket.assigns.image_generation_status == "ready"
+    assert preview_socket.assigns.image_generation_plan.request_key == "manual:web:test"
+    assert preview_socket.assigns.image_generation_preview.model == "gpt-image-1"
+    assert preview_socket.assigns.image_generation_notice.title == "Generation plan ready"
+
+    html = render_dashboard(preview_socket.assigns)
+    assert html =~ ~s(id="image-generation-review")
+    assert html =~ "Exact provider request"
+    assert html =~ "AgentJido maps an OTP supervision tree."
+    assert html =~ "Map the failure boundaries."
+    assert html =~ "A green robot draws a supervision tree."
+    assert html =~ "1536x1024"
+    assert html =~ "No upload · no publish"
+    assert html =~ ~s(phx-click="generate_image")
+    assert html =~ "paid external service"
+  end
+
+  test "shows running, completed, and failed generation states" do
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+      |> Phoenix.Component.assign(:active_tab, "drafts")
+      |> Phoenix.Component.assign(:image_generation_plan, %{request_key: "manual:web:test"})
+      |> Phoenix.Component.assign(:image_generation_preview, image_generation_preview())
+
+    assert {:noreply, running_socket} =
+             DashboardLive.handle_event("generate_image", %{}, socket)
+
+    assert running_socket.assigns.image_generation_status == "running"
+    assert running_socket.assigns.image_generation_notice.title == "Generating image"
+
+    result = %{
+      draft_id: "manual:web:test",
+      reused?: false,
+      provenance: %{"response_id" => "response_1"}
+    }
+
+    assert {:noreply, completed_socket} =
+             DashboardLive.handle_async(
+               {:generate_image, "manual:web:test"},
+               {:ok, {:ok, result}},
+               running_socket
+             )
+
+    assert completed_socket.assigns.image_generation_status == "completed"
+    assert completed_socket.assigns.image_generation_notice.title == "Image draft staged"
+    assert completed_socket.assigns.image_generation_notice.text =~ "separate publication review"
+    assert completed_socket.assigns.image_generation_notice.text =~ "response_1"
+
+    assert {:noreply, failed_socket} =
+             DashboardLive.handle_async(
+               {:generate_image, "manual:web:test"},
+               {:ok, {:error, :image_generation_daily_limit_reached}},
+               running_socket
+             )
+
+    assert failed_socket.assigns.image_generation_status == "failed"
+    assert failed_socket.assigns.image_generation_notice.text =~ "daily image generation limit"
+  end
+
+  test "renders generation activity and keeps publication approval separate" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "drafts")
+      |> Map.put(:image_generation_status, "failed")
+      |> Map.put(:image_generation_notice, %{
+        kind: "attention",
+        title: "Image was not generated",
+        text: "Review the saved failure below."
+      })
+      |> put_in([:inspection, :image_generation_requests], [
+        %{
+          request_key: "manual:web:failed",
+          state: "failed",
+          prompt: "A green robot maps a fault tree.",
+          provider: "openai",
+          model: "gpt-image-1-mini",
+          size: "1024x1024",
+          quality: "medium",
+          updated_at: "2026-10-06T15:00:00Z",
+          usage: %{},
+          provenance: %{},
+          failure: %{
+            kind: "provider",
+            message: "The provider rejected the request.",
+            outcome: "failed"
+          }
+        }
+      ])
+
+    html = render_dashboard(assigns)
+    assert html =~ ~s(id="image-generation-form")
+    assert html =~ ~s(phx-submit="preview_image_generation")
+    assert html =~ ~s(name="image_generation[prompt]")
+    assert html =~ ~s(name="image_generation[caption]")
+    assert html =~ ~s(name="image_generation[alt_text]")
+    assert html =~ ~s(name="image_generation[model]")
+    assert html =~ ~s(name="image_generation[size]")
+    assert html =~ ~s(name="image_generation[quality]")
+    assert html =~ "Recent generation activity"
+    assert html =~ "The provider rejected the request."
+    assert html =~ "separate approval below."
+  end
+
   test "shows local image previews and a confirmed manual publish action" do
     assigns =
       base_assigns()
@@ -1008,6 +1206,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
         simulated_posts: [],
         like_proposals: [],
         image_drafts: [],
+        image_generation_requests: [],
         events: %{
           counts: %{
             "pending" => 1,
@@ -1086,6 +1285,31 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       publish_notice: nil,
       like_publish_notice: nil,
       image_publish_notice: nil,
+      image_generation: %{
+        enabled?: true,
+        provider: "openai",
+        model: "gpt-image-1-mini",
+        size: {1024, 1024},
+        quality: "medium",
+        output_format: :png,
+        timeout_ms: 120_000,
+        allowed_modes: ["manual"],
+        budget: %{used: 0, limit: 2, remaining: 2},
+        settings: %{scope: "active", schema_version: 1, version: 3}
+      },
+      image_generation_form: %{
+        "key" => "manual:web:test",
+        "prompt" => "",
+        "caption" => "",
+        "alt_text" => "",
+        "model" => "gpt-image-1-mini",
+        "size" => "1024x1024",
+        "quality" => "medium"
+      },
+      image_generation_plan: nil,
+      image_generation_preview: nil,
+      image_generation_notice: nil,
+      image_generation_status: "idle",
       draft_review_notice: nil,
       settings_notice: nil,
       character: %{
@@ -1115,6 +1339,24 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
         effect: "Protocol effects are blocked. Review cycles can inspect and propose.",
         next: nil
       }
+    }
+  end
+
+  defp image_generation_preview do
+    %{
+      operation: "generate_and_stage_image",
+      generation_request_id: "manual:web:test",
+      draft_id: "manual:web:test",
+      provider: "openai",
+      model: "gpt-image-1",
+      size: "1536x1024",
+      quality: "high",
+      output_format: :png,
+      timeout_ms: 120_000,
+      estimated_provider_calls: 1,
+      settings: %{scope: "active", schema_version: 1, version: 3},
+      will_upload?: false,
+      will_publish?: false
     }
   end
 

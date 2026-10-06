@@ -11,6 +11,7 @@ defmodule JidoDelvetown.Inspection do
     Effect,
     ImageArtifact,
     ImageDraft,
+    ImageGenerationRequest,
     InteractionEvent,
     LegacyImport,
     ScanState
@@ -31,6 +32,7 @@ defmodule JidoDelvetown.Inspection do
     simulated_posts = simulated_posts(repo, simulated_limit)
     like_proposals = like_proposals(repo, simulated_limit)
     image_drafts = image_drafts(repo, image_limit)
+    image_generation_requests = image_generation_requests(repo, image_limit)
 
     reviews =
       DraftReviews.decisions(
@@ -46,6 +48,7 @@ defmodule JidoDelvetown.Inspection do
       simulated_posts: put_reviews(simulated_posts, reviews, "text"),
       like_proposals: put_reviews(like_proposals, reviews, "like"),
       image_drafts: put_reviews(image_drafts, reviews, "image"),
+      image_generation_requests: image_generation_requests,
       actors: %{recent: recent_actors(repo, limit)},
       conversations: %{
         counts: grouped_counts(repo, Conversation, :status, ["active", "closed"]),
@@ -68,15 +71,19 @@ defmodule JidoDelvetown.Inspection do
       from(draft in ImageDraft,
         join: artifact in ImageArtifact,
         on: artifact.digest == draft.artifact_digest,
+        left_join: generation in ImageGenerationRequest,
+        on:
+          generation.request_key ==
+            fragment("json_extract(?, '$.generation_request_id')", artifact.source_metadata),
         order_by: [desc: draft.updated_at, asc: draft.draft_key],
         limit: ^limit,
-        select: {draft, artifact}
+        select: {draft, artifact, generation}
       )
     )
     |> Enum.map(&image_draft_summary/1)
   end
 
-  defp image_draft_summary({draft, artifact}) do
+  defp image_draft_summary({draft, artifact, generation}) do
     %{
       draft_key: draft.draft_key,
       caption: draft.caption,
@@ -88,6 +95,7 @@ defmodule JidoDelvetown.Inspection do
       post_uri: map_value(draft.post_receipt, "uri"),
       published_at: iso8601(draft.published_at),
       inserted_at: iso8601(draft.inserted_at),
+      generation: image_generation_summary(generation),
       artifact: %{
         digest: artifact.digest,
         preview_data_url: preview_data_url(artifact),
@@ -104,6 +112,76 @@ defmodule JidoDelvetown.Inspection do
       }
     }
   end
+
+  defp image_generation_requests(_repo, 0), do: []
+
+  defp image_generation_requests(repo, limit) do
+    repo.all(
+      from(request in ImageGenerationRequest,
+        order_by: [desc: request.updated_at, asc: request.request_key],
+        limit: ^limit
+      )
+    )
+    |> Enum.map(&image_generation_summary/1)
+  end
+
+  defp image_generation_summary(nil), do: nil
+
+  defp image_generation_summary(request) do
+    options = request.options || %{}
+    metadata = request.request_metadata || %{}
+    response_metadata = request.response_metadata || %{}
+    provenance = map_value(response_metadata, "provenance") || %{}
+    settings = map_value(metadata, "settings") || %{}
+
+    %{
+      request_key: request.request_key,
+      state: request.state,
+      prompt: request.prompt,
+      provider: request.provider,
+      model: request.model,
+      size: generation_size(map_value(options, "size")),
+      quality: map_value(options, "quality"),
+      output_format: map_value(options, "output_format"),
+      timeout_ms: map_value(options, "timeout_ms"),
+      attempt_count: request.attempt_count,
+      usage: request.usage || %{},
+      failure: safe_generation_failure(request.failure),
+      provenance: %{
+        adapter: map_value(provenance, "adapter"),
+        response_id: map_value(provenance, "response_id"),
+        generated_at: map_value(provenance, "generated_at"),
+        request_fingerprint: map_value(provenance, "request_fingerprint")
+      },
+      artifact_digest: request.artifact_digest,
+      settings:
+        settings_reference(
+          map_value(settings, "scope"),
+          map_value(settings, "schema_version"),
+          map_value(settings, "version")
+        ),
+      reserved_at: iso8601(request.reserved_at),
+      attempted_at: iso8601(request.attempted_at),
+      completed_at: iso8601(request.completed_at),
+      updated_at: iso8601(request.updated_at)
+    }
+  end
+
+  defp safe_generation_failure(nil), do: nil
+
+  defp safe_generation_failure(failure) when is_map(failure) do
+    %{
+      kind: map_value(failure, "kind"),
+      message: map_value(failure, "message"),
+      outcome: map_value(failure, "outcome"),
+      retryable?: map_value(failure, "retryable")
+    }
+  end
+
+  defp safe_generation_failure(_failure), do: %{kind: "unknown", message: nil}
+
+  defp generation_size([width, height]), do: "#{width}x#{height}"
+  defp generation_size(value), do: value
 
   defp preview_data_url(%{mime_type: mime_type, bytes: bytes})
        when is_binary(mime_type) and is_binary(bytes) do
