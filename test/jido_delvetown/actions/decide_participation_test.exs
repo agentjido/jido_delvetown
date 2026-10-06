@@ -56,6 +56,31 @@ defmodule JidoDelvetown.Actions.DecideParticipationTest do
              DecideParticipation.choose_with_lm("publish_daily_note", %{}, lm)
   end
 
+  test "Imp receives a narrowed action list from the selection policy" do
+    owner = self()
+
+    lm =
+      Imp.LM.Static.new(
+        handler: fn messages, _opts ->
+          send(owner, {:imp_messages, messages})
+          %{action: "like", reason: "The reply budget is full."}
+        end
+      )
+
+    assert {:ok, %{action: "like"}} =
+             DecideParticipation.choose_with_lm(
+               "join_useful_discussion",
+               %{allowed_actions: ["like", "skip"]},
+               lm
+             )
+
+    assert_received {:imp_messages, messages}
+    rendered = Enum.map_join(messages, "\n", & &1.content)
+    assert rendered =~ "like"
+    assert rendered =~ "skip"
+    refute rendered =~ ~s(allowed_actions: ["reply")
+  end
+
   test "the Action rejects an unknown intent before a model call" do
     lm =
       Imp.LM.Static.new(

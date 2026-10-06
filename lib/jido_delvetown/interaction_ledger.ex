@@ -310,6 +310,22 @@ defmodule JidoDelvetown.InteractionLedger do
     effects + simulations
   end
 
+  def recent_outreach_for_actor?(kind, actor_did, since, opts \\ [])
+      when is_binary(kind) and is_binary(actor_did) and is_struct(since, DateTime) do
+    repo(opts).exists?(
+      from(event in InteractionEvent,
+        where:
+          event.actor_did == ^actor_did and event.state == "completed" and
+            event.terminal_at >= ^since and
+            fragment("json_extract(?, '$.action')", event.payload) == ^kind and
+            fragment("json_extract(?, '$.cycle_status')", event.payload) in [
+              "acted",
+              "simulated"
+            ]
+      )
+    )
+  end
+
   defp finish_candidate(_event_key, %{status: "proposed"}), do: {:ok, :pending}
 
   defp finish_candidate(event_key, cycle) do

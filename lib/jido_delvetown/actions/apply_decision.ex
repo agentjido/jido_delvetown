@@ -14,7 +14,7 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     WelcomeActor
   }
 
-  alias JidoDelvetown.{Config, WelcomePost}
+  alias JidoDelvetown.{Config, OutgoingLikePolicy, WelcomePost}
 
   @impl true
   def run(%{cycle: %{status: "failed"} = cycle}, _context), do: {:ok, cycle}
@@ -74,6 +74,7 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
   defp validate(cycle) do
     action = cycle.decision.action
+    like_eligibility = validate_like(action, cycle.candidate, cycle.state)
 
     cond do
       action not in cycle.allowed_actions ->
@@ -90,6 +91,9 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
       action in ["like", "repost"] and not valid_subject?(cycle.candidate) ->
         {:error, :invalid_subject}
+
+      like_eligibility != :ok ->
+        like_eligibility
 
       action == "follow" and not valid_actor?(cycle.candidate) ->
         {:error, :invalid_actor}
@@ -156,6 +160,15 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     do: is_binary(uri) and uri != "" and is_binary(cid) and cid != ""
 
   defp valid_subject?(_candidate), do: false
+
+  defp validate_like("like", candidate, state) do
+    case OutgoingLikePolicy.evaluate(candidate, state) do
+      :ok -> :ok
+      {:skip, reason} -> {:error, reason}
+    end
+  end
+
+  defp validate_like(_action, _candidate, _state), do: :ok
 
   defp valid_actor?(%{author: %{did: did}}), do: is_binary(did) and did != ""
   defp valid_actor?(_candidate), do: false

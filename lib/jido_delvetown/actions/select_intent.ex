@@ -12,6 +12,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     EngagementRanker,
     InteractionLedger,
     OptOut,
+    OutgoingLikePolicy,
     Protocol,
     Session
   }
@@ -93,13 +94,21 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   def allowed_actions(intent), do: Map.fetch(@actions, intent)
 
   defp select_proactive(cycle) do
-    posts =
+    evaluated_posts =
       cycle.recent_posts
-      |> Enum.reject(&own_post?/1)
-      |> Enum.reject(&processed?(cycle.state, &1.id))
+      |> Enum.map(&add_memory/1)
+      |> Enum.map(&attach_like_eligibility(&1, cycle.state))
+
+    posts = Enum.filter(evaluated_posts, &like_eligible?/1)
 
     discussion =
       posts
+      |> Enum.filter(&Candidate.question?/1)
+      |> rank(:useful_discussion, cycle.state)
+
+    rejected_discussion =
+      evaluated_posts
+      |> Enum.reject(&like_eligible?/1)
       |> Enum.filter(&Candidate.question?/1)
       |> rank(:useful_discussion, cycle.state)
 
@@ -107,8 +116,25 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       InteractionLedger.pending_events?(@direct_reasons) ->
         {:ok, select(cycle, "skip", nil, "direct_request_pending")}
 
-      discussion && cycle.state.budget.replies < Config.daily_reply_limit() ->
-        select_with_thread(%{cycle | recent_posts: posts}, "join_useful_discussion", discussion)
+      discussion ->
+        select_with_thread(
+          %{cycle | recent_posts: posts},
+          "join_useful_discussion",
+          discussion,
+          discussion_actions(cycle.state)
+        )
+
+      rejected_discussion ->
+        reason = get_in(rejected_discussion, [:like_eligibility, :reason])
+
+        {:ok,
+         select(
+           %{cycle | recent_posts: posts},
+           "skip",
+           rejected_discussion,
+           reason,
+           OutgoingLikePolicy.temporary_reason?(reason)
+         )}
 
       daily_note_due?(cycle.state) ->
         candidate =
@@ -125,8 +151,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
         {:ok, select(%{cycle | recent_posts: posts}, "publish_daily_note", candidate)}
 
       true ->
-        reason = if discussion, do: "reply_budget_exhausted", else: "no_eligible_work"
-        {:ok, select(cycle, "skip", discussion, reason, not is_nil(discussion))}
+        {:ok, select(cycle, "skip", nil, "no_eligible_work")}
     end
   end
 
@@ -166,7 +191,10 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     end
   end
 
-  defp select_with_thread(cycle, intent, %{uri: uri} = candidate) when is_binary(uri) do
+  defp select_with_thread(cycle, intent, candidate, allowed_actions \\ nil)
+
+  defp select_with_thread(cycle, intent, %{uri: uri} = candidate, allowed_actions)
+       when is_binary(uri) do
     case Protocol.query("town.delve.feed.getPostThread", %{
            uri: uri,
            depth: 6,
@@ -182,7 +210,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
           |> Map.put(:root, root)
           |> add_memory()
 
-        {:ok, cycle |> Map.update!(:reads, &(&1 + 1)) |> select(intent, candidate)}
+        selected = cycle |> Map.update!(:reads, &(&1 + 1)) |> select(intent, candidate)
+        {:ok, maybe_put_allowed_actions(selected, allowed_actions)}
 
       {:error, reason} ->
         {:ok,
@@ -192,7 +221,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     end
   end
 
-  defp select_with_thread(cycle, _intent, _candidate) do
+  defp select_with_thread(cycle, _intent, _candidate, _allowed_actions) do
     {:ok,
      Map.merge(cycle, %{status: "failed", stage: "thread_read", errors: ["missing_post_uri"]})}
   end
@@ -237,6 +266,28 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp add_memory(candidate),
     do: Map.put(candidate, :memory, InteractionLedger.context_for(candidate))
+
+  defp attach_like_eligibility(candidate, state) do
+    case OutgoingLikePolicy.evaluate(candidate, state) do
+      :ok ->
+        Map.put(candidate, :like_eligibility, %{status: "eligible", reason: nil})
+
+      {:skip, reason} ->
+        Map.put(candidate, :like_eligibility, %{status: "excluded", reason: reason})
+    end
+  end
+
+  defp like_eligible?(candidate),
+    do: get_in(candidate, [:like_eligibility, :status]) == "eligible"
+
+  defp discussion_actions(state) do
+    if state.budget.replies < Config.daily_reply_limit(),
+      do: Map.fetch!(@actions, "join_useful_discussion"),
+      else: ["like", "skip"]
+  end
+
+  defp maybe_put_allowed_actions(cycle, nil), do: cycle
+  defp maybe_put_allowed_actions(cycle, actions), do: Map.put(cycle, :allowed_actions, actions)
 
   defp rank(candidates, opportunity, state) do
     candidates
@@ -330,17 +381,6 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   end
 
   defp daily_note_due?(state), do: state.budget.posts < @post_limit
-
-  defp own_post?(%{author: %{did: did}}) when is_binary(did) do
-    case Session.status() do
-      %{did: ^did} -> true
-      _status -> false
-    end
-  catch
-    :exit, _reason -> false
-  end
-
-  defp own_post?(_post), do: false
 
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason

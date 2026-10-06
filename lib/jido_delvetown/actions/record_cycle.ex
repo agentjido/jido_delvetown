@@ -120,8 +120,11 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     put_in(state, [:notifications, :processed], processed)
   end
 
-  defp increment_budget(state, action) when action in ["reply", "like", "repost"],
+  defp increment_budget(state, action) when action in ["reply", "repost"],
     do: put_in(state, [:budget, :replies], state.budget.replies + 1)
+
+  defp increment_budget(state, "like"),
+    do: update_in(state, [:budget, :likes], &((&1 || 0) + 1))
 
   defp increment_budget(state, "post"),
     do: put_in(state, [:budget, :posts], state.budget.posts + 1)

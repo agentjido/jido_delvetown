@@ -214,6 +214,39 @@ defmodule JidoDelvetown.InteractionLedgerTest do
              Ledger.actor("did:plc:simulated-member")
   end
 
+  test "a simulated like persists its daily count and actor cooldown" do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    since = DateTime.add(now, -1, :hour)
+    actor_did = "did:plc:liked-author"
+
+    cycle = %{
+      kind: "proactive",
+      mode: "normal",
+      intent: "join_useful_discussion",
+      status: "simulated",
+      errors: [],
+      defer?: false,
+      candidate: %{
+        id: "at://did:plc:liked-author/town.delve.feed.post/one",
+        uri: "at://did:plc:liked-author/town.delve.feed.post/one",
+        cid: "post-cid",
+        indexed_at: DateTime.to_iso8601(now),
+        author: %{did: actor_did, handle: "liked-author.test"},
+        root: nil
+      }
+    }
+
+    assert :ok = Ledger.record_cycle(cycle, %{action: "like"}, DateTime.to_iso8601(now))
+    assert Ledger.outreach_count("like", since) == 1
+    assert Ledger.recent_outreach_for_actor?("like", actor_did, since)
+
+    refute Ledger.recent_outreach_for_actor?(
+             "like",
+             actor_did,
+             DateTime.add(now, 1, :hour)
+           )
+  end
+
   test "retention removes old terminal events but keeps effect receipts" do
     now = ~U[2026-10-05 12:00:00.000000Z]
     old = ~U[2025-01-01 12:00:00.000000Z]

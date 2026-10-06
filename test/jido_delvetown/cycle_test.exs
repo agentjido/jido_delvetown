@@ -30,6 +30,10 @@ defmodule JidoDelvetown.CycleTest do
     old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
     old_dry_run = System.get_env("DELVETOWN_DRY_RUN_MARK_ACTIONED")
     old_seen = System.get_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN")
+    old_reply_limit = System.get_env("DELVETOWN_DAILY_REPLY_LIMIT")
+    old_like_limit = System.get_env("DELVETOWN_DAILY_LIKE_LIMIT")
+    old_like_cooldown = System.get_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS")
+    old_like_max_age = System.get_env("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS")
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
@@ -38,6 +42,10 @@ defmodule JidoDelvetown.CycleTest do
     System.put_env("DELVETOWN_WRITE_ENABLED", "false")
     System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "false")
     System.put_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", "false")
+    System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "3")
+    System.put_env("DELVETOWN_DAILY_LIKE_LIMIT", "5")
+    System.put_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", "24")
+    System.put_env("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS", "48")
 
     on_exit(fn ->
       Enum.each(previous, fn
@@ -48,6 +56,10 @@ defmodule JidoDelvetown.CycleTest do
       restore_env("DELVETOWN_WRITE_ENABLED", old_write)
       restore_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", old_dry_run)
       restore_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", old_seen)
+      restore_env("DELVETOWN_DAILY_REPLY_LIMIT", old_reply_limit)
+      restore_env("DELVETOWN_DAILY_LIKE_LIMIT", old_like_limit)
+      restore_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", old_like_cooldown)
+      restore_env("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS", old_like_max_age)
     end)
 
     :ok
@@ -332,6 +344,7 @@ defmodule JidoDelvetown.CycleTest do
 
   test "a question on the timeline selects the discussion intent with a compact thread" do
     uri = "at://did:plc:author/town.delve.feed.post/question"
+    indexed_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
     configure_reads(%{
       "town.delve.notification.listNotifications" => {:ok, %{"notifications" => []}},
@@ -343,6 +356,7 @@ defmodule JidoDelvetown.CycleTest do
                "post" => %{
                  "uri" => uri,
                  "cid" => "question-cid",
+                 "indexedAt" => indexed_at,
                  "author" => %{"did" => "did:plc:author", "handle" => "author.test"},
                  "record" => %{"text" => "When should one process become two?"}
                }
@@ -369,15 +383,93 @@ defmodule JidoDelvetown.CycleTest do
       {:ok, %{action: "like", text: nil, topic: "OTP", reason: "Useful question"}}
     )
 
+    agent_state =
+      Agent.new!().state
+      |> Map.put(:budget, %{
+        date: Date.utc_today() |> Date.to_iso8601(),
+        replies: 3,
+        likes: 0,
+        posts: 0
+      })
+
     assert {:ok, state} =
-             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, context())
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, %{
+               agent_state: agent_state
+             })
 
     assert state.last_run.kind == "proactive"
     assert state.last_run.intent == "join_useful_discussion"
     assert state.last_run.action == "like"
     assert state.last_run.status == "proposed"
+    assert state.budget.likes == 0
+    assert state.budget.replies == 3
     assert_received {:decision, "join_useful_discussion", payload}
+    assert payload.allowed_actions == ["like", "skip"]
     assert payload.candidate.thread.post.text == "When should one process become two?"
+  end
+
+  test "a simulated outgoing like consumes only the like budget and is not selected twice" do
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+    uri = "at://did:plc:author/town.delve.feed.post/like-once"
+    indexed_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+
+    configure_reads(%{
+      "town.delve.feed.getTimeline" =>
+        {:ok,
+         %{
+           "feed" => [
+             %{
+               "post" => %{
+                 "uri" => uri,
+                 "cid" => "like-once-cid",
+                 "indexedAt" => indexed_at,
+                 "author" => %{"did" => "did:plc:author", "handle" => "author.test"},
+                 "viewer" => %{},
+                 "labels" => [],
+                 "record" => %{"text" => "Which OTP boundary should own this failure?"}
+               }
+             }
+           ]
+         }},
+      "town.delve.feed.getPostThread" =>
+        {:ok,
+         %{
+           "thread" => %{
+             "post" => %{
+               "uri" => uri,
+               "cid" => "like-once-cid",
+               "record" => %{"text" => "Which OTP boundary should own this failure?"}
+             },
+             "replies" => []
+           }
+         }}
+    })
+
+    Application.put_env(
+      :jido_delvetown,
+      :decision_result,
+      {:ok, %{action: "like", text: nil, topic: "OTP", reason: "Useful OTP discussion"}}
+    )
+
+    assert {:ok, state} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.status == "simulated"
+    assert state.last_run.action == "like"
+    assert state.budget.likes == 1
+    assert state.budget.replies == 0
+    assert state.budget.posts == 0
+    assert_received {:decision, "join_useful_discussion", _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    assert {:ok, repeated} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, %{agent_state: state})
+
+    assert repeated.last_run.status == "skipped"
+    assert repeated.last_run.proposal.reason == "duplicate_candidate"
+    assert repeated.budget.likes == 1
+    refute_received {:decision, _intent, _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   test "a reactive cycle restores and advances one bounded notification page" do

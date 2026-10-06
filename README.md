@@ -46,6 +46,9 @@ export DELVETOWN_MANUAL_PUBLISH_ENABLED="false"
 export DELVETOWN_DRY_RUN_MARK_ACTIONED="true"
 export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
 export DELVETOWN_DAILY_REPLY_LIMIT="3"
+export DELVETOWN_DAILY_LIKE_LIMIT="5"
+export DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS="24"
+export DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS="48"
 export DELVETOWN_DAILY_WELCOME_LIMIT="2"
 export DELVETOWN_MEMBER_MAX_AGE_HOURS="24"
 export DELVETOWN_FRIEND_SYNC_LIMIT="1000"
@@ -456,7 +459,10 @@ The reactive selector can answer a direct request or skip. The proactive
 selector can join a useful discussion, publish one daily note, or skip. Thread
 data is reduced to a small safe view before it reaches the model.
 
-The default daily budget is three replies or reactions and one original post.
+The default daily budget is three replies, five likes, and one original post.
+AgentJido only sends fresh, safe like candidates from actors that are not
+blocked or opted out to the decision model. The default actor cooldown is 24
+hours, and the maximum candidate age is 48 hours.
 The AgentServer runs one cycle at a time. Record URIs are idempotency keys, and
 old decision history is removed after 30 days.
 

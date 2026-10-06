@@ -167,9 +167,11 @@ defmodule JidoDelvetown.Actions.CollectContext do
   defp reset_budget(state) do
     today = Date.utc_today() |> Date.to_iso8601()
 
-    if state.budget.date == today,
-      do: state,
-      else: Map.put(state, :budget, %{date: today, replies: 0, posts: 0})
+    if state.budget.date == today do
+      Map.update!(state, :budget, &Map.put_new(&1, :likes, 0))
+    else
+      Map.put(state, :budget, %{date: today, replies: 0, likes: 0, posts: 0})
+    end
   end
 
   defp prune_history(state) do

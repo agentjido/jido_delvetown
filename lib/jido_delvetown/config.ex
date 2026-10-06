@@ -59,6 +59,18 @@ defmodule JidoDelvetown.Config do
     env_integer("DELVETOWN_DAILY_REPLY_LIMIT", 3, 0, 100)
   end
 
+  def daily_like_limit do
+    env_integer("DELVETOWN_DAILY_LIKE_LIMIT", 5, 0, 100)
+  end
+
+  def like_actor_cooldown_hours do
+    env_integer("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", 24, 1, 24 * 30)
+  end
+
+  def like_candidate_max_age_hours do
+    env_integer("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS", 48, 1, 24 * 30)
+  end
+
   def daily_welcome_limit do
     env_integer("DELVETOWN_DAILY_WELCOME_LIMIT", 2, 0, 100)
   end

@@ -69,6 +69,7 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
 
     payload = %{
       reason: cycle.reason,
+      allowed_actions: cycle.allowed_actions,
       membership: cycle.membership,
       candidate: cycle.candidate,
       recent_posts: Enum.take(cycle.recent_posts, 3),
@@ -98,7 +99,8 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
 
   @doc false
   def choose_with_lm(intent, payload, lm) do
-    with {:ok, allowed_actions} <- SelectIntent.allowed_actions(intent),
+    with {:ok, intent_actions} <- SelectIntent.allowed_actions(intent),
+         {:ok, allowed_actions} <- allowed_actions(payload, intent_actions),
          {:ok, context} <- Jason.encode(payload) do
       Config.decision_timeout()
       |> Imp.Deadline.with_deadline(fn ->
@@ -140,6 +142,18 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
 
   defp decision_module do
     Application.get_env(:jido_delvetown, :decision_module, __MODULE__)
+  end
+
+  defp allowed_actions(payload, intent_actions) do
+    actions =
+      Map.get(payload, :allowed_actions) || Map.get(payload, "allowed_actions") || intent_actions
+
+    if actions != [] and is_list(actions) and
+         Enum.all?(actions, &(is_binary(&1) and &1 in intent_actions)) do
+      {:ok, actions}
+    else
+      {:error, :invalid_allowed_actions}
+    end
   end
 
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)

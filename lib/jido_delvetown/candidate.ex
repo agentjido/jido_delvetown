@@ -97,6 +97,8 @@ defmodule JidoDelvetown.Candidate do
       cid: cid,
       indexed_at: value(view, :indexed_at),
       author: actor(value(view, :author, %{})),
+      viewer: value(view, :viewer, %{}) |> post_viewer() |> non_empty(),
+      labels: value(view, :labels, []) |> label_values() |> non_empty(),
       text: record |> value(:text, "") |> text(),
       parent: strong_ref(%{uri: uri, cid: cid}),
       root: reply_root(record) || strong_ref(%{uri: uri, cid: cid})
@@ -149,7 +151,9 @@ defmodule JidoDelvetown.Candidate do
     %{
       did: value(actor, :did),
       handle: value(actor, :handle),
-      display_name: value(actor, :display_name)
+      display_name: value(actor, :display_name),
+      viewer: actor |> value(:viewer, %{}) |> actor_viewer() |> non_empty(),
+      labels: actor |> value(:labels, []) |> label_values() |> non_empty()
     }
     |> reject_nil()
   end
@@ -183,6 +187,45 @@ defmodule JidoDelvetown.Candidate do
   end
 
   defp strong_ref(_ref), do: nil
+
+  defp post_viewer(viewer) when is_map(viewer) do
+    %{
+      like: value(viewer, :like),
+      repost: value(viewer, :repost),
+      thread_muted: value(viewer, :thread_muted),
+      embedding_disabled: value(viewer, :embedding_disabled)
+    }
+    |> reject_nil()
+  end
+
+  defp post_viewer(_viewer), do: %{}
+
+  defp actor_viewer(viewer) when is_map(viewer) do
+    %{
+      blocked_by: value(viewer, :blocked_by),
+      blocking: value(viewer, :blocking),
+      muted: value(viewer, :muted)
+    }
+    |> reject_nil()
+  end
+
+  defp actor_viewer(_viewer), do: %{}
+
+  defp label_values(labels) when is_list(labels) do
+    labels
+    |> Enum.map(fn
+      label when is_binary(label) -> label
+      label when is_map(label) -> value(label, :val)
+      _label -> nil
+    end)
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.uniq()
+  end
+
+  defp label_values(_labels), do: []
+
+  defp non_empty(value) when value in [%{}, []], do: nil
+  defp non_empty(value), do: value
 
   defp text(value) when is_binary(value), do: String.slice(value, 0, @text_limit)
   defp text(_value), do: ""
