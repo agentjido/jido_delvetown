@@ -11,6 +11,12 @@
   "id": "jido_del-iy2.7",
   "labels": [],
   "parent": "jido_del-iy2",
+  "comments": [
+    {
+      "text": "Independent live QA passed after a fresh public load and a separate reopened SQLite read. Public URL: https://delve.town/profile/did:plc:clgojauynzgakkh7t7nivgsc/post/3mx6bszeitj26. Protocol record author/URI is did:plc:clgojauynzgakkh7t7nivgsc, CID bafyreif3nrhkn3wtp7uclyegfrtgy4n6gxpgcez7vsz2lz5qmqrchw32e4, collection town.delve.feed.post, reply is null, and caption exactly matches the local draft. Record contains exactly one image with the expected alt text and 1024x1024 aspect ratio. Blob bafkreif6f47pgvnmhc4s47w3ddir6z7x65d4odokcyoffjuyyunz7s75fq resolves as image/png with 1753013 bytes; its SHA-256 is be2f3ef355ac38b92e7edb18d11f67f7f747c70dca161c52a698c51b9fcbfd2c, equal to the local artifact digest. The public page rendered the one image. Protocol listRecords found exactly one matching caption. Fresh local receipt read matched URI, CID, digest, MIME type, byte size, dimensions, and published state.",
+      "timestamp": "2026-10-06T15:26:29Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Verify the live AgentJido self-portrait publication",
