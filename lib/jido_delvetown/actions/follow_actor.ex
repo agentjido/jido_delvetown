@@ -7,7 +7,7 @@ defmodule JidoDelvetown.Actions.FollowActor do
     schema: Zoi.object(%{did: Zoi.string(description: "Actor DID") |> Zoi.min(1)})
 
   @impl true
-  def run(%{did: did}, _context) do
+  def run(%{did: did}, context) do
     key = JidoDelvetown.Protocol.effect_key("follow", [did])
 
     with {:ok, result} <-
@@ -19,7 +19,8 @@ defmodule JidoDelvetown.Actions.FollowActor do
                created_at: JidoDelvetown.Protocol.now()
              },
              subject_key: did,
-             actor_did: did
+             actor_did: did,
+             settings: Map.get(context, :settings)
            ),
          {:ok, _relationship} <- JidoDelvetown.FriendList.record_agent_follows(did) do
       {:ok, result}

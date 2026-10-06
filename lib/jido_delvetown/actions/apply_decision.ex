@@ -68,7 +68,7 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
   end
 
   defp execute_decision(cycle) do
-    case execute(cycle.decision, cycle.candidate) do
+    case execute(cycle.decision, cycle.candidate, cycle) do
       {:ok, receipt} ->
         Map.merge(cycle, %{
           status: "acted",
@@ -124,7 +124,7 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     end
   end
 
-  defp execute(%{action: "reply", text: text}, candidate) do
+  defp execute(%{action: "reply", text: text}, candidate, cycle) do
     ReplyToPost.run(
       %{
         text: text,
@@ -134,23 +134,43 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
         root_cid: candidate.root.cid,
         langs: ["en"]
       },
-      %{}
+      effect_context(cycle)
     )
   end
 
-  defp execute(%{action: "like"}, candidate),
-    do: LikePost.run(%{uri: candidate.uri, cid: candidate.cid}, %{})
+  defp execute(%{action: "like"}, candidate, cycle),
+    do:
+      LikePost.run(
+        %{uri: candidate.uri, cid: candidate.cid},
+        effect_context(cycle)
+      )
 
-  defp execute(%{action: "repost"}, candidate),
-    do: RepostPost.run(%{uri: candidate.uri, cid: candidate.cid}, %{})
+  defp execute(%{action: "repost"}, candidate, cycle),
+    do:
+      RepostPost.run(
+        %{uri: candidate.uri, cid: candidate.cid},
+        effect_context(cycle)
+      )
 
-  defp execute(%{action: "post", text: text}, candidate),
-    do: CreatePost.run(%{opportunity_id: candidate.id, text: text, langs: ["en"]}, %{})
+  defp execute(%{action: "post", text: text}, candidate, cycle),
+    do:
+      CreatePost.run(
+        %{
+          opportunity_id: candidate.id,
+          text: text,
+          langs: ["en"]
+        },
+        effect_context(cycle)
+      )
 
-  defp execute(%{action: "follow"}, candidate),
-    do: FollowActor.run(%{did: candidate.author.did}, %{})
+  defp execute(%{action: "follow"}, candidate, cycle),
+    do:
+      FollowActor.run(
+        %{did: candidate.author.did},
+        effect_context(cycle)
+      )
 
-  defp execute(%{action: "welcome", text: text}, candidate),
+  defp execute(%{action: "welcome", text: text}, candidate, cycle),
     do:
       WelcomeActor.run(
         %{
@@ -159,8 +179,10 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
           text: text,
           target: welcome_target(candidate)
         },
-        %{}
+        effect_context(cycle)
       )
+
+  defp effect_context(cycle), do: %{settings: Map.get(cycle, :settings)}
 
   defp valid_text?(text), do: is_binary(text) and String.length(text) in 1..300
 

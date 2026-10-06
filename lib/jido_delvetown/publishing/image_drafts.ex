@@ -8,6 +8,7 @@ defmodule JidoDelvetown.ImageDrafts do
 
   alias JidoDelvetown.ImagePostContract
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Settings
   alias JidoDelvetown.Storage.{ImageArtifact, ImageDraft}
 
   @mime_types ~w(image/jpeg image/png image/webp image/gif image/avif)
@@ -88,18 +89,21 @@ defmodule JidoDelvetown.ImageDrafts do
   def record_upload_failure(_digest, _failure), do: {:error, :invalid_upload_failure}
 
   @doc false
-  @spec reserve_publication(String.t(), String.t(), map()) ::
+  @spec reserve_publication(String.t(), String.t(), map(), map()) ::
           {:ok, %{draft: map(), record: map(), reused?: boolean()}} | {:error, term()}
-  def reserve_publication(draft_key, effect_key, record)
-      when is_binary(draft_key) and is_binary(effect_key) and is_map(record) do
-    Repo.transaction(
-      fn -> reserve_publication_transaction(draft_key, effect_key, record) end,
-      mode: :immediate
-    )
-    |> transaction_result()
+  def reserve_publication(draft_key, effect_key, record, settings)
+      when is_binary(draft_key) and is_binary(effect_key) and is_map(record) and
+             is_map(settings) do
+    with {:ok, settings} <- Settings.reference(settings) do
+      Repo.transaction(
+        fn -> reserve_publication_transaction(draft_key, effect_key, record, settings) end,
+        mode: :immediate
+      )
+      |> transaction_result()
+    end
   end
 
-  def reserve_publication(_draft_key, _effect_key, _record),
+  def reserve_publication(_draft_key, _effect_key, _record, _settings),
     do: {:error, :invalid_publication_request}
 
   @doc false
@@ -364,24 +368,31 @@ defmodule JidoDelvetown.ImageDrafts do
     end
   end
 
-  defp reserve_publication_transaction(draft_key, effect_key, candidate_record) do
+  defp reserve_publication_transaction(draft_key, effect_key, candidate_record, settings) do
     case Repo.get(ImageDraft, draft_key) do
       nil ->
         Repo.rollback(:image_draft_not_found)
 
       draft ->
         artifact = Repo.get!(ImageArtifact, draft.artifact_digest)
-        reserve_valid_publication(draft, artifact, effect_key, candidate_record)
+        reserve_valid_publication(draft, artifact, effect_key, candidate_record, settings)
     end
   end
 
-  defp reserve_valid_publication(draft, artifact, effect_key, candidate_record) do
+  defp reserve_valid_publication(draft, artifact, effect_key, candidate_record, settings) do
     record = draft.post_record || json_safe(candidate_record)
+    publication_settings = draft.publication_settings || json_safe(settings)
 
     with :ok <- validate_publication_effect_key(draft, effect_key),
          :ok <- validate_publication_artifact(artifact),
          :ok <- validate_publication_record(record, draft, artifact) do
-      reserve_publication_state(draft, artifact, effect_key, record)
+      reserve_publication_state(
+        draft,
+        artifact,
+        effect_key,
+        record,
+        publication_settings
+      )
     else
       {:error, reason} -> Repo.rollback(reason)
     end
@@ -391,20 +402,28 @@ defmodule JidoDelvetown.ImageDrafts do
          %{state: "published", post_receipt: receipt} = draft,
          artifact,
          _effect_key,
-         record
+         record,
+         _settings
        )
        when is_map(receipt) do
     %{draft: draft_view(draft, artifact), record: record, reused?: true}
   end
 
-  defp reserve_publication_state(%{state: "published"}, _artifact, _effect_key, _record),
-    do: Repo.rollback(:missing_post_receipt)
+  defp reserve_publication_state(
+         %{state: "published"},
+         _artifact,
+         _effect_key,
+         _record,
+         _settings
+       ),
+       do: Repo.rollback(:missing_post_receipt)
 
   defp reserve_publication_state(
          %{state: state} = draft,
          artifact,
          effect_key,
-         record
+         record,
+         settings
        )
        when state in ["staged", "publish_uncertain"] do
     draft =
@@ -412,6 +431,7 @@ defmodule JidoDelvetown.ImageDrafts do
       |> Ecto.Changeset.change(
         state: "publish_uncertain",
         failure: nil,
+        publication_settings: settings,
         post_effect_key: effect_key,
         post_record: record,
         publish_started_at: DateTime.utc_now()
@@ -421,7 +441,7 @@ defmodule JidoDelvetown.ImageDrafts do
     %{draft: draft_view(draft, artifact), record: record, reused?: false}
   end
 
-  defp reserve_publication_state(%{state: state}, _artifact, _effect_key, _record),
+  defp reserve_publication_state(%{state: state}, _artifact, _effect_key, _record, _settings),
     do: Repo.rollback({:invalid_draft_state, state})
 
   defp complete_publication_transaction(draft_key, effect_key, receipt) do
@@ -664,6 +684,7 @@ defmodule JidoDelvetown.ImageDrafts do
       alt_text: draft.alt_text,
       state: draft.state,
       failure: draft.failure,
+      publication_settings: draft.publication_settings,
       post_effect_key: draft.post_effect_key,
       post_record: draft.post_record,
       post_receipt: draft.post_receipt,

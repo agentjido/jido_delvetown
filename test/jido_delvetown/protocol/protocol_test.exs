@@ -6,6 +6,7 @@ defmodule JidoDelvetown.ProtocolTest do
   alias JidoDelvetown.EffectStore
   alias JidoDelvetown.Protocol
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Settings
   alias JidoDelvetown.Storage.{AuditEvent, Effect}
   alias JidoDelvetown.Test.{FakeSession, FakeTransport, RuntimeSettings}
 
@@ -50,9 +51,10 @@ defmodule JidoDelvetown.ProtocolTest do
 
   test "a completed effect reuses its saved receipt" do
     RuntimeSettings.update!(autonomy_mode: "autonomous")
+    assert {:ok, settings} = Settings.reference()
     params = %{uri: "at://did:plc:other/town.delve.feed.post/one", cid: "cid"}
 
-    assert {:ok, %{reused?: false}} = LikePost.run(params, %{})
+    assert {:ok, %{reused?: false}} = LikePost.run(params, %{settings: settings})
     assert_received {:create_record, "town.delve.feed.like", record, rkey}
     assert record["$type"] == "town.delve.feed.like"
     assert is_binary(rkey)
@@ -62,7 +64,13 @@ defmodule JidoDelvetown.ProtocolTest do
 
     assert record_uri == "at://did:plc:bot/town.delve.feed.like/#{rkey}"
 
-    assert {:ok, %{reused?: true}} = LikePost.run(params, %{})
+    effect_key = Protocol.effect_key("like", [params.uri])
+    assert {:ok, ^settings} = Settings.reference(EffectStore.get(effect_key).settings)
+
+    RuntimeSettings.update!(daily_like_limit: 4)
+
+    assert {:ok, %{reused?: true, settings: stored_settings}} = LikePost.run(params, %{})
+    assert {:ok, ^settings} = Settings.reference(stored_settings)
     refute_received {:create_record, _collection, _record, _rkey}
   end
 

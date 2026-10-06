@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Inspection do
 
   import Ecto.Query
 
-  alias JidoDelvetown.{AuditLog, Automation, Repo}
+  alias JidoDelvetown.{AuditLog, Automation, Repo, Settings}
 
   alias JidoDelvetown.Storage.{
     Actor,
@@ -70,6 +70,7 @@ defmodule JidoDelvetown.Inspection do
       alt_text: draft.alt_text,
       validation_state: "valid",
       publication_state: draft.state,
+      publication_settings: settings_reference(draft.publication_settings),
       publication_failure_present?: not is_nil(draft.failure),
       post_uri: map_value(draft.post_receipt, "uri"),
       published_at: iso8601(draft.published_at),
@@ -148,6 +149,19 @@ defmodule JidoDelvetown.Inspection do
           reason: fragment("json_extract(?, '$.model_reason')", event.payload),
           response_format: fragment("json_extract(?, '$.response_format')", event.payload),
           intent: fragment("json_extract(?, '$.intent')", event.payload),
+          settings_scope: fragment("json_extract(?, '$.settings.scope')", event.payload),
+          settings_schema_version:
+            fragment("json_extract(?, '$.settings.schema_version')", event.payload),
+          settings_version: fragment("json_extract(?, '$.settings.version')", event.payload),
+          publication_settings_scope:
+            fragment("json_extract(?, '$.manual_publication.settings.scope')", event.payload),
+          publication_settings_schema_version:
+            fragment(
+              "json_extract(?, '$.manual_publication.settings.schema_version')",
+              event.payload
+            ),
+          publication_settings_version:
+            fragment("json_extract(?, '$.manual_publication.settings.version')", event.payload),
           published_status:
             fragment("json_extract(?, '$.manual_publication.status')", event.payload),
           published_at:
@@ -159,7 +173,34 @@ defmodule JidoDelvetown.Inspection do
         }
       )
     )
-    |> Enum.map(&encode_times/1)
+    |> Enum.map(fn post ->
+      post
+      |> Map.put(
+        :settings,
+        settings_reference(
+          post.settings_scope,
+          post.settings_schema_version,
+          post.settings_version
+        )
+      )
+      |> Map.put(
+        :publication_settings,
+        settings_reference(
+          post.publication_settings_scope,
+          post.publication_settings_schema_version,
+          post.publication_settings_version
+        )
+      )
+      |> Map.drop([
+        :settings_scope,
+        :settings_schema_version,
+        :settings_version,
+        :publication_settings_scope,
+        :publication_settings_schema_version,
+        :publication_settings_version
+      ])
+      |> encode_times()
+    end)
   end
 
   defp like_proposals(_repo, 0), do: []
@@ -183,6 +224,10 @@ defmodule JidoDelvetown.Inspection do
           event_key: event.event_key,
           event_state: event.state,
           cycle_status: fragment("json_extract(?, '$.cycle_status')", event.payload),
+          settings_scope: fragment("json_extract(?, '$.settings.scope')", event.payload),
+          settings_schema_version:
+            fragment("json_extract(?, '$.settings.schema_version')", event.payload),
+          settings_version: fragment("json_extract(?, '$.settings.version')", event.payload),
           target_uri: event.record_uri,
           target_author_did: event.actor_did,
           target_author_handle:
@@ -207,6 +252,15 @@ defmodule JidoDelvetown.Inspection do
           published_uri: fragment("json_extract(?, '$.manual_publication.uri')", event.payload),
           publication_effect_key:
             fragment("json_extract(?, '$.manual_publication.effect_key')", event.payload),
+          publication_settings_scope:
+            fragment("json_extract(?, '$.manual_publication.settings.scope')", event.payload),
+          publication_settings_schema_version:
+            fragment(
+              "json_extract(?, '$.manual_publication.settings.schema_version')",
+              event.payload
+            ),
+          publication_settings_version:
+            fragment("json_extract(?, '$.manual_publication.settings.version')", event.payload),
           occurred_at: event.occurred_at,
           terminal_at: event.terminal_at
         }
@@ -222,7 +276,15 @@ defmodule JidoDelvetown.Inspection do
       event_key: row.event_key,
       event_state: row.event_state,
       proposal_status: row.cycle_status,
+      settings:
+        settings_reference(row.settings_scope, row.settings_schema_version, row.settings_version),
       publication_state: like_publication_state(row),
+      publication_settings:
+        settings_reference(
+          row.publication_settings_scope,
+          row.publication_settings_schema_version,
+          row.publication_settings_version
+        ),
       target_uri: row.target_uri,
       target_author: %{
         did: row.target_author_did,
@@ -334,6 +396,7 @@ defmodule JidoDelvetown.Inspection do
       kind: effect.kind,
       collection: effect.collection,
       actor_did: effect.actor_did,
+      settings: settings_reference(effect.settings),
       rkey: effect.rkey,
       status: effect.status,
       attempt_count: effect.attempt_count,
@@ -371,6 +434,22 @@ defmodule JidoDelvetown.Inspection do
       pending: pending
     }
   end
+
+  defp settings_reference(scope, schema_version, version)
+       when is_binary(scope) and is_integer(schema_version) and is_integer(version) do
+    %{scope: scope, schema_version: schema_version, version: version}
+  end
+
+  defp settings_reference(_scope, _schema_version, _version), do: nil
+
+  defp settings_reference(settings) when is_map(settings) do
+    case Settings.reference(settings) do
+      {:ok, reference} -> reference
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp settings_reference(_settings), do: nil
 
   defp legacy_import_status(repo) do
     repo.all(from(import in LegacyImport, order_by: [asc: import.name]))

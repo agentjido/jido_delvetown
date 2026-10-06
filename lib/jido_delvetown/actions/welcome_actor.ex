@@ -13,7 +13,7 @@ defmodule JidoDelvetown.Actions.WelcomeActor do
       })
 
   @impl true
-  def run(%{did: did, handle: handle, text: text} = params, _context) do
+  def run(%{did: did, handle: handle, text: text} = params, context) do
     key = JidoDelvetown.Protocol.effect_key("welcome", [did])
 
     with {:ok, record} <-
@@ -23,7 +23,8 @@ defmodule JidoDelvetown.Actions.WelcomeActor do
         "town.delve.feed.post",
         record,
         subject_key: did,
-        actor_did: did
+        actor_did: did,
+        settings: Map.get(context, :settings)
       )
     end
   end

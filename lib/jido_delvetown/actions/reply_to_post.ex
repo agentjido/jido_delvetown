@@ -15,7 +15,7 @@ defmodule JidoDelvetown.Actions.ReplyToPost do
       })
 
   @impl true
-  def run(params, _context) do
+  def run(params, context) do
     key = JidoDelvetown.Protocol.effect_key("reply", [params.parent_uri])
 
     JidoDelvetown.Protocol.create_record(
@@ -30,7 +30,8 @@ defmodule JidoDelvetown.Actions.ReplyToPost do
           parent: %{uri: params.parent_uri, cid: params.parent_cid}
         }
       },
-      subject_key: params.parent_uri
+      subject_key: params.parent_uri,
+      settings: Map.get(context, :settings)
     )
   end
 end

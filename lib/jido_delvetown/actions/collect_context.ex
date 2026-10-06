@@ -9,7 +9,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
         mode: Zoi.enum(["normal", "review"])
       })
 
-  alias JidoDelvetown.{Candidate, InteractionEvents, Protocol, ScanProgress}
+  alias JidoDelvetown.{Candidate, InteractionEvents, Protocol, ScanProgress, Settings}
   alias JidoDelvetown.Settings.Limits
 
   @timeline_limit 5
@@ -24,21 +24,26 @@ defmodule JidoDelvetown.Actions.CollectContext do
     state = initial_state |> reset_budget() |> prune_history()
     started_at = now()
 
-    case Limits.current() do
-      {:ok, limits} -> claim_and_collect(kind, mode, state, started_at, limits)
-      {:error, reason} -> failed(kind, mode, state, started_at, nil, reason)
+    case Settings.current() do
+      {:ok, settings} ->
+        {:ok, settings_ref} = Settings.reference(settings)
+        limits = Limits.from_settings(settings)
+        claim_and_collect(kind, mode, state, started_at, limits, settings_ref)
+
+      {:error, reason} ->
+        failed(kind, mode, state, started_at, nil, %{}, nil, reason)
     end
   end
 
-  defp claim_and_collect(kind, mode, state, started_at, limits) do
+  defp claim_and_collect(kind, mode, state, started_at, limits, settings) do
     case ScanProgress.claim(scan_name(kind)) do
-      {:ok, scan} -> collect(kind, mode, state, started_at, scan, limits)
-      {:error, :scan_in_progress} -> busy(kind, mode, state, started_at, limits)
-      {:error, reason} -> failed(kind, mode, state, started_at, nil, reason)
+      {:ok, scan} -> collect(kind, mode, state, started_at, scan, limits, settings)
+      {:error, :scan_in_progress} -> busy(kind, mode, state, started_at, limits, settings)
+      {:error, reason} -> failed(kind, mode, state, started_at, nil, limits, settings, reason)
     end
   end
 
-  defp collect("reactive", mode, state, started_at, scan, limits) do
+  defp collect("reactive", mode, state, started_at, scan, limits, settings) do
     with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
          {:ok, notifications} <-
            Protocol.query("town.delve.notification.listNotifications", %{
@@ -48,7 +53,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
          normalized = Candidate.notifications(notifications),
          :ok <- InteractionEvents.observe_candidates(normalized) do
       {:ok,
-       base("reactive", mode, state, started_at, limits)
+       base("reactive", mode, state, started_at, limits, settings)
        |> Map.merge(%{
          status: "ready",
          reads: 2,
@@ -57,11 +62,12 @@ defmodule JidoDelvetown.Actions.CollectContext do
          scan: Map.put(scan, :next_cursor, response_cursor(notifications))
        })}
     else
-      {:error, reason} -> failed("reactive", mode, state, started_at, scan, reason)
+      {:error, reason} ->
+        failed("reactive", mode, state, started_at, scan, limits, settings, reason)
     end
   end
 
-  defp collect("proactive", mode, state, started_at, scan, limits) do
+  defp collect("proactive", mode, state, started_at, scan, limits, settings) do
     with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
          {:ok, timeline} <-
            Protocol.query("town.delve.feed.getTimeline", %{
@@ -69,7 +75,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
              limit: @timeline_limit
            }) do
       {:ok,
-       base("proactive", mode, state, started_at, limits)
+       base("proactive", mode, state, started_at, limits, settings)
        |> Map.merge(%{
          status: "ready",
          reads: 2,
@@ -78,11 +84,12 @@ defmodule JidoDelvetown.Actions.CollectContext do
          scan: Map.put(scan, :next_cursor, response_cursor(timeline))
        })}
     else
-      {:error, reason} -> failed("proactive", mode, state, started_at, scan, reason)
+      {:error, reason} ->
+        failed("proactive", mode, state, started_at, scan, limits, settings, reason)
     end
   end
 
-  defp collect("members", mode, state, started_at, scan, limits) do
+  defp collect("members", mode, state, started_at, scan, limits, settings) do
     with {:ok, membership} <- Protocol.query("town.delve.membership.getMembership", %{}),
          {:ok, response} <-
            Protocol.query("town.delve.actor.searchActors", %{
@@ -91,7 +98,7 @@ defmodule JidoDelvetown.Actions.CollectContext do
          normalized = Candidate.members(response),
          :ok <- InteractionEvents.observe_candidates(normalized) do
       {:ok,
-       base("members", mode, state, started_at, limits)
+       base("members", mode, state, started_at, limits, settings)
        |> Map.merge(%{
          status: "ready",
          reads: 2,
@@ -100,14 +107,15 @@ defmodule JidoDelvetown.Actions.CollectContext do
          scan: Map.put(scan, :next_cursor, member_watermark(scan.cursor, normalized))
        })}
     else
-      {:error, reason} -> failed("members", mode, state, started_at, scan, reason)
+      {:error, reason} ->
+        failed("members", mode, state, started_at, scan, limits, settings, reason)
     end
   end
 
-  defp failed(kind, mode, state, started_at, scan, reason) do
+  defp failed(kind, mode, state, started_at, scan, limits, settings, reason) do
     {:ok,
      kind
-     |> base(mode, state, started_at, %{})
+     |> base(mode, state, started_at, limits, settings)
      |> Map.merge(%{
        status: "failed",
        stage: "context_read",
@@ -116,10 +124,10 @@ defmodule JidoDelvetown.Actions.CollectContext do
      })}
   end
 
-  defp busy(kind, mode, state, started_at, limits) do
+  defp busy(kind, mode, state, started_at, limits, settings) do
     {:ok,
      kind
-     |> base(mode, state, started_at, limits)
+     |> base(mode, state, started_at, limits, settings)
      |> Map.merge(%{
        status: "skipped",
        stage: "scan_claim",
@@ -128,12 +136,13 @@ defmodule JidoDelvetown.Actions.CollectContext do
      })}
   end
 
-  defp base(kind, mode, state, started_at, limits) do
+  defp base(kind, mode, state, started_at, limits, settings) do
     %{
       kind: kind,
       mode: mode,
       state: state,
       limits: limits,
+      settings: settings,
       status: "new",
       stage: nil,
       started_at: started_at,

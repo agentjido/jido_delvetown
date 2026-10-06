@@ -20,6 +20,20 @@ defmodule JidoDelvetown.SettingsTest do
     assert current.version == 1
     assert current.values.autonomy_mode == "observe"
     assert is_integer(current.values.daily_reply_limit)
+    assert {:ok, reference} = Settings.reference(current)
+
+    assert reference == %{
+             scope: scope,
+             schema_version: current.schema_version,
+             version: current.version
+           }
+
+    assert {:ok, ^reference} =
+             Settings.reference(%{
+               "scope" => scope,
+               "schema_version" => current.schema_version,
+               "version" => current.version
+             })
 
     assert {:ok, setting} = Settings.fetch("daily_reply_limit", scope: scope)
     assert setting.key == :daily_reply_limit
@@ -27,6 +41,7 @@ defmodule JidoDelvetown.SettingsTest do
     assert setting.version == current.version
 
     assert {:error, {:unknown_setting, :missing}} = Settings.fetch(:missing, scope: scope)
+    assert {:error, :invalid_settings_reference} = Settings.reference(%{version: 1})
   end
 
   test "updates settings and revision history in one version" do

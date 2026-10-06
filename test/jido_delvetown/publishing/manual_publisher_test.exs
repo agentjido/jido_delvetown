@@ -2,6 +2,7 @@ defmodule JidoDelvetown.ManualPublisherTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.{InteractionLedger, ManualPublisher, Protocol, Repo}
+  alias JidoDelvetown.Settings
   alias JidoDelvetown.Storage.{Actor, AuditEvent, Effect, InteractionEvent}
   alias JidoDelvetown.Test.{FakeSession, FakeTransport, RuntimeSettings}
 
@@ -57,6 +58,7 @@ defmodule JidoDelvetown.ManualPublisherTest do
     assert {:ok, publication} = ManualPublisher.publish(event.event_key)
     assert publication.status == "completed"
     assert publication.reused? == false
+    assert {:ok, settings} = Settings.reference(publication.settings)
 
     assert_received {:create_record, "town.delve.feed.post", record, rkey}
     assert record.text == "Publish this exact saved draft."
@@ -72,6 +74,14 @@ defmodule JidoDelvetown.ManualPublisherTest do
     saved = InteractionLedger.event(event.event_key)
     assert saved.payload["manual_publication"]["status"] == "completed"
     assert saved.payload["manual_publication"]["uri"] == publication.uri
+
+    assert {:ok, ^settings} =
+             Settings.reference(saved.payload["manual_publication"]["settings"])
+
+    assert %Effect{settings: effect_settings} =
+             Repo.get(Effect, publication.effect_key)
+
+    assert {:ok, ^settings} = Settings.reference(effect_settings)
 
     assert {:ok, repeated} = ManualPublisher.publish(event.event_key)
     assert repeated.reused? == true

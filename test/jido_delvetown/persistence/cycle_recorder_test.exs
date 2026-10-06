@@ -11,6 +11,8 @@ defmodule JidoDelvetown.CycleRecorderTest do
     InteractionEvent
   }
 
+  @settings %{scope: "active", schema_version: 1, version: 7}
+
   setup do
     Repo.delete_all(ActorRelationship)
     Repo.delete_all(InteractionEvent)
@@ -27,7 +29,14 @@ defmodule JidoDelvetown.CycleRecorderTest do
     assert :ok = CycleRecorder.record(cycle, %{action: "reply"}, completed_at())
 
     assert %InteractionEvent{state: "completed", attempt_count: 1} =
+             event =
              Repo.get(InteractionEvent, "event:reply-once")
+
+    assert event.payload["settings"] == %{
+             "scope" => "active",
+             "schema_version" => 1,
+             "version" => 7
+           }
 
     assert %Actor{contact_count: 1} = ActorMemory.get("did:plc:member")
 
@@ -63,6 +72,7 @@ defmodule JidoDelvetown.CycleRecorderTest do
     %{
       kind: "reactive",
       mode: "normal",
+      settings: @settings,
       intent: "answer_direct_request",
       status: "acted",
       errors: [],

@@ -8,7 +8,8 @@ defmodule JidoDelvetown.CycleTest do
     ProactiveParticipationCycle,
     ReactiveParticipationCycle,
     Repo,
-    ScanProgress
+    ScanProgress,
+    Settings
   }
 
   alias JidoDelvetown.Storage.{Actor, Conversation, InteractionEvent, ScanState}
@@ -122,6 +123,8 @@ defmodule JidoDelvetown.CycleTest do
        }}
     )
 
+    assert {:ok, settings} = Settings.reference()
+
     assert {:ok, state} =
              Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
 
@@ -130,12 +133,15 @@ defmodule JidoDelvetown.CycleTest do
     assert state.last_run.intent == "answer_direct_request"
     assert state.last_run.action == "reply"
     assert state.last_run.effects == 0
+    assert state.last_run.settings == settings
     assert is_integer(state.last_run.selection.score)
     assert state.last_run.selection.reason =~ "direct scored"
     assert state.notifications.processed[uri].status == "proposed"
     assert state.notifications.processed["event-like-priority"].status == "ignored"
     assert state.budget.replies == 0
-    assert Repo.get_by!(InteractionEvent, record_uri: uri).state == "pending"
+    event = Repo.get_by!(InteractionEvent, record_uri: uri)
+    assert event.state == "pending"
+    assert {:ok, ^settings} = Settings.reference(event.payload["settings"])
 
     assert %InteractionEvent{state: "ignored", kind: "like"} =
              Repo.get!(InteractionEvent, "notification:event-like-priority")

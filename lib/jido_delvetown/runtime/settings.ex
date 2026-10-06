@@ -28,6 +28,12 @@ defmodule JidoDelvetown.Settings do
           version: pos_integer()
         }
 
+  @type settings_reference :: %{
+          scope: String.t(),
+          schema_version: pos_integer(),
+          version: pos_integer()
+        }
+
   @spec current(keyword()) :: {:ok, snapshot()} | {:error, term()}
   def current(opts \\ []) do
     repo = Keyword.get(opts, :repo, Repo)
@@ -41,6 +47,32 @@ defmodule JidoDelvetown.Settings do
       {:error, _reason} = error -> error
     end
   end
+
+  @doc "Returns the stable identity of a settings snapshot."
+  @spec reference(snapshot() | map() | keyword()) ::
+          {:ok, settings_reference()} | {:error, term()}
+  def reference(snapshot_or_opts \\ [])
+
+  def reference(opts) when is_list(opts) do
+    with {:ok, settings} <- current(opts) do
+      reference(settings)
+    end
+  end
+
+  def reference(settings) when is_map(settings) do
+    scope = map_value(settings, :scope)
+    schema_version = map_value(settings, :schema_version)
+    version = map_value(settings, :version)
+
+    if is_binary(scope) and scope != "" and is_integer(schema_version) and schema_version > 0 and
+         is_integer(version) and version > 0 do
+      {:ok, %{scope: scope, schema_version: schema_version, version: version}}
+    else
+      {:error, :invalid_settings_reference}
+    end
+  end
+
+  def reference(_settings), do: {:error, :invalid_settings_reference}
 
   @spec fetch(atom() | String.t(), keyword()) :: {:ok, setting()} | {:error, term()}
   def fetch(key, opts \\ []) do
@@ -201,6 +233,8 @@ defmodule JidoDelvetown.Settings do
       {:error, _reason} = error -> error
     end
   end
+
+  defp map_value(map, key), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))
 
   defp ensure_unique_key(normalized, key) do
     if Map.has_key?(normalized, key),

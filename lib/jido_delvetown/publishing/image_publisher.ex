@@ -10,6 +10,7 @@ defmodule JidoDelvetown.ImagePublisher do
   alias JidoDelvetown.ImagePostContract
   alias JidoDelvetown.ImageUploader
   alias JidoDelvetown.Protocol
+  alias JidoDelvetown.Settings
   alias JidoDelvetown.Settings.Behavior
 
   @collection "town.delve.feed.post"
@@ -35,13 +36,14 @@ defmodule JidoDelvetown.ImagePublisher do
 
   defp publish_with(draft_key, opts, mode) do
     with :ok <- ensure_permission(mode),
+         {:ok, settings} <- Settings.reference(),
          {:ok, publish_opts} <- publication_options(opts),
          {:ok, draft} <- fetch_draft(draft_key),
          {:ok, upload} <- upload(draft.artifact_digest, mode),
          {:ok, record} <- build_record(draft, upload.blob, publish_opts),
          effect_key = Protocol.effect_key("image_post", [draft_key]),
          {:ok, reservation} <-
-           ImageDrafts.reserve_publication(draft_key, effect_key, record) do
+           ImageDrafts.reserve_publication(draft_key, effect_key, record, settings) do
       publish_or_reuse(draft_key, effect_key, reservation, mode)
     end
   end
@@ -93,8 +95,15 @@ defmodule JidoDelvetown.ImagePublisher do
      }}
   end
 
-  defp publish_or_reuse(draft_key, effect_key, %{reused?: false, record: record}, mode) do
-    case create_record(mode, effect_key, record, draft_key) do
+  defp publish_or_reuse(
+         draft_key,
+         effect_key,
+         %{reused?: false, record: record, draft: draft},
+         mode
+       ) do
+    settings = draft.publication_settings
+
+    case create_record(mode, effect_key, record, draft_key, settings) do
       {:ok, result} -> complete_publication(draft_key, effect_key, record, result)
       {:error, reason} -> fail_publication(draft_key, effect_key, reason)
     end
@@ -112,12 +121,18 @@ defmodule JidoDelvetown.ImagePublisher do
   defp upload(digest, :scheduled), do: ImageUploader.upload(digest)
   defp upload(digest, :manual), do: ImageUploader.upload_manual(digest)
 
-  defp create_record(:scheduled, effect_key, record, draft_key) do
-    Protocol.create_record(effect_key, @collection, record, subject_key: draft_key)
+  defp create_record(:scheduled, effect_key, record, draft_key, settings) do
+    Protocol.create_record(effect_key, @collection, record,
+      subject_key: draft_key,
+      settings: settings
+    )
   end
 
-  defp create_record(:manual, effect_key, record, draft_key) do
-    Protocol.create_manual_record(effect_key, @collection, record, subject_key: draft_key)
+  defp create_record(:manual, effect_key, record, draft_key, settings) do
+    Protocol.create_manual_record(effect_key, @collection, record,
+      subject_key: draft_key,
+      settings: settings
+    )
   end
 
   defp complete_publication(draft_key, effect_key, record, result) do

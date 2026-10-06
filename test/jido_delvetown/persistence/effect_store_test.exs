@@ -10,9 +10,19 @@ defmodule JidoDelvetown.EffectStoreTest do
   end
 
   test "returns one record key for one effect identity" do
-    assert {:ok, first} = EffectStore.reserve("same", "town.delve.feed.like")
-    assert {:ok, second} = EffectStore.reserve("same", "town.delve.feed.like")
+    settings = %{scope: "active", schema_version: 1, version: 12}
+
+    assert {:ok, first} =
+             EffectStore.reserve("same", "town.delve.feed.like", %{settings: settings})
+
+    assert {:ok, second} =
+             EffectStore.reserve("same", "town.delve.feed.like", %{
+               settings: %{settings | version: 13}
+             })
+
     assert first.rkey == second.rkey
+    assert first.settings == %{"scope" => "active", "schema_version" => 1, "version" => 12}
+    assert second.settings == first.settings
 
     assert {:ok, complete} = EffectStore.complete("same", %{uri: "at://receipt"})
     assert complete.status == :completed

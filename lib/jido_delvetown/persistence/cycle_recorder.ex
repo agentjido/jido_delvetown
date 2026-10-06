@@ -39,6 +39,7 @@ defmodule JidoDelvetown.CycleRecorder do
         %{
           cycle_kind: cycle.kind,
           mode: cycle.mode,
+          settings: Map.get(cycle, :settings),
           intent: cycle.intent,
           action: decision.action,
           cycle_status: cycle.status,

@@ -4,6 +4,7 @@ defmodule JidoDelvetown.Protocol do
   alias JidoDelvetown.AuditLog
   alias JidoDelvetown.EffectStore
   alias JidoDelvetown.Session
+  alias JidoDelvetown.Settings
   alias JidoDelvetown.Settings.Behavior
   alias JidoDelvetown.Transport.ProtoRune, as: DefaultTransport
 
@@ -103,8 +104,9 @@ defmodule JidoDelvetown.Protocol do
   defp create_record_with_effect(effect_key, collection, record, opts) do
     with :ok <- allowed_collection(collection),
          {:ok, session} <- session_module().session(),
+         {:ok, effect_attributes} <- effect_attributes(opts),
          {:ok, effect} <-
-           reserve_effect(effect_key, collection, effect_attributes(opts)) do
+           reserve_effect(effect_key, collection, effect_attributes) do
       create_or_reuse(session, effect, record)
     end
   end
@@ -116,8 +118,10 @@ defmodule JidoDelvetown.Protocol do
          :ok <- own_repo(session, repo),
          :ok <- allowed_collection(collection),
          effect_key = effect_key("delete", [uri]),
+         {:ok, effect_attributes} <-
+           effect_attributes(rkey: rkey, subject_key: uri),
          {:ok, effect} <-
-           reserve_effect(effect_key, collection, %{rkey: rkey, subject_key: uri}) do
+           reserve_effect(effect_key, collection, effect_attributes) do
       delete_or_reuse(session, effect)
     end
   end
@@ -142,7 +146,13 @@ defmodule JidoDelvetown.Protocol do
   def ensure_manual_publish_enabled, do: manual_publish_enabled()
 
   defp create_or_reuse(_session, %{status: :completed} = effect, _record) do
-    {:ok, %{receipt: effect.receipt, reused?: true, reconciled?: false}}
+    {:ok,
+     %{
+       receipt: effect.receipt,
+       settings: effect.settings,
+       reused?: true,
+       reconciled?: false
+     }}
   end
 
   defp create_or_reuse(_session, %{status: :permanent_failure} = effect, _record) do
@@ -242,12 +252,25 @@ defmodule JidoDelvetown.Protocol do
         reconciled?: reconciled?
       })
 
-      {:ok, %{receipt: receipt, reused?: false, reconciled?: reconciled?}}
+      {:ok,
+       %{
+         receipt: receipt,
+         settings: effect.settings,
+         reused?: false,
+         reconciled?: reconciled?
+       }}
     end
   end
 
   defp delete_or_reuse(_session, %{status: :completed} = effect) do
-    {:ok, %{receipt: effect.receipt, deleted?: true, reused?: true, reconciled?: false}}
+    {:ok,
+     %{
+       receipt: effect.receipt,
+       settings: effect.settings,
+       deleted?: true,
+       reused?: true,
+       reconciled?: false
+     }}
   end
 
   defp delete_or_reuse(_session, %{status: :permanent_failure} = effect) do
@@ -312,7 +335,14 @@ defmodule JidoDelvetown.Protocol do
         reconciled?: reconciled?
       })
 
-      {:ok, %{receipt: saved_receipt, deleted?: true, reused?: false, reconciled?: reconciled?}}
+      {:ok,
+       %{
+         receipt: saved_receipt,
+         settings: effect.settings,
+         deleted?: true,
+         reused?: false,
+         reconciled?: reconciled?
+       }}
     end
   end
 
@@ -366,9 +396,22 @@ defmodule JidoDelvetown.Protocol do
   defp compact(map), do: Map.reject(map, fn {_key, value} -> is_nil(value) end)
 
   defp effect_attributes(opts) do
-    opts
-    |> Keyword.take([:subject_key, :actor_did, :rkey])
-    |> Map.new()
+    with {:ok, settings} <- settings_reference(opts) do
+      attributes =
+        opts
+        |> Keyword.take([:subject_key, :actor_did, :rkey])
+        |> Map.new()
+        |> Map.put(:settings, settings)
+
+      {:ok, attributes}
+    end
+  end
+
+  defp settings_reference(opts) do
+    case Keyword.get(opts, :settings) do
+      nil -> Settings.reference()
+      settings -> Settings.reference(settings)
+    end
   end
 
   defp not_found?(:not_found), do: true

@@ -25,9 +25,13 @@ defmodule JidoDelvetown.Settings.Limits do
   @spec current(keyword()) :: {:ok, snapshot()} | {:error, term()}
   def current(opts \\ []) do
     with {:ok, settings} <- Settings.current(opts) do
-      {:ok, Map.take(settings.values, @keys)}
+      {:ok, from_settings(settings)}
     end
   end
+
+  @doc "Returns the limit values from one already-read settings snapshot."
+  @spec from_settings(Settings.snapshot()) :: snapshot()
+  def from_settings(%{values: values}), do: Map.take(values, @keys)
 
   @spec fetch(atom(), keyword()) :: {:ok, non_neg_integer()} | {:error, term()}
   def fetch(key, opts \\ [])

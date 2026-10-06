@@ -17,7 +17,7 @@ defmodule JidoDelvetown.Actions.CreatePost do
       })
 
   @impl true
-  def run(%{opportunity_id: opportunity_id, text: text, langs: langs}, _context) do
+  def run(%{opportunity_id: opportunity_id, text: text, langs: langs}, context) do
     key = JidoDelvetown.Protocol.effect_key("post", [opportunity_id])
 
     JidoDelvetown.Protocol.create_record(
@@ -28,7 +28,8 @@ defmodule JidoDelvetown.Actions.CreatePost do
         langs: langs,
         created_at: JidoDelvetown.Protocol.now()
       },
-      subject_key: opportunity_id
+      subject_key: opportunity_id,
+      settings: Map.get(context, :settings)
     )
   end
 end

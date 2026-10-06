@@ -6,6 +6,7 @@ defmodule JidoDelvetown.ImagePublisherTest do
   alias JidoDelvetown.ImagePublisher
   alias JidoDelvetown.Protocol
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Settings
   alias JidoDelvetown.Storage.{AuditEvent, Effect, ImageArtifact, ImageDraft}
   alias JidoDelvetown.Test.{FakeSession, FakeTransport, RuntimeSettings}
 
@@ -54,6 +55,8 @@ defmodule JidoDelvetown.ImagePublisherTest do
     assert {:ok, result} =
              ImagePublisher.publish("image:one", langs: ["en", "es"], created_at: @created_at)
 
+    assert {:ok, settings} = Settings.reference(result.draft.publication_settings)
+
     refute result.reused?
     refute result.reconciled?
     assert result.receipt["uri"]
@@ -82,14 +85,21 @@ defmodule JidoDelvetown.ImagePublisherTest do
 
     effect_key = Protocol.effect_key("image_post", ["image:one"])
 
-    assert %Effect{status: "completed", rkey: ^rkey, subject_key: "image:one"} =
-             Repo.get(Effect, effect_key)
+    assert %Effect{
+             status: "completed",
+             rkey: ^rkey,
+             subject_key: "image:one",
+             settings: effect_settings
+           } = Repo.get(Effect, effect_key)
+
+    assert {:ok, ^settings} = Settings.reference(effect_settings)
 
     draft = ImageDrafts.get("image:one")
     assert draft.state == "published"
     assert draft.post_effect_key == effect_key
     assert draft.post_record == result.record
     assert draft.post_receipt == result.receipt
+    assert {:ok, ^settings} = Settings.reference(draft.publication_settings)
     assert draft.published_at
     assert draft.artifact.state == "uploaded"
     assert draft.artifact.upload_receipt == wire_blob()

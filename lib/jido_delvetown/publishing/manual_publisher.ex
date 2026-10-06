@@ -32,6 +32,7 @@ defmodule JidoDelvetown.ManualPublisher do
           event_key: event_key,
           effect_key: effect_key,
           record_uri: publication.uri,
+          settings: publication.settings,
           reused?: result.reused?
         })
 
@@ -329,6 +330,7 @@ defmodule JidoDelvetown.ManualPublisher do
       uri: value(receipt, :uri),
       cid: value(receipt, :cid),
       effect_key: effect_key,
+      settings: result.settings,
       reused?: result.reused?,
       reconciled?: Map.get(result, :reconciled?, false)
     }

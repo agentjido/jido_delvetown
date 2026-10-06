@@ -57,6 +57,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp result(cycle, decision, completed_at) do
     %{
       kind: cycle.kind,
+      settings: Map.get(cycle, :settings),
       status: cycle.status,
       intent: cycle.intent,
       action: decision.action,
@@ -219,6 +220,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       result
       |> Map.take([
         :kind,
+        :settings,
         :status,
         :intent,
         :action,
@@ -249,6 +251,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp record_decision(cycle, decision, completed_at) do
     AuditLog.record(:decision, %{
       cycle_kind: cycle.kind,
+      settings: Map.get(cycle, :settings),
       intent: cycle.intent,
       action: decision.action,
       candidate_id: candidate_id(cycle.candidate),

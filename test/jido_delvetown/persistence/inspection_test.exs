@@ -126,10 +126,12 @@ defmodule JidoDelvetown.InspectionTest do
         "action" => "reply",
         "cycle_status" => "simulated",
         "intent" => "answer_direct_request",
+        "settings" => %{"scope" => "active", "schema_version" => 1, "version" => 8},
         "model_reason" => "A direct question",
         "private_model_context" => "must stay hidden",
         "manual_publication" => %{
           "status" => "completed",
+          "settings" => %{"scope" => "active", "schema_version" => 1, "version" => 9},
           "published_at" => "2026-10-05T12:05:00Z",
           "uri" => "at://did:plc:agent/town.delve.feed.post/published"
         },
@@ -178,6 +180,8 @@ defmodule JidoDelvetown.InspectionTest do
     assert reply.published_status == "completed"
     assert reply.published_at == "2026-10-05T12:05:00Z"
     assert reply.published_uri == "at://did:plc:agent/town.delve.feed.post/published"
+    assert reply.settings == %{scope: "active", schema_version: 1, version: 8}
+    assert reply.publication_settings == %{scope: "active", schema_version: 1, version: 9}
     refute inspect(snapshot.simulated_posts) =~ "must stay hidden"
     refute inspect(snapshot.simulated_posts) =~ "This public post"
   end
@@ -222,7 +226,8 @@ defmodule JidoDelvetown.InspectionTest do
                status: "completed",
                published_at: "2026-10-05T11:02:00Z",
                uri: "at://did:plc:bot/town.delve.feed.like/published",
-               effect_key: "like:durable"
+               effect_key: "like:durable",
+               settings: %{scope: "active", schema_version: 1, version: 10}
              })
 
     [published | _rest] = Inspection.snapshot(simulated_limit: 10).like_proposals
@@ -231,6 +236,8 @@ defmodule JidoDelvetown.InspectionTest do
     assert published.published_at == "2026-10-05T11:02:00Z"
     assert published.published_uri == "at://did:plc:bot/town.delve.feed.like/published"
     assert published.publication_effect_key == "like:durable"
+    assert published.settings == %{scope: "active", schema_version: 1, version: 7}
+    assert published.publication_settings == %{scope: "active", schema_version: 1, version: 10}
   end
 
   test "active memory exposes bounded actor, conversation, scan, and receipt fields" do
@@ -301,6 +308,7 @@ defmodule JidoDelvetown.InspectionTest do
 
     assert [receipt] = snapshot.effects.completed_receipts
     assert receipt.receipt == %{uri: "at://receipt", cid: "bafy"}
+    assert receipt.settings == %{scope: "active", schema_version: 1, version: 6}
     refute inspect(snapshot) =~ "must stay hidden"
     refute inspect(snapshot) =~ "profile data"
     refute inspect(snapshot) =~ "actor notes"
@@ -368,6 +376,7 @@ defmodule JidoDelvetown.InspectionTest do
       rkey: String.replace(key, ":", "-"),
       status: status,
       attempt_count: 1,
+      settings: %{"scope" => "active", "schema_version" => 1, "version" => 6},
       receipt: receipt,
       reserved_at: now,
       completed_at: if(status in ["completed", "permanent_failure"], do: now)
@@ -390,6 +399,7 @@ defmodule JidoDelvetown.InspectionTest do
       payload: %{
         "action" => "like",
         "cycle_status" => cycle_status,
+        "settings" => %{"scope" => "active", "schema_version" => 1, "version" => 7},
         "private_model_context" => "hidden model trace",
         "selection" => %{"reason" => "useful discussion scored 83", "score" => 83},
         "like_review" => %{

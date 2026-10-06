@@ -65,6 +65,13 @@ jobs in the same SQLite database. The app password is encrypted before it
 enters SQLite. Its local encryption key is in an owner-only file next to the
 database. Live session data is not in SQLite.
 
+Each participation cycle saves the active settings scope, schema version, and
+revision number. The same reference is saved with its proposal and autonomous
+effect. Manual and image publications save the settings reference from their
+first durable reservation. A retry keeps that original reference. The local
+inspection data exposes these references so an operator can match an action to
+the immutable settings revision that controlled it.
+
 Notification bookkeeping has a separate permission. Set the runtime setting
 `mark_notifications_seen` to `true` only when the Agent can update the
 server-side notification cursor. This setting does not permit posts, replies,

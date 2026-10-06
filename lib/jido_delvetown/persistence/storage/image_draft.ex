@@ -10,6 +10,7 @@ defmodule JidoDelvetown.Storage.ImageDraft do
     field(:alt_text, :string)
     field(:state, :string, default: "staged")
     field(:failure, :map)
+    field(:publication_settings, :map)
     field(:post_effect_key, :string)
     field(:post_record, :map)
     field(:post_receipt, :map)

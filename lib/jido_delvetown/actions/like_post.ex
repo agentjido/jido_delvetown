@@ -11,7 +11,7 @@ defmodule JidoDelvetown.Actions.LikePost do
       })
 
   @impl true
-  def run(%{uri: uri, cid: cid}, _context) do
+  def run(%{uri: uri, cid: cid}, context) do
     key = JidoDelvetown.Protocol.effect_key("like", [uri])
 
     JidoDelvetown.Protocol.create_record(
@@ -21,7 +21,8 @@ defmodule JidoDelvetown.Actions.LikePost do
         subject: %{uri: uri, cid: cid},
         created_at: JidoDelvetown.Protocol.now()
       },
-      subject_key: uri
+      subject_key: uri,
+      settings: Map.get(context, :settings)
     )
   end
 end

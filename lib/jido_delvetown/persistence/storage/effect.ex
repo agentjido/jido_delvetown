@@ -12,6 +12,7 @@ defmodule JidoDelvetown.Storage.Effect do
     field(:rkey, :string)
     field(:status, :string)
     field(:attempt_count, :integer, default: 0)
+    field(:settings, :map)
     field(:receipt, :map)
     field(:failure, :map)
     field(:reserved_at, :utc_datetime_usec)
