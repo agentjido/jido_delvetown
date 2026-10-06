@@ -204,9 +204,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   end
 
   defp all_notifications_terminal?(notifications) do
-    notifications
-    |> Enum.filter(& &1.unread?)
-    |> InteractionLedger.events_terminal?()
+    InteractionLedger.events_terminal?(notifications)
   end
 
   defp finish_state(state, result, completed_at) do

@@ -212,8 +212,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp remember_ignored_notifications(state, notifications) do
     Enum.reduce(notifications, state, fn notification, acc ->
-      if notification.unread? and
-           notification.reason not in (@direct_reasons ++ @deferred_reasons) and
+      if notification.reason not in (@direct_reasons ++ @deferred_reasons) and
            not processed?(acc, notification.id) do
         put_processed(acc, notification, "skip", "skip", "ignored")
       else
@@ -223,13 +222,13 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   end
 
   defp direct_candidate?(notification, state) do
-    notification.unread? and notification.reason in @direct_reasons and
+    notification.reason in @direct_reasons and
       not processed?(state, notification.id) and
       InteractionLedger.processable_event?(notification.event_key)
   end
 
   defp follow_candidate?(notification, state) do
-    notification.unread? and notification.reason == "follow" and
+    notification.reason == "follow" and
       not processed?(state, notification.id) and
       InteractionLedger.processable_event?(notification.event_key)
   end

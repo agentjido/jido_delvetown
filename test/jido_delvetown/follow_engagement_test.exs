@@ -61,6 +61,16 @@ defmodule JidoDelvetown.FollowEngagementTest do
     assert %Actor{contact_count: 1} = Repo.get(Actor, "did:plc:follower")
   end
 
+  test "a follow read in Delvetown remains eligible while its local event is pending" do
+    configure_follow("follow-read-remotely", true)
+    decide("acknowledge")
+
+    assert {:ok, state} = run()
+    assert state.last_run.intent == "respond_to_new_follow"
+    assert state.last_run.candidate_id == "follow-read-remotely"
+    assert_received {:decision, "respond_to_new_follow", _payload}
+  end
+
   test "a repeated notification is not selected again after restart" do
     configure_follow("follow-repeat")
     decide("acknowledge")
@@ -140,7 +150,7 @@ defmodule JidoDelvetown.FollowEngagementTest do
     )
   end
 
-  defp configure_follow(id) do
+  defp configure_follow(id, is_read \\ false) do
     Application.put_env(:jido_delvetown, :query_results, %{
       "town.delve.membership.getMembership" => {:ok, %{"status" => "member"}},
       "town.delve.notification.listNotifications" =>
@@ -150,7 +160,7 @@ defmodule JidoDelvetown.FollowEngagementTest do
              %{
                "id" => id,
                "reason" => "follow",
-               "isRead" => false,
+               "isRead" => is_read,
                "indexedAt" => "2026-10-05T12:00:00Z",
                "author" => %{
                  "did" => "did:plc:follower",

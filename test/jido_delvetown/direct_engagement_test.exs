@@ -58,6 +58,21 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert payload.candidate.memory == %{actor: nil, conversation: nil}
   end
 
+  test "a reply read in Delvetown remains eligible while its local event is pending" do
+    notification =
+      "reply-read-remotely"
+      |> notification("reply", "Can local memory own this event?")
+      |> Map.put("isRead", true)
+
+    configure_reactive(notification)
+    reply_decision()
+
+    assert {:ok, state} = run_reactive()
+    assert state.last_run.intent == "answer_direct_request"
+    assert state.last_run.candidate_id == "reply-read-remotely"
+    assert_received {:decision, "answer_direct_request", _payload}
+  end
+
   test "a simulated direct event is not selected again" do
     System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
     notification = notification("reply-repeat", "reply", "How should I retry this?")
