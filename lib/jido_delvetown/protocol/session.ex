@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Session do
 
   use GenServer
 
-  alias JidoDelvetown.Config
+  alias JidoDelvetown.Settings.Connection
   alias JidoDelvetown.Transport.ProtoRune, as: Transport
 
   def start_link(opts \\ []) do
@@ -22,7 +22,8 @@ defmodule JidoDelvetown.Session do
      %{
        transport: Keyword.get(opts, :transport, Transport),
        supervisor: Keyword.get(opts, :supervisor, JidoDelvetown.SessionSupervisor),
-       credentials: Keyword.get(opts, :credentials, &Config.credentials/0),
+       credentials: Keyword.get(opts, :credentials, &Connection.credentials/0),
+       service: Keyword.get(opts, :service, &Connection.pds_url/0),
        manager: nil,
        monitor: nil
      }}
@@ -66,10 +67,9 @@ defmodule JidoDelvetown.Session do
 
   defp do_connect(state, return_session? \\ false) do
     with {:ok, credentials} <- state.credentials.(),
+         {:ok, service} <- state.service.(),
          {:ok, session} <-
-           state.transport.login(credentials.identifier, credentials.password,
-             service: Config.pds_url()
-           ),
+           state.transport.login(credentials.identifier, credentials.password, service: service),
          {:ok, manager} <- start_manager(state.supervisor, session) do
       monitor = Process.monitor(manager)
       next = %{state | manager: manager, monitor: monitor}

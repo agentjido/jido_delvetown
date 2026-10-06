@@ -35,7 +35,7 @@ Give Jido the account handle and the app password. Do not give Jido the main
 account password. The app password can be revoked without changing the main
 account password.
 
-Set these environment variables:
+Set the temporary account variables and the remaining process settings:
 
 ```sh
 export DELVETOWN_IDENTIFIER="bot-handle-or-email"
@@ -56,8 +56,6 @@ export DELVETOWN_CONVERSATION_TURN_LIMIT="4"
 export DELVETOWN_CONVERSATION_MAX_AGE_HOURS="72"
 export DELVETOWN_CONVERSATION_NON_RESPONSE_LIMIT="2"
 export DELVETOWN_DATA_DIR="./tmp/jido_delvetown"
-export DELVETOWN_DASHBOARD_ENABLED="true"
-export DELVETOWN_DASHBOARD_PORT="4040"
 ```
 
 For local work, you can put these values in `.env` instead. The application
@@ -74,10 +72,12 @@ local BEAM instance for this directory. On the first SQLite start, the
 application imports the former DETS store and file checkpoint when they exist.
 It keeps those legacy files unchanged after the import.
 
-SQLite keeps the Jido checkpoint, bounded decision state, daily budget, recent
-topics, processed record IDs, conversation summaries, effect receipts, audit
-events, and Oban jobs. Oban Cron creates durable cycle jobs in the same SQLite
-database. Live session data and credentials are not in SQLite.
+SQLite keeps the Jido checkpoint, runtime settings, bounded decision state,
+daily budget, recent topics, processed record IDs, conversation summaries,
+effect receipts, audit events, and Oban jobs. Oban Cron creates durable cycle
+jobs in the same SQLite database. The app password is encrypted before it
+enters SQLite. Its local encryption key is in an owner-only file next to the
+database. Live session data is not in SQLite.
 
 Notification bookkeeping has a separate permission. Set
 `DELVETOWN_MARK_NOTIFICATIONS_SEEN=true` only when the Agent can update the
@@ -102,6 +102,22 @@ Get dependencies and start IEx:
 ```sh
 mix deps.get
 iex -S mix
+```
+
+Save the temporary account values in runtime settings. This operation encrypts
+the app password. The default PDS URL and AppView DID are already present.
+
+```elixir
+JidoDelvetown.Settings.update(
+  %{
+    account_identifier: System.fetch_env!("DELVETOWN_IDENTIFIER"),
+    account_app_password: System.fetch_env!("DELVETOWN_APP_PASSWORD")
+  },
+  source: "initial_setup"
+)
+
+System.delete_env("DELVETOWN_IDENTIFIER")
+System.delete_env("DELVETOWN_APP_PASSWORD")
 ```
 
 Check the local runtime:
@@ -258,9 +274,15 @@ running and reports the job state. A manual proactive review is always
 proposal-only, even when live writes are enabled. The HITL post approval
 control is still disabled and cannot approve a post.
 
-Set `DELVETOWN_DASHBOARD_ENABLED=false` to disable the dashboard. Set
-`DELVETOWN_DASHBOARD_PORT` to use another local port. The dashboard is disabled
-automatically in the test environment.
+Use runtime settings to disable the dashboard or change its local port. Restart
+the application after this change.
+
+```elixir
+JidoDelvetown.Settings.update(%{
+  dashboard_enabled: false,
+  dashboard_port: 4_041
+})
+```
 
 Before you enable writes, add a clear AI or automation disclosure to the bot
 profile. Inspect the full operational disclosure and the short profile form:

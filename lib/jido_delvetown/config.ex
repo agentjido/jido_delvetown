@@ -1,8 +1,6 @@
 defmodule JidoDelvetown.Config do
   @moduledoc false
 
-  @default_pds_url "https://pds.delve.town"
-  @default_appview_did "did:web:api.delve.town"
   @default_model "openai:gpt-4o-mini"
   @default_data_dir Path.expand("../../tmp/jido_delvetown", __DIR__)
 
@@ -14,9 +12,6 @@ defmodule JidoDelvetown.Config do
     :ok
   end
 
-  def pds_url, do: System.get_env("DELVETOWN_PDS_URL", @default_pds_url)
-  def appview_did, do: System.get_env("DELVETOWN_APPVIEW_DID", @default_appview_did)
-  def proxy_header, do: "#{appview_did()}#bsky_appview"
   def decision_model, do: System.get_env("DELVETOWN_MODEL", @default_model)
 
   def decision_model_input(model \\ decision_model())
@@ -35,17 +30,6 @@ defmodule JidoDelvetown.Config do
   end
 
   def decision_model_input(model), do: model
-
-  def dashboard_enabled? do
-    case System.get_env("DELVETOWN_DASHBOARD_ENABLED") do
-      nil -> Application.get_env(:jido_delvetown, :dashboard_enabled, true)
-      value -> enabled_value?(value)
-    end
-  end
-
-  def dashboard_port do
-    env_integer("DELVETOWN_DASHBOARD_PORT", 4040, 1, 65_535)
-  end
 
   def decision_timeout do
     env_integer("DELVETOWN_DECISION_TIMEOUT_MS", 45_000, 1_000, 180_000)
@@ -145,13 +129,6 @@ defmodule JidoDelvetown.Config do
 
   def legacy_checkpoint_path, do: Path.join(data_dir(), "jido_checkpoints")
   def legacy_state_path, do: Path.join(data_dir(), "delvetown_state.dets")
-
-  def credentials do
-    with {:ok, identifier} <- fetch_env("DELVETOWN_IDENTIFIER"),
-         {:ok, password} <- fetch_env("DELVETOWN_APP_PASSWORD") do
-      {:ok, %{identifier: identifier, password: password}}
-    end
-  end
 
   def invite_code, do: fetch_env("DELVETOWN_INVITE_CODE")
 

@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Transport.ProtoRune do
 
   @behaviour JidoDelvetown.Transport
 
-  alias JidoDelvetown.Config
+  alias JidoDelvetown.Settings.Connection
   alias ProtoRune.Atproto.Repo
   alias ProtoRune.Atproto.Session, as: AtprotoSession
   alias ProtoRune.Session
@@ -15,8 +15,12 @@ defmodule JidoDelvetown.Transport.ProtoRune do
 
   @impl true
   def login(identifier, password, opts \\ []) do
-    service = Keyword.get(opts, :service, Config.pds_url())
-    ProtoRune.login(identifier, password, service: service, http: Keyword.get(opts, :http, []))
+    with {:ok, service} <- configured_service(opts) do
+      ProtoRune.login(identifier, password,
+        service: service,
+        http: Keyword.get(opts, :http, [])
+      )
+    end
   end
 
   @impl true
@@ -149,19 +153,16 @@ defmodule JidoDelvetown.Transport.ProtoRune do
 
   @impl true
   def appview_query(session, method, params, opts \\ []) do
-    base_url =
-      Session.service_url(session) || AtprotoSession.normalize_service_url(Config.pds_url())
-
-    unsigned_url = Path.join(base_url, method)
-
-    query = %{
-      Query.new(method, base_url: base_url)
-      | params: encode_query_params(params)
-    }
-
-    with {:ok, headers, session} <- Session.authorization_headers(session, "GET", unsigned_url) do
+    with {:ok, base_url} <- service_url(session),
+         {:ok, proxy_header} <- Connection.proxy_header(),
+         unsigned_url = Path.join(base_url, method),
+         query = %{
+           Query.new(method, base_url: base_url)
+           | params: encode_query_params(params)
+         },
+         {:ok, headers, session} <- Session.authorization_headers(session, "GET", unsigned_url) do
       query
-      |> Query.put_header("atproto-proxy", Config.proxy_header())
+      |> Query.put_header("atproto-proxy", proxy_header)
       |> then(&%{&1 | headers: Map.merge(&1.headers, headers)})
       |> Client.execute(session: session, http: Keyword.get(opts, :http, []))
     end
@@ -169,18 +170,35 @@ defmodule JidoDelvetown.Transport.ProtoRune do
 
   @impl true
   def appview_procedure(session, method, body, opts \\ []) do
-    base_url =
-      Session.service_url(session) || AtprotoSession.normalize_service_url(Config.pds_url())
-
-    url = Path.join(base_url, method)
-
-    with {:ok, headers, session} <- Session.authorization_headers(session, "POST", url) do
+    with {:ok, base_url} <- service_url(session),
+         {:ok, proxy_header} <- Connection.proxy_header(),
+         url = Path.join(base_url, method),
+         {:ok, headers, session} <- Session.authorization_headers(session, "POST", url) do
       method
       |> Procedure.new(base_url: base_url)
       |> then(&%{&1 | body: body})
-      |> Procedure.put_header("atproto-proxy", Config.proxy_header())
+      |> Procedure.put_header("atproto-proxy", proxy_header)
       |> then(&%{&1 | headers: Map.merge(&1.headers, headers)})
       |> Client.execute(session: session, http: Keyword.get(opts, :http, []))
+    end
+  end
+
+  defp configured_service(opts) do
+    case Keyword.fetch(opts, :service) do
+      {:ok, service} -> {:ok, service}
+      :error -> Connection.pds_url()
+    end
+  end
+
+  defp service_url(session) do
+    case Session.service_url(session) do
+      service when is_binary(service) and service != "" ->
+        {:ok, service}
+
+      _missing ->
+        with {:ok, service} <- Connection.pds_url() do
+          {:ok, AtprotoSession.normalize_service_url(service)}
+        end
     end
   end
 

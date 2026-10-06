@@ -1,7 +1,6 @@
 import Config
 
 config :jido_delvetown,
-  dashboard_enabled: config_env() != :test,
   legacy_import_enabled: config_env() != :test,
   ecto_repos: [JidoDelvetown.Repo]
 
@@ -29,7 +28,8 @@ if config_env() == :test do
     )
 
   config :jido_delvetown,
-    database_path: database
+    database_path: database,
+    dashboard_server: JidoDelvetown.Test.DashboardServer
 
   config :jido_delvetown, JidoDelvetown.Repo,
     pool_size: 1,

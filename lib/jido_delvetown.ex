@@ -12,6 +12,7 @@ defmodule JidoDelvetown do
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Participation.CycleRunner
   alias JidoDelvetown.Session
+  alias JidoDelvetown.Settings.Connection
   alias JidoDelvetown.Transport.ProtoRune, as: Transport
 
   def connect, do: Session.connect()
@@ -92,7 +93,7 @@ defmodule JidoDelvetown do
         decision: agent.state.decision,
         last_cycle: agent.state.last_cycle,
         last_run: agent.state.last_run,
-        credentials_configured?: match?({:ok, _credentials}, Config.credentials())
+        credentials_configured?: Connection.credentials_configured?()
       }
     end
   end
