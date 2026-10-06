@@ -3,7 +3,9 @@
   "blocked_by": [
     "jido_del-322.2"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-322.4"
+  ],
   "created": "2026-10-06T00:59:44Z",
   "description": "Add a durable Oban worker and cron entry for proactive timeline reviews. Scheduled runs must use review or proposal-only behavior and must never bypass the protocol write guard or directly publish a like. Use unique incomplete-job protection, bounded retries, and the existing SQLite scan lease. Expose schedule and last-run health in the inspection data. Acceptance: cron inserts one eligible job; overlapping jobs do not run concurrently; retries keep the same bounded review semantics; a failed review releases its scan lease; reactive, member, and friend schedules remain unchanged.",
   "id": "jido_del-322.3",

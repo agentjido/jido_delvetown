@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-322.3"
+  ],
   "blocks": [],
   "created": "2026-10-06T00:59:44Z",
   "description": "Enable the existing Run proactive review control. One click must enqueue one proposal-only proactive review through Oban and must not change any write setting. Disable the control while a matching job is queued or running. Show queued, running, completed, skipped, and failed feedback, then refresh the dashboard data. Acceptance: repeated clicks cannot create duplicate concurrent jobs; the control reports an unavailable runtime; the job makes zero protocol effects even when live writes are configured elsewhere; LiveView and worker integration tests cover success, duplicate click, unavailable runtime, and failure.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Enable manual proactive review in the admin panel",
   "type": "task",
-  "updated_at": "2026-10-06T00:59:44Z"
+  "updated_at": "2026-10-06T00:59:53Z"
 }
