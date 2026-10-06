@@ -256,6 +256,18 @@ defmodule JidoDelvetown.SettingsTest do
              )
 
     assert confirmed.values.mark_notifications_seen
+
+    assert {:error, {:confirmation_required, :image_generation_enabled, true}} =
+             Settings.update(%{image_generation_enabled: true}, scope: scope)
+
+    assert {:ok, generation_enabled} =
+             Settings.update(%{image_generation_enabled: true},
+               scope: scope,
+               confirmed: [:image_generation_enabled]
+             )
+
+    assert generation_enabled.values.image_generation_enabled
+    refute generation_enabled.values.manual_publish_enabled
   end
 
   test "lists revisions newest first with safe values" do

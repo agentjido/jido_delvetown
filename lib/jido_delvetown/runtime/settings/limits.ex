@@ -10,6 +10,7 @@ defmodule JidoDelvetown.Settings.Limits do
     :daily_welcome_limit,
     :daily_follow_limit,
     :daily_like_limit,
+    :daily_image_generation_limit,
     :like_actor_cooldown_hours,
     :like_candidate_max_age_hours,
     :member_discovery_limit,

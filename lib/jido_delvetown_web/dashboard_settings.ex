@@ -8,6 +8,17 @@ defmodule JidoDelvetownWeb.DashboardSettings do
   @section_keys [
     connection: [:account_identifier, :account_app_password, :pds_url, :appview_did],
     behavior: [:decision_model, :decision_timeout_ms, :enabled_actions],
+    image_generation: [
+      :image_generation_enabled,
+      :image_generation_provider,
+      :image_generation_model,
+      :image_generation_size,
+      :image_generation_quality,
+      :image_generation_output_format,
+      :image_generation_timeout_ms,
+      :daily_image_generation_limit,
+      :image_generation_allowed_modes
+    ],
     limits: [
       :notification_limit,
       :daily_reply_limit,
@@ -43,6 +54,9 @@ defmodule JidoDelvetownWeb.DashboardSettings do
   @section_copy %{
     connection: {"Connection", "Change the DelveTown identity and protocol endpoints."},
     behavior: {"Behavior", "Set the decision model and the actions that the agent can propose."},
+    image_generation:
+      {"Image generation",
+       "Control the external image model, daily budget, and allowed request sources."},
     limits: {"Limits", "Set daily budgets, scan sizes, cooldowns, and conversation bounds."},
     schedules: {"Schedules", "Set the Oban cron expressions for recurring work."},
     safety:
@@ -58,6 +72,15 @@ defmodule JidoDelvetownWeb.DashboardSettings do
     decision_model: "Decision model",
     decision_timeout_ms: "Decision timeout (ms)",
     enabled_actions: "Enabled actions",
+    image_generation_enabled: "Allow image generation",
+    image_generation_provider: "Image provider",
+    image_generation_model: "Image model",
+    image_generation_size: "Image size",
+    image_generation_quality: "Image quality",
+    image_generation_output_format: "Image output format",
+    image_generation_timeout_ms: "Image timeout (ms)",
+    daily_image_generation_limit: "Daily image generation limit",
+    image_generation_allowed_modes: "Allowed image generation modes",
     notification_limit: "Notifications per scan",
     daily_reply_limit: "Daily reply limit",
     daily_post_limit: "Daily post limit",
@@ -263,6 +286,7 @@ defmodule JidoDelvetownWeb.DashboardSettings do
     []
     |> maybe_confirm(:autonomy_mode, Map.get(params, "confirm_autonomous"))
     |> maybe_confirm(:mark_notifications_seen, Map.get(params, "confirm_notifications"))
+    |> maybe_confirm(:image_generation_enabled, Map.get(params, "confirm_image_generation"))
   end
 
   defp maybe_confirm(keys, key, value) do
@@ -315,7 +339,8 @@ defmodule JidoDelvetownWeb.DashboardSettings do
         inserted_label: date_time_label(map_value(revision, :inserted_at)),
         changed: revision_changes(values, older),
         confirms_autonomous?: Map.get(values, "autonomy_mode") == "autonomous",
-        confirms_notifications?: Map.get(values, "mark_notifications_seen") == true
+        confirms_notifications?: Map.get(values, "mark_notifications_seen") == true,
+        confirms_image_generation?: Map.get(values, "image_generation_enabled") == true
       }
     end)
   end
@@ -366,6 +391,9 @@ defmodule JidoDelvetownWeb.DashboardSettings do
   defp validation_label(%{type: :enum, validation: %{values: values}}),
     do: "Allowed values: #{Enum.join(values, ", ")}."
 
+  defp validation_label(%{key: :image_generation_allowed_modes}),
+    do: "Select only the listed request sources."
+
   defp validation_label(%{type: {:list, :string}}),
     do: "Select only the listed actions."
 
@@ -385,6 +413,9 @@ defmodule JidoDelvetownWeb.DashboardSettings do
 
   defp help_text(%{key: :mark_notifications_seen}, _value),
     do: "Turning this on creates a remote protocol write and needs confirmation."
+
+  defp help_text(%{key: :image_generation_enabled}, _value),
+    do: "Turning this on can call a paid external service and needs confirmation."
 
   defp help_text(%{activation: activation}, _value),
     do: "Activation: #{Map.fetch!(@activation_labels, activation)}."

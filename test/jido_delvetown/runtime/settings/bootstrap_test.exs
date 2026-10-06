@@ -26,6 +26,11 @@ defmodule JidoDelvetown.Settings.BootstrapTest do
     refute settings.values["manual_publish_enabled"]
     refute settings.values["mark_notifications_seen"]
     refute settings.values["dry_run_mark_actioned"]
+    refute settings.values["image_generation_enabled"]
+    assert settings.values["image_generation_provider"] == "openai"
+    assert settings.values["image_generation_model"] == "gpt-image-1-mini"
+    assert settings.values["daily_image_generation_limit"] == 1
+    assert settings.values["image_generation_allowed_modes"] == ["manual"]
 
     assert Repo.aggregate(
              from(revision in SettingsRevision,

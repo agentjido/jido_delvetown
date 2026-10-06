@@ -65,12 +65,18 @@ defmodule JidoDelvetown.Settings.ContractTest do
     refute defaults.manual_publish_enabled
     refute defaults.mark_notifications_seen
     refute defaults.dry_run_mark_actioned
+    refute defaults.image_generation_enabled
+    assert defaults.daily_image_generation_limit == 1
+    assert defaults.image_generation_allowed_modes == ["manual"]
 
     assert {:ok, autonomy} = Contract.definition(:autonomy_mode)
     assert autonomy.safety.change_policy == {:confirm_value, "autonomous"}
 
     assert {:ok, notification_updates} = Contract.definition(:mark_notifications_seen)
     assert notification_updates.safety.change_policy == {:confirm_value, true}
+
+    assert {:ok, generation} = Contract.definition(:image_generation_enabled)
+    assert generation.safety.change_policy == {:confirm_value, true}
   end
 
   test "keeps credentials encrypted and LLM API keys external" do
@@ -87,6 +93,7 @@ defmodule JidoDelvetown.Settings.ContractTest do
 
   test "records activation timing for live, session, schedule, and startup changes" do
     assert activation(:manual_publish_enabled) == :immediate
+    assert activation(:image_generation_enabled) == :immediate
     assert activation(:daily_reply_limit) == :next_cycle
     assert activation(:pds_url) == :session_reconnect
     assert activation(:reactive_review_cron) == :worker_reconcile
@@ -120,6 +127,15 @@ defmodule JidoDelvetown.Settings.ContractTest do
 
     assert {:error, {:invalid_setting, :friend_sync_cron, :invalid_cron}} =
              Contract.validate(:friend_sync_cron, "not a cron")
+
+    assert :ok = Contract.validate(:image_generation_size, "1536x1024")
+    assert :ok = Contract.validate(:image_generation_allowed_modes, ["manual", "proactive"])
+
+    assert {:error, {:invalid_setting, :image_generation_provider, :not_allowed}} =
+             Contract.validate(:image_generation_provider, "unknown")
+
+    assert {:error, {:invalid_setting, :image_generation_allowed_modes, :item_not_allowed}} =
+             Contract.validate(:image_generation_allowed_modes, ["scheduled"])
   end
 
   test "accepts stable string keys without creating atoms" do

@@ -14,6 +14,7 @@ defmodule JidoDelvetown.Settings.LimitsTest do
     assert limits.daily_welcome_limit == 2
     assert limits.daily_follow_limit == 5
     assert limits.daily_like_limit == 5
+    assert limits.daily_image_generation_limit == 1
     assert limits.like_actor_cooldown_hours == 24
     assert limits.like_candidate_max_age_hours == 48
     assert limits.member_discovery_limit == 20
@@ -32,6 +33,7 @@ defmodule JidoDelvetown.Settings.LimitsTest do
                  daily_welcome_limit: 4,
                  daily_follow_limit: 6,
                  daily_like_limit: 9,
+                 daily_image_generation_limit: 4,
                  like_actor_cooldown_hours: 12,
                  like_candidate_max_age_hours: 36,
                  member_discovery_limit: 30,
@@ -51,6 +53,7 @@ defmodule JidoDelvetown.Settings.LimitsTest do
     assert updated.daily_welcome_limit == 4
     assert updated.daily_follow_limit == 6
     assert updated.daily_like_limit == 9
+    assert updated.daily_image_generation_limit == 4
     assert updated.like_actor_cooldown_hours == 12
     assert updated.like_candidate_max_age_hours == 36
     assert updated.member_discovery_limit == 30

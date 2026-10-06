@@ -3563,6 +3563,15 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             />
             <span>I confirm that marking notifications as seen is a remote protocol write.</span>
           </label>
+          <label class="settings-check" for="confirm-image-generation">
+            <input
+              id="confirm-image-generation"
+              type="checkbox"
+              name="settings[confirm_image_generation]"
+              value="true"
+            />
+            <span>I confirm that image generation can call a paid external service.</span>
+          </label>
         </article>
 
         <div class="settings-actions">
@@ -3640,6 +3649,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
               >
                 <input type="checkbox" name="rollback[confirm_notifications]" value="true" />
                 <span>Confirm remote notification writes</span>
+              </label>
+              <label
+                :if={map_value(revision, :confirms_image_generation?, false)}
+                class="settings-check"
+              >
+                <input type="checkbox" name="rollback[confirm_image_generation]" value="true" />
+                <span>Confirm image generation</span>
               </label>
               <button
                 type="submit"

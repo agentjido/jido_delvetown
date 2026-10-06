@@ -195,6 +195,15 @@ JidoDelvetown.Settings.update(
     decision_model: "openai:gpt-4o-mini",
     decision_timeout_ms: 45_000,
     enabled_actions: ~w(reply like repost post follow welcome),
+    image_generation_enabled: false,
+    image_generation_provider: "openai",
+    image_generation_model: "gpt-image-1-mini",
+    image_generation_size: "1024x1024",
+    image_generation_quality: "medium",
+    image_generation_output_format: "png",
+    image_generation_timeout_ms: 120_000,
+    daily_image_generation_limit: 1,
+    image_generation_allowed_modes: ["manual"],
     notification_limit: 20,
     daily_reply_limit: 3,
     daily_post_limit: 1,
@@ -329,6 +338,17 @@ reads `OPENAI_API_KEY` from the external environment, requests one byte-backed
 image through `ReqLLM.generate_image/3`, disables internal retries, and applies
 the request total timeout. It returns canonical image, usage, provenance, and
 redacted provider metadata. It does not write to SQLite or DelveTown.
+
+SQLite image generation settings are disabled by default. Enabling them needs
+an explicit confirmation because a generation can call a paid external
+service. Provider, model, size, quality, output format, timeout, daily request
+limit, and allowed manual, proactive, or reactive sources are separate from
+publication settings. Enabling generation does not enable image upload or
+publication. Read the normalized policy and current UTC daily usage with
+`JidoDelvetown.Settings.ImageGeneration.current/1`. Pass the returned
+`daily_limit` to `JidoDelvetown.ImageGenerationRequests.begin_attempt/2` so
+the immediate SQLite transaction applies the daily limit before a provider
+call starts.
 
 Use the generation staging bridge after the durable request has started and a
 ReqLLM call returns a successful result:

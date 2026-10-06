@@ -19,6 +19,12 @@ defmodule JidoDelvetown.ImageGenerationRequests do
 
   @type reservation :: %{request: map(), reused?: boolean()}
 
+  @type daily_usage :: %{
+          used: non_neg_integer(),
+          since: DateTime.t(),
+          resets_at: DateTime.t()
+        }
+
   @doc "Returns one durable generation request, or nil when it is not present."
   @spec get(String.t(), keyword()) :: map() | nil
   def get(request_key, opts \\ [])
@@ -64,14 +70,16 @@ defmodule JidoDelvetown.ImageGenerationRequests do
   def begin_attempt(request_key, opts \\ [])
 
   def begin_attempt(request_key, opts) when is_binary(request_key) and is_list(opts) do
-    repo = repo(opts)
-    attempted_at = now(opts)
+    with {:ok, daily_limit} <- daily_limit(opts) do
+      repo = repo(opts)
+      attempted_at = now(opts)
 
-    repo.transaction(
-      fn -> begin_attempt_transaction(repo, request_key, attempted_at) end,
-      mode: :immediate
-    )
-    |> transaction_result()
+      repo.transaction(
+        fn -> begin_attempt_transaction(repo, request_key, attempted_at, daily_limit) end,
+        mode: :immediate
+      )
+      |> transaction_result()
+    end
   end
 
   def begin_attempt(_request_key, _opts), do: {:error, :invalid_generation_request_key}
@@ -116,6 +124,26 @@ defmodule JidoDelvetown.ImageGenerationRequests do
 
   def complete(_request_key, _artifact_digest, _result, _opts),
     do: {:error, :invalid_generation_receipt}
+
+  @doc "Returns the number of requests that started a provider call on the UTC day."
+  @spec daily_usage(keyword()) :: daily_usage()
+  def daily_usage(opts \\ []) do
+    repo = repo(opts)
+    {since, resets_at} = utc_day(now(opts))
+
+    used =
+      repo.aggregate(
+        from(request in ImageGenerationRequest,
+          where:
+            request.state in ["uncertain", "failed", "completed"] and
+              request.attempted_at >= ^since and request.attempted_at < ^resets_at
+        ),
+        :count,
+        :request_key
+      )
+
+    %{used: used, since: since, resets_at: resets_at}
+  end
 
   @doc "Returns counts for all durable generation states."
   @spec counts(keyword()) :: %{atom() => non_neg_integer()}
@@ -168,21 +196,25 @@ defmodule JidoDelvetown.ImageGenerationRequests do
     end
   end
 
-  defp begin_attempt_transaction(repo, request_key, attempted_at) do
+  defp begin_attempt_transaction(repo, request_key, attempted_at, daily_limit) do
     case repo.get(ImageGenerationRequest, request_key) do
       nil ->
         repo.rollback(:generation_request_not_found)
 
       %{state: "reserved"} = stored ->
-        stored
-        |> Ecto.Changeset.change(
-          state: "uncertain",
-          attempt_count: stored.attempt_count + 1,
-          attempted_at: attempted_at,
-          failure: nil
-        )
-        |> repo.update!()
-        |> reservation(false)
+        with :ok <- enforce_daily_limit(repo, attempted_at, daily_limit) do
+          stored
+          |> Ecto.Changeset.change(
+            state: "uncertain",
+            attempt_count: stored.attempt_count + 1,
+            attempted_at: attempted_at,
+            failure: nil
+          )
+          |> repo.update!()
+          |> reservation(false)
+        else
+          {:error, reason} -> repo.rollback(reason)
+        end
 
       %{state: "completed"} = stored ->
         reservation(stored, true)
@@ -397,6 +429,41 @@ defmodule JidoDelvetown.ImageGenerationRequests do
 
   defp validate_request_key(_request_key), do: {:error, :invalid_generation_request_key}
 
+  defp daily_limit(opts) do
+    case Keyword.get(opts, :daily_limit, :unbounded) do
+      :unbounded -> {:ok, :unbounded}
+      limit when is_integer(limit) and limit >= 0 -> {:ok, limit}
+      _limit -> {:error, :invalid_image_generation_daily_limit}
+    end
+  end
+
+  defp enforce_daily_limit(_repo, _attempted_at, :unbounded), do: :ok
+
+  defp enforce_daily_limit(repo, attempted_at, limit) do
+    {since, resets_at} = utc_day(attempted_at)
+
+    used =
+      repo.aggregate(
+        from(request in ImageGenerationRequest,
+          where:
+            request.state in ["uncertain", "failed", "completed"] and
+              request.attempted_at >= ^since and request.attempted_at < ^resets_at
+        ),
+        :count,
+        :request_key
+      )
+
+    if used < limit,
+      do: :ok,
+      else: {:error, {:image_generation_daily_limit_reached, limit}}
+  end
+
+  defp utc_day(%DateTime{} = now) do
+    date = now |> DateTime.shift_zone!("Etc/UTC") |> DateTime.to_date()
+    since = DateTime.new!(date, ~T[00:00:00.000000], "Etc/UTC")
+    {since, DateTime.add(since, 86_400, :second)}
+  end
+
   defp state_atom("reserved"), do: :reserved
   defp state_atom("uncertain"), do: :uncertain
   defp state_atom("failed"), do: :failed
@@ -420,6 +487,11 @@ defmodule JidoDelvetown.ImageGenerationRequests do
   defp transaction_result({:error, reason}), do: {:error, reason}
 
   defp repo(opts), do: Keyword.get(opts, :repo, Repo)
-  defp now(opts), do: Keyword.get_lazy(opts, :now, &utc_now/0)
+  defp now(opts), do: opts |> Keyword.get_lazy(:now, &utc_now/0) |> microsecond_precision()
+
+  defp microsecond_precision(%DateTime{} = value) do
+    %{value | microsecond: {elem(value.microsecond, 0), 6}}
+  end
+
   defp utc_now, do: DateTime.utc_now() |> DateTime.truncate(:microsecond)
 end

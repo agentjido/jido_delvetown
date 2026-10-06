@@ -17,11 +17,16 @@ defmodule JidoDelvetown.Settings.Contract do
 
   """
 
-  @schema_version 2
+  @schema_version 3
 
   @action_values ~w(reply like repost post follow welcome)
   @autonomy_values ~w(observe review autonomous)
   @console_theme_values ~w(system light dark)
+  @image_generation_mode_values ~w(manual proactive reactive)
+  @image_generation_output_values ~w(png jpeg webp)
+  @image_generation_provider_values ~w(openai)
+  @image_generation_quality_values ~w(auto low medium high)
+  @image_generation_size_values ~w(auto 1024x1024 1536x1024 1024x1536)
   @default_data_dir Path.expand("../../../../tmp/jido_delvetown", __DIR__)
 
   @standard_safety %{
@@ -45,6 +50,11 @@ defmodule JidoDelvetown.Settings.Contract do
     log_policy: :allow
   }
   @remote_write_safety %{
+    classification: :public,
+    change_policy: {:confirm_value, true},
+    log_policy: :allow
+  }
+  @generation_safety %{
     classification: :public,
     change_policy: {:confirm_value, true},
     log_policy: :allow
@@ -218,6 +228,114 @@ defmodule JidoDelvetown.Settings.Contract do
       safety: @remote_write_safety,
       activation: :next_cycle,
       legacy_env: "DELVETOWN_MARK_NOTIFICATIONS_SEEN"
+    },
+    %{
+      key: :image_generation_enabled,
+      section: :image_generation,
+      type: :boolean,
+      default: false,
+      validation: %{},
+      storage: :database,
+      revision: :record,
+      safety: @generation_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :image_generation_provider,
+      section: :image_generation,
+      type: :enum,
+      default: "openai",
+      validation: %{values: @image_generation_provider_values},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :image_generation_model,
+      section: :image_generation,
+      type: :string,
+      default: "gpt-image-1-mini",
+      validation: %{min_length: 1, max_length: 255},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :image_generation_size,
+      section: :image_generation,
+      type: :enum,
+      default: "1024x1024",
+      validation: %{values: @image_generation_size_values},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :image_generation_quality,
+      section: :image_generation,
+      type: :enum,
+      default: "medium",
+      validation: %{values: @image_generation_quality_values},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :image_generation_output_format,
+      section: :image_generation,
+      type: :enum,
+      default: "png",
+      validation: %{values: @image_generation_output_values},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :image_generation_timeout_ms,
+      section: :image_generation,
+      type: :integer,
+      default: 120_000,
+      validation: %{min: 1_000, max: 600_000},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :daily_image_generation_limit,
+      section: :image_generation,
+      type: :integer,
+      default: 1,
+      validation: %{min: 0, max: 100},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
+    },
+    %{
+      key: :image_generation_allowed_modes,
+      section: :image_generation,
+      type: {:list, :string},
+      default: ["manual"],
+      validation: %{values: @image_generation_mode_values, unique: true},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
     },
     %{
       key: :notification_limit,

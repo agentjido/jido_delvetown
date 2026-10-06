@@ -13,10 +13,12 @@ defmodule JidoDelvetownWeb.DashboardSettingsTest do
     assert page.version == 1
 
     assert Enum.map(page.sections, & &1.key) ==
-             ~w(connection behavior limits schedules safety console)
+             ~w(connection behavior image_generation limits schedules safety console)
 
     fields = Enum.flat_map(page.sections, & &1.fields)
     assert Enum.find(fields, &(&1.key == :account_app_password)).input == :password
+    assert Enum.find(fields, &(&1.key == :image_generation_enabled)).input == :checkbox
+    assert Enum.find(fields, &(&1.key == :image_generation_size)).input == :select
     assert Enum.find(fields, &(&1.key == :reactive_review_cron)).activation == :worker_reconcile
     assert Enum.find(fields, &(&1.key == :dashboard_port)).activation == :application_restart
     assert [%{version: 1, current?: true, changed: ["Initial settings"]}] = page.history
@@ -63,6 +65,23 @@ defmodule JidoDelvetownWeb.DashboardSettingsTest do
              |> DashboardSettings.save(scope: scope)
 
     assert result.settings.values.autonomy_mode == "autonomous"
+  end
+
+  test "requires a separate confirmation to enable image generation" do
+    scope = bootstrap_scope()
+    params = form_params(scope) |> Map.put("image_generation_enabled", "true")
+
+    assert {:error, {:confirmation_required, :image_generation_enabled, true}} =
+             DashboardSettings.save(params, scope: scope)
+
+    assert {:ok, result} =
+             params
+             |> Map.put("confirm_image_generation", "true")
+             |> DashboardSettings.save(scope: scope)
+
+    assert result.settings.values.image_generation_enabled
+    refute result.settings.values.manual_publish_enabled
+    assert "Allow image generation" in result.changed
   end
 
   test "rolls back from history with optimistic locking" do

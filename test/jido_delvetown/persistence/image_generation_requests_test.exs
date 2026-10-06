@@ -187,6 +187,61 @@ defmodule JidoDelvetown.ImageGenerationRequestsTest do
            }
   end
 
+  test "enforces an atomic UTC daily request limit" do
+    first_at = ~U[2026-10-06 23:59:00Z]
+    next_day = ~U[2026-10-07 00:01:00Z]
+
+    assert {:ok, _reservation} = ImageGenerationRequests.reserve("daily:first", request())
+
+    assert {:ok, _started} =
+             ImageGenerationRequests.begin_attempt("daily:first",
+               daily_limit: 1,
+               now: first_at
+             )
+
+    assert ImageGenerationRequests.daily_usage(now: first_at).used == 1
+
+    assert {:ok, _reservation} = ImageGenerationRequests.reserve("daily:second", request())
+
+    assert {:error, {:image_generation_daily_limit_reached, 1}} =
+             ImageGenerationRequests.begin_attempt("daily:second",
+               daily_limit: 1,
+               now: first_at
+             )
+
+    assert ImageGenerationRequests.get("daily:second").state == :reserved
+
+    assert {:ok, _started} =
+             ImageGenerationRequests.begin_attempt("daily:second",
+               daily_limit: 1,
+               now: next_day
+             )
+
+    assert ImageGenerationRequests.daily_usage(now: next_day).used == 1
+  end
+
+  test "does not charge the daily budget for a request that did not start remotely" do
+    now = ~U[2026-10-06 10:00:00Z]
+    assert {:ok, _reservation} = ImageGenerationRequests.reserve("not-started", request())
+
+    assert {:ok, _started} =
+             ImageGenerationRequests.begin_attempt("not-started", daily_limit: 1, now: now)
+
+    error = Error.new(:authentication, "missing key", outcome: :not_started)
+
+    assert {:ok, %{request: %{state: :reserved}}} =
+             ImageGenerationRequests.record_failure("not-started", error, now: now)
+
+    assert ImageGenerationRequests.daily_usage(now: now).used == 0
+    assert {:ok, _reservation} = ImageGenerationRequests.reserve("replacement", request())
+
+    assert {:ok, _started} =
+             ImageGenerationRequests.begin_attempt("replacement", daily_limit: 1, now: now)
+
+    assert {:error, :invalid_image_generation_daily_limit} =
+             ImageGenerationRequests.begin_attempt("replacement", daily_limit: "one", now: now)
+  end
+
   defp request(overrides \\ []) do
     attrs = %{
       prompt: "AgentJido at a careful workbench",
