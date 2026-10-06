@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:49:52Z",
+  "description": "Add SQLite settings for generation enabled state, provider, model, size, quality, output format, timeout, daily generation limit, and allowed participation modes. Generation must remain disabled by default and must not enable publication.",
+  "id": "jido_del-nki.5",
+  "labels": [],
+  "parent": "jido_del-nki",
+  "priority": 1,
+  "status": "open",
+  "title": "Add image generation policy and budget controls",
+  "type": "task",
+  "updated_at": "2026-10-06T01:49:52Z"
+}
