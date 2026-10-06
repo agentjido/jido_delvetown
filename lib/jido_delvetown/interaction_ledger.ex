@@ -64,12 +64,26 @@ defmodule JidoDelvetown.InteractionLedger do
       updated_at: now
     }
 
+    conflict_query =
+      from(event in InteractionEvent,
+        update: [
+          set: [
+            kind: fragment("EXCLUDED.kind"),
+            actor_did: fragment("EXCLUDED.actor_did"),
+            record_uri: fragment("EXCLUDED.record_uri"),
+            source_id: fragment("EXCLUDED.source_id"),
+            occurred_at: fragment("EXCLUDED.occurred_at"),
+            payload: fragment("EXCLUDED.payload"),
+            updated_at: fragment("EXCLUDED.updated_at")
+          ]
+        ],
+        where: event.state == "pending"
+      )
+
     repo.insert_all(
       InteractionEvent,
       [row],
-      on_conflict:
-        {:replace,
-         [:kind, :actor_did, :record_uri, :source_id, :occurred_at, :payload, :updated_at]},
+      on_conflict: conflict_query,
       conflict_target: [:event_key]
     )
 

@@ -49,6 +49,37 @@ defmodule JidoDelvetown.InteractionLedgerTest do
     assert {:error, {:not_claimable, "completed"}} = Ledger.claim("event:restart")
   end
 
+  test "a repeated observation preserves a completed decision payload" do
+    event_key = "event:completed-draft"
+
+    assert {:ok, %InteractionEvent{state: "pending"}} =
+             Ledger.observe(%{
+               event_key: event_key,
+               kind: "reply",
+               payload: %{
+                 action: "reply",
+                 cycle_status: "simulated",
+                 text: "Keep this exact draft."
+               }
+             })
+
+    assert {:ok, %InteractionEvent{state: "claimed"}} = Ledger.claim(event_key)
+    assert {:ok, %InteractionEvent{state: "completed"}} = Ledger.finish(event_key, :completed)
+
+    assert {:ok, %InteractionEvent{state: "completed"}} =
+             Ledger.observe(%{
+               event_key: event_key,
+               kind: "reply",
+               payload: %{raw_reason: "reply"}
+             })
+
+    assert Ledger.event(event_key).payload == %{
+             "action" => "reply",
+             "cycle_status" => "simulated",
+             "text" => "Keep this exact draft."
+           }
+  end
+
   test "a recorded reply updates actor and conversation memory once" do
     completed_at = "2026-10-05T12:00:00Z"
 
