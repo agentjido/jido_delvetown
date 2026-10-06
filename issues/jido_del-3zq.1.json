@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [],
   "blocks": [
     "jido_del-3zq.10",
@@ -14,8 +14,8 @@
   "labels": [],
   "parent": "jido_del-3zq",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Group source and tests by subsystem",
   "type": "task",
-  "updated_at": "2026-10-06T01:07:30Z"
+  "updated_at": "2026-10-06T11:06:10Z"
 }
