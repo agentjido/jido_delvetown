@@ -2,10 +2,11 @@ defmodule JidoDelvetown.ManualPublisher do
   @moduledoc "Publishes one selected simulated draft under a separate manual write guard."
 
   alias JidoDelvetown.{
+    ActorMemory,
     Candidate,
     Config,
+    ConversationMemory,
     InteractionEvents,
-    InteractionLedger,
     OutgoingLikePolicy,
     Protocol,
     Store,
@@ -135,7 +136,7 @@ defmodule JidoDelvetown.ManualPublisher do
              parent_height: 0
            }),
          %{post: candidate} <- Candidate.thread(response) do
-      {:ok, Map.put(candidate, :memory, InteractionLedger.context_for(candidate))}
+      {:ok, Map.put(candidate, :memory, memory_context(candidate))}
     else
       {:error, _reason} = error -> error
       _invalid -> {:error, :like_target_unavailable}
@@ -239,7 +240,7 @@ defmodule JidoDelvetown.ManualPublisher do
         {:ok, handle}
 
       _missing ->
-        case InteractionLedger.actor(did) do
+        case ActorMemory.get(did) do
           %{handle: handle} when is_binary(handle) and handle != "" -> {:ok, handle}
           _actor -> {:error, :missing_actor_handle}
         end
@@ -251,6 +252,13 @@ defmodule JidoDelvetown.ManualPublisher do
       {:ok, target} -> target
       {:error, _reason} -> nil
     end
+  end
+
+  defp memory_context(candidate) do
+    %{
+      actor: ActorMemory.context(get_in(candidate, [:author, :did])),
+      conversation: ConversationMemory.context(get_in(candidate, [:root, :uri]))
+    }
   end
 
   defp top_level_record(event) do

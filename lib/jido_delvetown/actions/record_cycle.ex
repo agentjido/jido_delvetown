@@ -8,8 +8,8 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   alias JidoDelvetown.Actions.UpdateNotificationsSeen
   alias JidoDelvetown.Config
   alias JidoDelvetown.CreativeFormats
+  alias JidoDelvetown.CycleRecorder
   alias JidoDelvetown.InteractionEvents
-  alias JidoDelvetown.InteractionLedger
   alias JidoDelvetown.ScanProgress
   alias JidoDelvetown.Store
 
@@ -22,7 +22,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     state = update_policy_state(cycle.state, cycle, decision, completed_at)
     result = result(cycle, decision, completed_at)
 
-    with :ok <- InteractionLedger.record_cycle(cycle, decision, completed_at),
+    with :ok <- CycleRecorder.record(cycle, decision, completed_at),
          :ok <- record_decision(cycle, decision, completed_at),
          {state, result} <- maybe_mark_notifications_seen(state, cycle, result, completed_at),
          :ok <- finish_scan(cycle) do

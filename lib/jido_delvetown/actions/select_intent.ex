@@ -6,12 +6,13 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     schema: Zoi.object(%{cycle: Zoi.map()})
 
   alias JidoDelvetown.{
+    ActorMemory,
     Candidate,
     Config,
+    ConversationMemory,
     ConversationPolicy,
     EngagementRanker,
     InteractionEvents,
-    InteractionLedger,
     OptOut,
     OutgoingLikePolicy,
     Protocol,
@@ -266,7 +267,14 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   defp add_memory(nil), do: nil
 
   defp add_memory(candidate),
-    do: Map.put(candidate, :memory, InteractionLedger.context_for(candidate))
+    do: Map.put(candidate, :memory, memory_context(candidate))
+
+  defp memory_context(candidate) do
+    %{
+      actor: ActorMemory.context(get_in(candidate, [:author, :did])),
+      conversation: ConversationMemory.context(get_in(candidate, [:root, :uri]))
+    }
+  end
 
   defp attach_like_eligibility(candidate, state) do
     case OutgoingLikePolicy.evaluate(candidate, state) do
