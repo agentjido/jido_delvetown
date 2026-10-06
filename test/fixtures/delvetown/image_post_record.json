@@ -1,0 +1,32 @@
+{
+  "source": {
+    "checkedAt": "2026-10-05",
+    "uri": "at://did:plc:hr6mywilgrfqqvoxo6t4ldo2/town.delve.feed.post/3mx5psvv6r22e"
+  },
+  "record": {
+    "$type": "town.delve.feed.post",
+    "text": "A public DelveTown image post fixture.",
+    "embed": {
+      "$type": "town.delve.embed.images",
+      "images": [
+        {
+          "image": {
+            "$type": "blob",
+            "ref": {
+              "$link": "bafkreid2wtyqjcrjwqf7vqumwnnhjq73hlk2h335lxspj6ftcgw7net53a"
+            },
+            "mimeType": "image/jpeg",
+            "size": 31795
+          },
+          "alt": "",
+          "aspectRatio": {
+            "width": 198,
+            "height": 200
+          }
+        }
+      ]
+    },
+    "langs": ["en"],
+    "createdAt": "2026-10-05T20:08:23.948Z"
+  }
+}
