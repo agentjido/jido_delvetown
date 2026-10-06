@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [],
   "blocks": [],
   "created": "2026-10-06T01:06:53Z",
@@ -7,8 +7,8 @@
   "id": "jido_del-3zq",
   "labels": [],
   "priority": 2,
-  "status": "open",
+  "status": "in_progress",
   "title": "Reorganize Jido DelveTown by subsystem ownership",
   "type": "epic",
-  "updated_at": "2026-10-06T01:06:53Z"
+  "updated_at": "2026-10-06T11:06:05Z"
 }
