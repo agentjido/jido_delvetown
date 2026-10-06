@@ -26,11 +26,15 @@
     {
       "text": "QA resumed with commits dbb76ba and 49ffe29 loaded. Manual reactive job 45 selected reply notification:DhihNMiOS-qevI_vwp7IcLE2DzZVLkCcBpZuL5JXfpE, then failed on attempts 1 and 2 with decision_failed and model_reason 'Cycle did not reach a decision'. Protocol writes stayed disabled. No reply, like, post, or follow was published. Created corrective issue jido_del-322.10 and linked it as a blocker.",
       "timestamp": "2026-10-06T15:47:44Z"
+    },
+    {
+      "text": "QA resumed after corrective commit 0866db6. Incoming likes are present once as ignored local events and caused no reply or protocol effect. Manual proactive jobs completed once and created two proposed like events, but neither can enter approval: ProactiveReviewWorker stores proposal_status=proposed with a pending event, while DraftReviews and the UI accept only proposal_status=simulated with a completed event. Example candidate WtENKMoLY_Iby0aNeka7qfdSqeQaWuR3L0yYUiiit9s targets at://did:plc:nhlcvrqwh7hwhvmgxbut6c2f/town.delve.feed.post/3mx5rdzbv4c2w. Protocol writes remain disabled. I will create a corrective blocker for a clean manual dry-run path.",
+      "timestamp": "2026-10-06T15:59:11Z"
     }
   ],
   "priority": 1,
   "status": "in_progress",
   "title": "Verify the controlled like workflow end to end",
   "type": "task",
-  "updated_at": "2026-10-06T15:47:44Z"
+  "updated_at": "2026-10-06T15:59:11Z"
 }
