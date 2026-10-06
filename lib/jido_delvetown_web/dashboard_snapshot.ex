@@ -3,7 +3,14 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
 
   alias JidoDelvetown.{Automation, Personality}
   alias JidoDelvetown.Settings.{Behavior, Connection, Console, ImageGeneration, Limits, Setup}
-  alias JidoDelvetownWeb.{DashboardDrafts, DashboardInbox, DashboardOverview, DashboardSettings}
+
+  alias JidoDelvetownWeb.{
+    DashboardDrafts,
+    DashboardInbox,
+    DashboardOverview,
+    DashboardPeople,
+    DashboardSettings
+  }
 
   @page_title "AgentJido / DelveTown"
 
@@ -45,6 +52,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
 
     inbox = DashboardInbox.build(inspection)
     drafts = DashboardDrafts.build(inspection)
+    people = DashboardPeople.build(inspection)
     settings_editor_status = settings_status(settings_editor)
 
     %{
@@ -67,6 +75,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       overview: overview,
       inbox: inbox,
       drafts: drafts,
+      people: people,
       image_generation: image_generation,
       settings_editor: settings_editor_status,
       theme: setting_value(console_settings, :theme, "system"),

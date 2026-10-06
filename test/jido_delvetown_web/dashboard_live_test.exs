@@ -370,6 +370,24 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     refute html =~ ~s(id="overview-panel")
   end
 
+  test "renders the People view and active navigation" do
+    html = render_dashboard(Map.put(base_assigns(), :active_tab, "people"))
+
+    assert html =~ ~s(<h1 id="page-title">People</h1>)
+    assert html =~ ~s(id="people-tab" class="operator-nav-link active")
+    assert html =~ ~s(href="/?tab=people")
+    assert html =~ ~s(id="people-panel")
+    assert html =~ "People and participation boundaries"
+    assert html =~ "BEAM Friend"
+    assert html =~ "@friend.test"
+    assert html =~ "Mutual follow"
+    assert html =~ "BEAM"
+    assert html =~ "Ask about supervision trees."
+    assert html =~ "Participation excluded"
+    assert html =~ "Actor opted out"
+    refute html =~ ~s(id="overview-panel")
+  end
+
   test "renders the runtime settings editor and revision history" do
     html = render_dashboard(Map.put(base_assigns(), :active_tab, "settings"))
 
@@ -1331,6 +1349,50 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
         rejected_count: 0,
         published_count: 0,
         type_counts: %{text: 0, like: 0, image: 0}
+      },
+      people: %{
+        counts: %{
+          known: 2,
+          friends: 1,
+          followers: 2,
+          following: 1,
+          mutuals: 1,
+          excluded: 1
+        },
+        visible_count: 2,
+        truncated?: false,
+        records: [
+          %{
+            did: "did:plc:friend",
+            handle: "friend.test",
+            display_name: "BEAM Friend",
+            friend?: true,
+            follows_agent: "yes",
+            agent_follows: "yes",
+            topics: ["BEAM", "OTP"],
+            notes: "Ask about supervision trees.",
+            contact_count: 3,
+            welcome_status: "completed",
+            reference_count: 2,
+            last_interaction_at: "2026-10-06T12:00:00Z",
+            friend_since: "2026-10-01T12:00:00Z",
+            last_referenced_at: "2026-10-05T12:00:00Z",
+            opted_out?: false,
+            do_not_mention?: false
+          },
+          %{
+            did: "did:plc:excluded",
+            handle: "excluded.test",
+            friend?: false,
+            follows_agent: "yes",
+            agent_follows: "no",
+            topics: [],
+            contact_count: 0,
+            reference_count: 0,
+            opted_out?: true,
+            do_not_mention?: true
+          }
+        ]
       },
       settings_editor: settings_assigns(),
       operational_state: %{

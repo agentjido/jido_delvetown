@@ -7,6 +7,7 @@ defmodule JidoDelvetown.Inspection do
 
   alias JidoDelvetown.Storage.{
     Actor,
+    ActorRelationship,
     Conversation,
     Effect,
     ImageArtifact,
@@ -22,6 +23,7 @@ defmodule JidoDelvetown.Inspection do
   @effect_states ["reserved", "uncertain", "completed", "permanent_failure"]
   @simulated_post_actions ["post", "reply", "welcome"]
   @like_proposal_scan_limit 100
+  @default_people_limit 100
   @default_limit 8
 
   def snapshot(opts \\ []) do
@@ -29,6 +31,7 @@ defmodule JidoDelvetown.Inspection do
     limit = opts |> Keyword.get(:limit, @default_limit) |> max(0)
     simulated_limit = opts |> Keyword.get(:simulated_limit, 25) |> max(0)
     image_limit = opts |> Keyword.get(:image_limit, 12) |> max(0)
+    people_limit = opts |> Keyword.get(:people_limit, @default_people_limit) |> max(0)
     simulated_posts = simulated_posts(repo, simulated_limit)
     like_proposals = like_proposals(repo, simulated_limit)
     image_drafts = image_drafts(repo, image_limit)
@@ -50,6 +53,7 @@ defmodule JidoDelvetown.Inspection do
       image_drafts: put_reviews(image_drafts, reviews, "image"),
       image_generation_requests: image_generation_requests,
       actors: %{recent: recent_actors(repo, limit)},
+      people: people(repo, people_limit),
       conversations: %{
         counts: grouped_counts(repo, Conversation, :status, ["active", "closed"]),
         recent: recent_conversations(repo, limit)
@@ -221,6 +225,113 @@ defmodule JidoDelvetown.Inspection do
       )
     )
     |> Enum.map(&encode_times/1)
+  end
+
+  defp people(repo, limit) do
+    records =
+      repo.all(
+        from(actor in Actor,
+          left_join: relationship in ActorRelationship,
+          on: relationship.actor_did == actor.did,
+          order_by: [
+            desc: relationship.friend,
+            desc: relationship.follows_agent,
+            desc: actor.last_interaction_at,
+            desc: actor.last_seen_at,
+            asc: actor.did
+          ],
+          limit: ^limit,
+          select: {actor, relationship}
+        )
+      )
+      |> Enum.map(&person_summary/1)
+
+    total_count = repo.aggregate(Actor, :count, :did)
+
+    %{
+      counts: %{
+        known: total_count,
+        friends: relationship_count(repo, :friend, true),
+        followers: relationship_count(repo, :follows_agent, "yes"),
+        following: relationship_count(repo, :agent_follows, "yes"),
+        mutuals: mutual_count(repo),
+        excluded: excluded_count(repo)
+      },
+      records: records,
+      visible_count: length(records),
+      truncated?: total_count > length(records)
+    }
+  end
+
+  defp person_summary({actor, relationship}) do
+    %{
+      did: actor.did,
+      handle: actor.handle,
+      display_name: actor.display_name,
+      contact_count: actor.contact_count,
+      welcome_status: actor.welcome_status,
+      opted_out?: actor.opted_out,
+      first_seen_at: iso8601(actor.first_seen_at),
+      last_seen_at: iso8601(actor.last_seen_at),
+      last_interaction_at: iso8601(actor.last_interaction_at),
+      friend?: relationship_value(relationship, :friend, false),
+      follows_agent: relationship_value(relationship, :follows_agent, "unknown"),
+      agent_follows: relationship_value(relationship, :agent_follows, "unknown"),
+      topics: relationship_topics(relationship),
+      notes: relationship_value(relationship, :notes, nil),
+      do_not_mention?: relationship_value(relationship, :do_not_mention, false),
+      friend_since: relationship_time(relationship, :friend_since),
+      last_related_at: relationship_time(relationship, :last_related_at),
+      last_referenced_at: relationship_time(relationship, :last_referenced_at),
+      reference_count: relationship_value(relationship, :reference_count, 0)
+    }
+  end
+
+  defp relationship_count(repo, field_name, value) do
+    repo.aggregate(
+      from(relationship in ActorRelationship,
+        where: field(relationship, ^field_name) == ^value
+      ),
+      :count,
+      :actor_did
+    )
+  end
+
+  defp mutual_count(repo) do
+    repo.aggregate(
+      from(relationship in ActorRelationship,
+        where: relationship.follows_agent == "yes" and relationship.agent_follows == "yes"
+      ),
+      :count,
+      :actor_did
+    )
+  end
+
+  defp excluded_count(repo) do
+    repo.aggregate(
+      from(actor in Actor,
+        left_join: relationship in ActorRelationship,
+        on: relationship.actor_did == actor.did,
+        where: actor.opted_out or relationship.do_not_mention == true
+      ),
+      :count,
+      :did
+    )
+  end
+
+  defp relationship_value(nil, _key, default), do: default
+  defp relationship_value(relationship, key, default), do: Map.get(relationship, key, default)
+
+  defp relationship_time(nil, _key), do: nil
+  defp relationship_time(relationship, key), do: relationship |> Map.get(key) |> iso8601()
+
+  defp relationship_topics(nil), do: []
+
+  defp relationship_topics(relationship) do
+    case relationship.topics do
+      topics when is_map(topics) -> topics |> Map.keys() |> Enum.sort()
+      _topics -> []
+    end
   end
 
   defp recent_inbox_events(repo, limit) do

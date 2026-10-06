@@ -50,6 +50,19 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
             }
           ]
         },
+        people: %{
+          counts: %{
+            known: 1,
+            friends: 1,
+            followers: 1,
+            following: 1,
+            mutuals: 1,
+            excluded: 0
+          },
+          records: [%{did: "did:plc:member", handle: "member.test", friend?: true}],
+          visible_count: 1,
+          truncated?: false
+        },
         effects: %{attention: []},
         sqlite: %{migrations: %{status: "current"}}
       }
@@ -208,6 +221,19 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
                  }
                ]
              },
+             people: %{
+               counts: %{
+                 known: 1,
+                 friends: 1,
+                 followers: 1,
+                 following: 1,
+                 mutuals: 1,
+                 excluded: 0
+               },
+               records: [%{did: "did:plc:member", handle: "member.test", friend?: true}],
+               visible_count: 1,
+               truncated?: false
+             },
              effects: %{attention: []},
              sqlite: %{migrations: %{status: "current"}}
            }
@@ -232,6 +258,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.inbox.actionable_count == 0
     assert snapshot.drafts.total_count == 0
     assert snapshot.drafts.pending_count == 0
+    assert snapshot.people.counts.known == 1
+    assert hd(snapshot.people.records).handle == "member.test"
     assert snapshot.image_generation.enabled?
     assert snapshot.image_generation.budget.remaining == 1
     assert snapshot.theme == "dark"
@@ -289,6 +317,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert Enum.any?(snapshot.overview.attention, &(&1.key == "runtime"))
     assert snapshot.inbox.events == []
     assert snapshot.drafts.total_count == 0
+    assert snapshot.people.records == []
+    assert snapshot.people.counts.known == 0
     assert snapshot.image_generation == %{}
     assert snapshot.theme == "system"
     refute snapshot.manual_publish_enabled

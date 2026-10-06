@@ -23,6 +23,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       :planned_controls,
       :agent_information,
       :drafts,
+      :people,
       :settings,
       :footer
     ]
@@ -176,5 +177,71 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
     assert html =~ ~s(phx-value-decision="approved")
     assert html =~ ~s(phx-value-decision="rejected")
     refute html =~ ~s(phx-click="publish_simulated")
+  end
+
+  test "people shows relationship memory, topics, recent contact, and exclusions" do
+    html =
+      render_component(&DashboardComponents.people/1, %{
+        active_tab: "people",
+        people: %{
+          counts: %{
+            known: 2,
+            friends: 1,
+            followers: 2,
+            following: 1,
+            mutuals: 1,
+            excluded: 1
+          },
+          visible_count: 2,
+          truncated?: false,
+          records: [
+            %{
+              did: "did:plc:friend",
+              handle: "friend.test",
+              display_name: "BEAM Friend",
+              friend?: true,
+              follows_agent: "yes",
+              agent_follows: "yes",
+              topics: ["BEAM", "OTP"],
+              notes: "Ask about supervision trees.",
+              contact_count: 3,
+              welcome_status: "completed",
+              reference_count: 2,
+              last_interaction_at: "2026-10-06T12:00:00Z",
+              friend_since: "2026-10-01T12:00:00Z",
+              last_referenced_at: "2026-10-05T12:00:00Z",
+              opted_out?: false,
+              do_not_mention?: false
+            },
+            %{
+              did: "did:plc:excluded",
+              handle: "excluded.test",
+              friend?: false,
+              follows_agent: "yes",
+              agent_follows: "no",
+              topics: [],
+              contact_count: 0,
+              reference_count: 0,
+              opted_out?: true,
+              do_not_mention?: true
+            }
+          ]
+        }
+      })
+
+    assert html =~ ~s(id="people-panel")
+    assert html =~ "People and participation boundaries"
+    assert html =~ "BEAM Friend"
+    assert html =~ "@friend.test"
+    assert html =~ "Mutual follow"
+    assert html =~ ">BEAM</span>"
+    assert html =~ ">OTP</span>"
+    assert html =~ "Ask about supervision trees."
+    assert html =~ "Oct 06 · 12:00 UTC"
+    assert html =~ "Participation excluded:"
+    assert html =~ "Actor opted out"
+    assert html =~ "Do not mention"
+    assert html =~ "https://delve.town/profile/friend.test"
+    refute html =~ "phx-click"
   end
 end

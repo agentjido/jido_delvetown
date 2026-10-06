@@ -7,12 +7,20 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   def styles(assigns), do: content(assign(assigns, :dashboard_section, :styles))
 
   @spec sidebar_navigation(map()) :: Phoenix.LiveView.Rendered.t()
-  def sidebar_navigation(assigns),
-    do: content(assign(assigns, :dashboard_section, :sidebar_navigation))
+  def sidebar_navigation(assigns) do
+    assigns
+    |> assign_new(:people, fn -> %{counts: %{known: 0}} end)
+    |> assign(:dashboard_section, :sidebar_navigation)
+    |> content()
+  end
 
   @spec mobile_navigation(map()) :: Phoenix.LiveView.Rendered.t()
-  def mobile_navigation(assigns),
-    do: content(assign(assigns, :dashboard_section, :mobile_navigation))
+  def mobile_navigation(assigns) do
+    assigns
+    |> assign_new(:people, fn -> %{counts: %{known: 0}} end)
+    |> assign(:dashboard_section, :mobile_navigation)
+    |> content()
+  end
 
   @spec first_run_setup(map()) :: Phoenix.LiveView.Rendered.t()
   def first_run_setup(assigns),
@@ -60,6 +68,14 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     |> assign_new(:image_generation_notice, fn -> nil end)
     |> assign_new(:image_generation_status, fn -> "idle" end)
     |> assign(:dashboard_section, :drafts)
+    |> content()
+  end
+
+  @spec people(map()) :: Phoenix.LiveView.Rendered.t()
+  def people(assigns) do
+    assigns
+    |> assign_new(:people, fn -> %{counts: %{}, records: [], visible_count: 0} end)
+    |> assign(:dashboard_section, :people)
     |> content()
   end
 
@@ -1072,6 +1088,138 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         display: flex;
         align-items: center;
         gap: 9px;
+      }
+
+      .people-shell {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .people-summary { display: grid; gap: 4px; }
+
+      .people-summary > p:last-of-type {
+        max-width: 74ch;
+        margin-bottom: 16px;
+        color: var(--muted);
+      }
+
+      .people-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .people-summary-item {
+        display: grid;
+        gap: 1px;
+        padding: 11px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .people-summary-item strong { color: var(--text); font-size: 19px; }
+      .people-summary-item span { color: var(--muted); font-size: 11px; }
+
+      .people-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .person-card {
+        display: grid;
+        gap: 13px;
+        padding: 15px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .person-heading {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .person-identity {
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        gap: 10px;
+      }
+
+      .person-identity-copy { display: grid; min-width: 0; }
+      .person-identity-copy strong { overflow-wrap: anywhere; }
+      .person-identity-copy span { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+
+      .person-profile-link {
+        flex: 0 0 auto;
+        color: var(--cyan);
+        font-size: 12px;
+        font-weight: 680;
+        text-decoration: none;
+      }
+
+      .person-badges,
+      .person-topics {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .person-memory-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin: 0;
+      }
+
+      .person-memory-grid > div {
+        min-width: 0;
+        padding: 9px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .person-memory-grid dt {
+        color: var(--quiet);
+        font-size: 10px;
+        font-weight: 720;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .person-memory-grid dd {
+        margin: 3px 0 0;
+        color: var(--text);
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+
+      .person-note,
+      .person-exclusions {
+        margin: 0;
+        padding: 10px 11px;
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .person-note {
+        border-left: 3px solid var(--cyan);
+        background: var(--surface);
+      }
+
+      .person-exclusions {
+        border-left: 3px solid var(--red);
+        background: var(--red-deep);
+        color: var(--red);
       }
 
       .panel-header {
@@ -2101,6 +2249,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .overview-summary-grid,
         .overview-detail-grid,
         .inbox-command-bar,
+        .person-memory-grid,
         .settings-field-grid { grid-template-columns: 1fr; }
         .status-item { border-right: 0; border-bottom: 1px solid var(--line); }
         .status-item:last-child { border-bottom: 0; }
@@ -2132,6 +2281,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .overview-schedule-list li { align-items: start; flex-direction: column; gap: 2px; }
         .inbox-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .inbox-event-card { grid-template-columns: 1fr; }
+        .people-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .person-heading { align-items: stretch; flex-direction: column; }
+        .person-profile-link { width: fit-content; }
         .draft-state-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .draft-review-actions { width: 100%; margin-left: 0; }
         .draft-review-actions button { flex: 1 1 auto; }
@@ -2190,9 +2342,15 @@ defmodule JidoDelvetownWeb.DashboardComponents do
           <span>Drafts &amp; approvals</span>
           <span class="nav-count">{drafts_nav_count(@drafts)}</span>
         </a>
-        <span class="operator-nav-link" aria-disabled="true">
-          <span>People</span><span class="nav-soon">Soon</span>
-        </span>
+        <a
+          id="people-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "people")}"}
+          href="/?tab=people"
+          aria-current={if @active_tab == "people", do: "page"}
+        >
+          <span>People</span>
+          <span class="nav-count">{people_nav_count(@people)}</span>
+        </a>
         <span class="operator-nav-link" aria-disabled="true">
           <span>Activity</span><span class="nav-soon">Soon</span>
         </span>
@@ -2297,6 +2455,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             aria-current={if @active_tab == "drafts", do: "page"}
           >
             Drafts <span class="nav-count">{drafts_nav_count(@drafts)}</span>
+          </a>
+          <a
+            class={"mobile-nav-link #{tab_class(@active_tab, "people")}"}
+            href="/?tab=people"
+            aria-current={if @active_tab == "people", do: "page"}
+          >
+            People <span class="nav-count">{people_nav_count(@people)}</span>
           </a>
           <a
             class={"mobile-nav-link #{tab_class(@active_tab, "settings")}"}
@@ -3138,6 +3303,158 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         </section>
       </div>
     </details>
+
+    <section
+      :if={@dashboard_section == :people and @active_tab == "people"}
+      id="people-panel"
+      class="people-shell"
+      role="tabpanel"
+      aria-labelledby="people-tab"
+    >
+      <article class="panel people-summary">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Local relationship memory</p>
+            <h2>People and participation boundaries</h2>
+          </div>
+          <span class="badge safe">Read only</span>
+        </div>
+
+        <p>
+          This view combines known actors with local friend and follow memory. Topics and notes are
+          local operator context. Opt-outs and do-not-mention rules limit participation.
+        </p>
+
+        <div class="people-summary-grid" aria-label="People counts">
+          <div class="people-summary-item">
+            <strong>{people_count(@people, :known)}</strong><span>Known people</span>
+          </div>
+          <div class="people-summary-item">
+            <strong>{people_count(@people, :friends)}</strong><span>Friends</span>
+          </div>
+          <div class="people-summary-item">
+            <strong>{people_count(@people, :followers)}</strong><span>Follow AgentJido</span>
+          </div>
+          <div class="people-summary-item">
+            <strong>{people_count(@people, :following)}</strong><span>AgentJido follows</span>
+          </div>
+          <div class="people-summary-item">
+            <strong>{people_count(@people, :mutuals)}</strong><span>Mutual follows</span>
+          </div>
+          <div class="people-summary-item">
+            <strong>{people_count(@people, :excluded)}</strong><span>Participation exclusions</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Bounded SQLite view</p>
+            <h2>Relationship records</h2>
+          </div>
+          <span class="count">{people_visible_label(@people)}</span>
+        </div>
+
+        <p :if={people_records(@people) == []} class="empty">
+          No people are in local memory yet. A friend sync or participation cycle will add records.
+        </p>
+
+        <p :if={map_value(@people, :truncated?, false)} class="empty">
+          This view shows the most relevant bounded set. More people remain in SQLite.
+        </p>
+
+        <ol :if={people_records(@people) != []} class="people-list">
+          <li :for={person <- people_records(@people)} class="person-card">
+            <div class="person-heading">
+              <div class="person-identity">
+                <span class="social-avatar muted" aria-hidden="true">{person_initial(person)}</span>
+                <span class="person-identity-copy">
+                  <strong>{person_name(person)}</strong>
+                  <span>{person_secondary_identity(person)}</span>
+                </span>
+              </div>
+              <a
+                :if={person_profile_url(person)}
+                class="person-profile-link"
+                href={person_profile_url(person)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open profile ↗
+              </a>
+            </div>
+
+            <div class="person-badges" aria-label="Relationship state">
+              <span :if={map_value(person, :friend?, false)} class="badge safe">Friend</span>
+              <span :if={person_mutual?(person)} class="badge healthy">Mutual follow</span>
+              <span
+                :if={map_value(person, :follows_agent) == "yes" and not person_mutual?(person)}
+                class="badge idle"
+              >
+                Follows AgentJido
+              </span>
+              <span
+                :if={map_value(person, :agent_follows) == "yes" and not person_mutual?(person)}
+                class="badge idle"
+              >
+                AgentJido follows
+              </span>
+              <span :if={person_relationship_unknown?(person)} class="badge idle">
+                Relationship observed
+              </span>
+            </div>
+
+            <div :if={person_topics(person) != []} class="person-topics" aria-label="Topics">
+              <span :for={topic <- person_topics(person)} class="tag">{topic}</span>
+            </div>
+
+            <dl class="person-memory-grid">
+              <div>
+                <dt>Recent contact</dt>
+                <dd>{person_contact_time(person)}</dd>
+              </div>
+              <div>
+                <dt>Contact count</dt>
+                <dd>{people_number(map_value(person, :contact_count))}</dd>
+              </div>
+              <div>
+                <dt>Welcome state</dt>
+                <dd>{state_label(map_value(person, :welcome_status) || "not sent")}</dd>
+              </div>
+              <div>
+                <dt>References</dt>
+                <dd>{people_number(map_value(person, :reference_count))}</dd>
+              </div>
+              <div>
+                <dt>Follows AgentJido</dt>
+                <dd>{state_label(map_value(person, :follows_agent, "unknown"))}</dd>
+              </div>
+              <div>
+                <dt>AgentJido follows</dt>
+                <dd>{state_label(map_value(person, :agent_follows, "unknown"))}</dd>
+              </div>
+              <div>
+                <dt>Friend since</dt>
+                <dd>{inbox_time_label(map_value(person, :friend_since))}</dd>
+              </div>
+              <div>
+                <dt>Last referenced</dt>
+                <dd>{inbox_time_label(map_value(person, :last_referenced_at))}</dd>
+              </div>
+            </dl>
+
+            <p :if={present_text?(map_value(person, :notes))} class="person-note">
+              <strong>Local note:</strong> {map_value(person, :notes)}
+            </p>
+
+            <p :if={person_exclusions(person) != []} class="person-exclusions">
+              <strong>Participation excluded:</strong> {Enum.join(person_exclusions(person), " · ")}
+            </p>
+          </li>
+        </ol>
+      </article>
+    </section>
 
     <section
       :if={@dashboard_section == :drafts and @active_tab == "drafts"}
@@ -4142,6 +4459,84 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp drafts_nav_count(drafts), do: draft_count(drafts, :pending_count)
 
+  defp people_nav_count(people), do: people_count(people, :known)
+
+  defp people_count(people, key) do
+    people
+    |> map_value(:counts, %{})
+    |> map_value(key, 0)
+    |> people_number()
+  end
+
+  defp people_number(value) when is_integer(value) and value >= 0, do: value
+  defp people_number(_value), do: 0
+
+  defp people_records(people), do: inspection_list(people, [:records])
+
+  defp people_visible_label(people) do
+    visible = people_number(map_value(people, :visible_count))
+    known = people_count(people, :known)
+
+    if map_value(people, :truncated?, false), do: "#{visible} of #{known}", else: "#{known} total"
+  end
+
+  defp person_name(person) do
+    map_value(person, :display_name) || map_value(person, :handle) ||
+      display(map_value(person, :did))
+  end
+
+  defp person_secondary_identity(person) do
+    case map_value(person, :handle) do
+      handle when is_binary(handle) and handle != "" ->
+        "@#{handle} · #{display(map_value(person, :did))}"
+
+      _handle ->
+        display(map_value(person, :did))
+    end
+  end
+
+  defp person_initial(person) do
+    person
+    |> person_name()
+    |> String.trim()
+    |> String.first()
+    |> case do
+      nil -> "?"
+      initial -> String.upcase(initial)
+    end
+  end
+
+  defp person_topics(person), do: inspection_list(person, [:topics])
+
+  defp person_mutual?(person),
+    do: map_value(person, :follows_agent) == "yes" and map_value(person, :agent_follows) == "yes"
+
+  defp person_relationship_unknown?(person) do
+    not map_value(person, :friend?, false) and
+      map_value(person, :follows_agent, "unknown") != "yes" and
+      map_value(person, :agent_follows, "unknown") != "yes"
+  end
+
+  defp person_contact_time(person) do
+    person
+    |> map_value(:last_interaction_at)
+    |> Kernel.||(map_value(person, :last_related_at))
+    |> Kernel.||(map_value(person, :last_seen_at))
+    |> inbox_time_label()
+  end
+
+  defp person_exclusions(person) do
+    []
+    |> maybe_add_person_exclusion(map_value(person, :opted_out?, false), "Actor opted out")
+    |> maybe_add_person_exclusion(
+      map_value(person, :do_not_mention?, false),
+      "Do not mention"
+    )
+  end
+
+  defp maybe_add_person_exclusion(exclusions, true, label), do: exclusions ++ [label]
+  defp maybe_add_person_exclusion(exclusions, _value, _label), do: exclusions
+
   defp draft_count(drafts, key) do
     case map_value(drafts, key, 0) do
       count when is_integer(count) and count >= 0 -> count
@@ -4293,6 +4688,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp page_title("inbox"), do: "Participation inbox"
   defp page_title("drafts"), do: "Drafts & approvals"
+  defp page_title("people"), do: "People"
   defp page_title("settings"), do: "Runtime settings"
   defp page_title(_active_tab), do: "Overview"
 
@@ -4599,6 +4995,16 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp profile_url(status) do
     case session_actor(status) do
+      actor when is_binary(actor) and actor != "" ->
+        "https://delve.town/profile/#{URI.encode_www_form(actor)}"
+
+      _actor ->
+        nil
+    end
+  end
+
+  defp person_profile_url(person) do
+    case map_value(person, :handle) || map_value(person, :did) do
       actor when is_binary(actor) and actor != "" ->
         "https://delve.town/profile/#{URI.encode_www_form(actor)}"
 

@@ -6,6 +6,7 @@ defmodule JidoDelvetown.InspectionTest do
 
   alias JidoDelvetown.Storage.{
     Actor,
+    ActorRelationship,
     AuditEvent,
     Conversation,
     Effect,
@@ -139,6 +140,97 @@ defmodule JidoDelvetown.InspectionTest do
     refute inspect(snapshot.events.recent) =~ "must stay hidden"
     refute inspect(snapshot.events.recent) =~ "hidden actor note"
     refute inspect(snapshot.events.recent) =~ "excluded event"
+  end
+
+  test "people inspection joins bounded relationship and exclusion memory" do
+    older = ~U[2026-10-04 10:00:00.000000Z]
+    newer = ~U[2026-10-05 12:00:00.000000Z]
+
+    Repo.insert!(%Actor{
+      did: "did:plc:friend",
+      handle: "friend.test",
+      display_name: "Friend",
+      profile: %{"private_profile_field" => "hidden"},
+      first_seen_at: older,
+      last_seen_at: newer,
+      last_interaction_at: newer,
+      contact_count: 3,
+      welcome_status: "completed",
+      metadata: %{"private_actor_note" => "hidden"}
+    })
+
+    Repo.insert!(%ActorRelationship{
+      actor_did: "did:plc:friend",
+      friend: true,
+      follows_agent: "yes",
+      agent_follows: "yes",
+      topics: %{"BEAM" => true, "OTP" => true},
+      notes: "Ask about supervision trees.",
+      friend_since: older,
+      first_related_at: older,
+      last_related_at: newer,
+      last_referenced_at: newer,
+      reference_count: 2,
+      metadata: %{"private_relationship_field" => "hidden"}
+    })
+
+    Repo.insert!(%Actor{
+      did: "did:plc:excluded",
+      handle: "excluded.test",
+      display_name: "Excluded",
+      opted_out: true,
+      first_seen_at: older,
+      last_seen_at: older,
+      metadata: %{}
+    })
+
+    Repo.insert!(%ActorRelationship{
+      actor_did: "did:plc:excluded",
+      follows_agent: "yes",
+      do_not_mention: true,
+      first_related_at: older,
+      last_related_at: older,
+      metadata: %{}
+    })
+
+    Repo.insert!(%Actor{
+      did: "did:plc:observed",
+      handle: "observed.test",
+      first_seen_at: older,
+      last_seen_at: older,
+      metadata: %{}
+    })
+
+    people = Inspection.snapshot(people_limit: 2).people
+
+    assert people.counts == %{
+             known: 3,
+             friends: 1,
+             followers: 2,
+             following: 1,
+             mutuals: 1,
+             excluded: 1
+           }
+
+    assert people.visible_count == 2
+    assert people.truncated?
+    assert [friend, excluded] = people.records
+
+    assert friend.did == "did:plc:friend"
+    assert friend.friend?
+    assert friend.follows_agent == "yes"
+    assert friend.agent_follows == "yes"
+    assert friend.topics == ["BEAM", "OTP"]
+    assert friend.notes == "Ask about supervision trees."
+    assert friend.contact_count == 3
+    assert friend.reference_count == 2
+    assert friend.last_interaction_at == DateTime.to_iso8601(newer)
+
+    assert excluded.opted_out?
+    assert excluded.do_not_mention?
+    refute inspect(people) =~ "private_profile_field"
+    refute inspect(people) =~ "private_actor_note"
+    refute inspect(people) =~ "private_relationship_field"
   end
 
   test "proactive review inspection exposes bounded latest-job health" do
@@ -618,6 +710,7 @@ defmodule JidoDelvetown.InspectionTest do
         AuditEvent,
         Effect,
         Conversation,
+        ActorRelationship,
         Actor,
         InteractionEvent,
         ScanState,

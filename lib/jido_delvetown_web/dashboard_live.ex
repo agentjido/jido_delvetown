@@ -397,6 +397,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
               <DashboardComponents.planned_controls {assigns} />
               <DashboardComponents.agent_information {assigns} />
               <DashboardComponents.drafts {assigns} />
+              <DashboardComponents.people {assigns} />
               <DashboardComponents.settings {assigns} />
               <DashboardComponents.footer {assigns} />
             <% end %>
@@ -410,6 +411,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_ms)
 
   defp active_tab(%{"tab" => "inbox"}), do: "inbox"
+  defp active_tab(%{"tab" => "people"}), do: "people"
   defp active_tab(%{"tab" => "settings"}), do: "settings"
 
   defp active_tab(%{"tab" => tab}) when tab in ["drafts", "simulated-posts", "image-drafts"],
