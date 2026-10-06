@@ -18,7 +18,7 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "open",
   "title": "Verify the controlled like workflow end to end",
   "type": "task",
   "updated_at": "2026-10-06T15:39:05Z"
