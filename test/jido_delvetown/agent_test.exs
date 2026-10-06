@@ -7,6 +7,7 @@ defmodule JidoDelvetown.AgentTest do
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Workers.FriendSyncWorker
   alias JidoDelvetown.Workers.MemberDiscoveryWorker
+  alias JidoDelvetown.Workers.ProactiveReviewWorker
   alias JidoDelvetown.Workers.ReactiveParticipationWorker
 
   test "the hard-coded DSL exposes the complete participation tool set" do
@@ -48,11 +49,13 @@ defmodule JidoDelvetown.AgentTest do
   test "application starts Oban with all cron schedules" do
     assert JidoDelvetown.status().schedule_enabled?
     assert JidoDelvetown.status().cron == "*/15 * * * *"
+    assert JidoDelvetown.status().proactive_review_cron == "5,35 * * * *"
     assert JidoDelvetown.status().friend_sync_cron == "17 * * * *"
     assert is_pid(Oban.whereis(Oban))
 
     assert Automation.crontab() == [
              {"*/15 * * * *", ReactiveParticipationWorker},
+             {"5,35 * * * *", ProactiveReviewWorker},
              {"7 * * * *", MemberDiscoveryWorker},
              {"17 * * * *", FriendSyncWorker}
            ]

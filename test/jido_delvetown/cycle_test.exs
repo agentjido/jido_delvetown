@@ -342,7 +342,8 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:create_record, _collection, _record, _rkey}
   end
 
-  test "a question on the timeline selects the discussion intent with a compact thread" do
+  test "a proactive review cannot publish a selected like when writes are enabled" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
     uri = "at://did:plc:author/town.delve.feed.post/question"
     indexed_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
@@ -393,7 +394,7 @@ defmodule JidoDelvetown.CycleTest do
       })
 
     assert {:ok, state} =
-             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, %{
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "review"}, %{
                agent_state: agent_state
              })
 
@@ -406,6 +407,7 @@ defmodule JidoDelvetown.CycleTest do
     assert_received {:decision, "join_useful_discussion", payload}
     assert payload.allowed_actions == ["like", "skip"]
     assert payload.candidate.thread.post.text == "When should one process become two?"
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   test "a simulated outgoing like consumes only the like budget and is not selected twice" do
@@ -503,6 +505,21 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:appview_query, _method, _params}
 
     assert {:ok, _scan} = ScanProgress.release("notifications", scan.token)
+  end
+
+  test "a failed proactive review releases its timeline scan lease" do
+    configure_reads(%{"town.delve.feed.getTimeline" => {:error, :timeout}})
+
+    assert {:ok, state} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "review"}, context())
+
+    assert state.last_run.status == "failed"
+    assert state.last_run.errors == ["timeout"]
+
+    scan = ScanProgress.get("timeline")
+    assert is_binary(scan.metadata["last_released_at"])
+    refute Map.has_key?(scan.metadata, "lease_token")
+    refute Map.has_key?(scan.metadata, "lease_until")
   end
 
   test "a skipped follow becomes terminal before the notification batch is marked as seen" do

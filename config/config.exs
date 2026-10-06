@@ -12,6 +12,7 @@ oban_config = [
   cron: [
     crontab: [
       {"*/15 * * * *", JidoDelvetown.Workers.ReactiveParticipationWorker},
+      {"5,35 * * * *", JidoDelvetown.Workers.ProactiveReviewWorker},
       {"7 * * * *", JidoDelvetown.Workers.MemberDiscoveryWorker},
       {"17 * * * *", JidoDelvetown.Workers.FriendSyncWorker}
     ]

@@ -283,13 +283,15 @@ less and must state that the account is automated.
 ## Schedule and manual runs
 
 Oban Cron adds a reactive cycle job every 15 minutes with `*/15 * * * *`. It
-adds a member discovery job at minute 7 of every hour with `7 * * * *`. It also
-syncs the account's follow collection into local friend memory at minute 17 of
-every hour with `17 * * * *`. These jobs use the `delvetown` queue with one
-worker. A worker returns failures to Oban for retry. One incomplete unique job
-is allowed for each worker, so a slow run does not create a second run of the
-same type. The proactive cycle has no automatic schedule while its prompts and
-policy are being tuned.
+adds proposal-only proactive timeline reviews at minutes 5 and 35 with
+`5,35 * * * *`. It adds a member discovery job at minute 7 of every hour with
+`7 * * * *`. It also syncs the account's follow collection into local friend
+memory at minute 17 of every hour with `17 * * * *`. These jobs use the
+`delvetown` queue with one worker. A worker returns failures to Oban for retry.
+One incomplete unique job is allowed for each worker, so a slow run does not
+create a second run of the same type. Scheduled proactive work always uses the
+review Signal. It can save a proposal, but it cannot publish a like or another
+protocol record.
 
 For an ongoing dry run, keep the application running with these settings:
 

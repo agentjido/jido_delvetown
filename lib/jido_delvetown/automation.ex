@@ -6,6 +6,7 @@ defmodule JidoDelvetown.Automation do
   alias JidoDelvetown.Repo
 
   @reactive_worker JidoDelvetown.Workers.ReactiveParticipationWorker
+  @proactive_review_worker JidoDelvetown.Workers.ProactiveReviewWorker
   @friend_sync_worker JidoDelvetown.Workers.FriendSyncWorker
   @manual_source "admin"
   @active_states ~w(available scheduled executing retryable suspended)
@@ -59,7 +60,29 @@ defmodule JidoDelvetown.Automation do
     worker_cron(@reactive_worker)
   end
 
+  def proactive_review_cron, do: worker_cron(@proactive_review_worker)
   def friend_sync_cron, do: worker_cron(@friend_sync_worker)
+
+  @doc "Returns bounded schedule and latest-job health for proactive reviews."
+  def proactive_review_health(opts \\ []) do
+    repo = Keyword.get(opts, :repo, Repo)
+
+    latest_job =
+      repo.one(
+        from(job in Oban.Job,
+          where: job.worker == ^inspect(@proactive_review_worker),
+          order_by: [desc: job.inserted_at, desc: job.id],
+          limit: 1
+        )
+      )
+
+    %{
+      cron: proactive_review_cron(),
+      queue: "delvetown",
+      max_attempts: @proactive_review_worker.__opts__()[:max_attempts],
+      last_run: proactive_job_health(latest_job)
+    }
+  end
 
   def crontab do
     :jido_delvetown
@@ -194,6 +217,43 @@ defmodule JidoDelvetown.Automation do
 
   defp runtime,
     do: Application.get_env(:jido_delvetown, :reactive_review_runtime, JidoDelvetown)
+
+  defp proactive_job_health(nil) do
+    %{
+      health: "idle",
+      state: nil,
+      job_id: nil,
+      attempt: 0,
+      max_attempts: @proactive_review_worker.__opts__()[:max_attempts],
+      inserted_at: nil,
+      attempted_at: nil,
+      completed_at: nil,
+      error_count: 0
+    }
+  end
+
+  defp proactive_job_health(job) do
+    %{
+      health: job_health(job.state),
+      state: job.state,
+      job_id: job.id,
+      attempt: job.attempt,
+      max_attempts: job.max_attempts,
+      inserted_at: iso8601(job.inserted_at),
+      attempted_at: iso8601(job.attempted_at),
+      completed_at: iso8601(job.completed_at),
+      error_count: length(job.errors || [])
+    }
+  end
+
+  defp job_health("completed"), do: "healthy"
+  defp job_health(state) when state in ["available", "scheduled", "executing"], do: "active"
+  defp job_health(state) when state in ["retryable", "suspended"], do: "retrying"
+  defp job_health(state) when state in ["discarded", "cancelled"], do: "failed"
+  defp job_health(_state), do: "unknown"
+
+  defp iso8601(nil), do: nil
+  defp iso8601(%DateTime{} = value), do: DateTime.to_iso8601(value)
 
   defp worker_cron(worker) do
     Enum.find_value(crontab(), fn

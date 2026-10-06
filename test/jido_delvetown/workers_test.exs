@@ -8,10 +8,12 @@ defmodule JidoDelvetown.WorkersTest do
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Workers.FriendSyncWorker
   alias JidoDelvetown.Workers.MemberDiscoveryWorker
+  alias JidoDelvetown.Workers.ProactiveReviewWorker
   alias JidoDelvetown.Workers.ReactiveParticipationWorker
 
   defmodule FakeCycleRunner do
     def run_reactive, do: run(:reactive)
+    def review_proactive, do: run(:proactive_review)
     def run_member_discovery, do: run(:member_discovery)
 
     defp run(cycle) do
@@ -63,6 +65,44 @@ defmodule JidoDelvetown.WorkersTest do
   test "reactive jobs run the reactive cycle" do
     assert :ok = ReactiveParticipationWorker.perform(%Oban.Job{})
     assert_receive {:cycle, :reactive}
+  end
+
+  test "scheduled proactive jobs run only the proposal review cycle" do
+    assert :ok = ProactiveReviewWorker.perform(%Oban.Job{})
+    assert_receive {:cycle, :proactive_review}
+    refute_receive {:cycle, :proactive}
+  end
+
+  test "one incomplete proactive review job blocks an overlapping job" do
+    assert {:ok, first} = Oban.insert(ProactiveReviewWorker.new(%{"source" => "cron"}))
+    refute first.conflict?
+
+    assert {:ok, duplicate} =
+             Oban.insert(ProactiveReviewWorker.new(%{"source" => "cron"}))
+
+    assert duplicate.conflict?
+    assert duplicate.id == first.id
+    assert Repo.aggregate(proactive_review_jobs_query(), :count) == 1
+  end
+
+  test "proactive review retries keep proposal-only behavior" do
+    Application.put_env(
+      :jido_delvetown,
+      :cycle_result,
+      {:ok, %{status: "failed", stage: "collect", errors: ["timeout"]}}
+    )
+
+    job = %Oban.Job{attempt: 1, max_attempts: 5}
+
+    assert {:error, {:cycle_failed, "collect", ["timeout"]}} =
+             ProactiveReviewWorker.perform(job)
+
+    assert {:error, {:cycle_failed, "collect", ["timeout"]}} =
+             ProactiveReviewWorker.perform(%{job | attempt: 2})
+
+    assert_receive {:cycle, :proactive_review}
+    assert_receive {:cycle, :proactive_review}
+    refute_receive {:cycle, :proactive}
   end
 
   test "a manual reactive review runs through Oban and records completion" do
@@ -143,7 +183,12 @@ defmodule JidoDelvetown.WorkersTest do
   end
 
   test "workers use one durable queue and one incomplete job per cycle" do
-    for worker <- [ReactiveParticipationWorker, MemberDiscoveryWorker, FriendSyncWorker] do
+    for worker <- [
+          ReactiveParticipationWorker,
+          ProactiveReviewWorker,
+          MemberDiscoveryWorker,
+          FriendSyncWorker
+        ] do
       options = worker.__opts__()
 
       assert options[:queue] == :delvetown
@@ -167,6 +212,12 @@ defmodule JidoDelvetown.WorkersTest do
   defp reactive_jobs_query do
     from(job in Oban.Job,
       where: job.worker == ^inspect(ReactiveParticipationWorker)
+    )
+  end
+
+  defp proactive_review_jobs_query do
+    from(job in Oban.Job,
+      where: job.worker == ^inspect(ProactiveReviewWorker)
     )
   end
 end

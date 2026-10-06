@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Inspection do
 
   import Ecto.Query
 
-  alias JidoDelvetown.Repo
+  alias JidoDelvetown.{Automation, Repo}
 
   alias JidoDelvetown.Storage.{
     Actor,
@@ -39,6 +39,9 @@ defmodule JidoDelvetown.Inspection do
       },
       scans: scan_watermarks(repo),
       effects: effect_health(repo, limit),
+      automation: %{
+        proactive_review: Automation.proactive_review_health(repo: repo)
+      },
       sqlite: %{
         migrations: migration_status(repo),
         legacy_imports: legacy_import_status(repo)

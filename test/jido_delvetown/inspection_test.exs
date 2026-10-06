@@ -2,6 +2,7 @@ defmodule JidoDelvetown.InspectionTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.{ImageDrafts, Inspection, Repo}
+  alias JidoDelvetown.Workers.ProactiveReviewWorker
 
   alias JidoDelvetown.Storage.{
     Actor,
@@ -45,9 +46,39 @@ defmodule JidoDelvetown.InspectionTest do
     assert snapshot.image_drafts == []
     assert snapshot.scans == []
     assert snapshot.effects.completed_receipts == []
+    assert snapshot.automation.proactive_review.cron == "5,35 * * * *"
+    assert snapshot.automation.proactive_review.last_run.health == "idle"
     assert snapshot.sqlite.migrations.status == "current"
     assert snapshot.sqlite.migrations.pending == []
     assert snapshot.sqlite.legacy_imports == []
+  end
+
+  test "proactive review inspection exposes bounded latest-job health" do
+    now = DateTime.utc_now() |> DateTime.truncate(:microsecond)
+
+    assert {:ok, job} = Oban.insert(ProactiveReviewWorker.new(%{"source" => "cron"}))
+
+    job
+    |> Ecto.Changeset.change(
+      state: "completed",
+      attempt: 1,
+      attempted_at: now,
+      completed_at: now,
+      errors: [%{"attempt" => 1, "at" => DateTime.to_iso8601(now), "error" => "private"}]
+    )
+    |> Repo.update!()
+
+    health = Inspection.snapshot().automation.proactive_review
+
+    assert health.cron == "5,35 * * * *"
+    assert health.queue == "delvetown"
+    assert health.max_attempts == 5
+    assert health.last_run.health == "healthy"
+    assert health.last_run.state == "completed"
+    assert health.last_run.job_id == job.id
+    assert health.last_run.attempt == 1
+    assert health.last_run.error_count == 1
+    refute inspect(health) =~ "private"
   end
 
   test "image drafts expose bounded preview and publication state" do
@@ -302,7 +333,8 @@ defmodule JidoDelvetown.InspectionTest do
         Actor,
         InteractionEvent,
         ScanState,
-        LegacyImport
+        LegacyImport,
+        Oban.Job
       ],
       &Repo.delete_all/1
     )

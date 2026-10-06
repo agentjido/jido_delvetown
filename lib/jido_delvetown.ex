@@ -84,6 +84,7 @@ defmodule JidoDelvetown do
         store: Store.counts(),
         schedule_enabled?: Automation.running?(),
         cron: Automation.reactive_cron(),
+        proactive_review_cron: Automation.proactive_review_cron(),
         friend_sync_cron: Automation.friend_sync_cron(),
         writes_enabled?: Config.write_enabled?(),
         manual_publish_enabled?: Config.manual_publish_enabled?(),
