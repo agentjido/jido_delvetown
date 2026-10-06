@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [],
   "blocks": [
     "jido_del-322.7"
@@ -10,8 +10,8 @@
   "labels": [],
   "parent": "jido_del-322",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Stage manual proactive reviews as simulated drafts",
   "type": "bug",
-  "updated_at": "2026-10-06T15:59:18Z"
+  "updated_at": "2026-10-06T15:59:22Z"
 }
