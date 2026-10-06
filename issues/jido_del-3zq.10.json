@@ -3,7 +3,9 @@
   "blocked_by": [
     "jido_del-3zq.1"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-3zq.11"
+  ],
   "created": "2026-10-06T01:07:20Z",
   "description": "Move the DETS and checkpoint importer into a persistence legacy area without splitting its single migration contract. Keep startup order, feature flag, checksum, verification, idempotency, and failure behavior unchanged. Document the exact condition for removing the importer and its legacy schema. Acceptance: an existing legacy fixture imports once, verifies after restart, and remains disabled when configured off; active persistence modules no longer share a flat directory with migration-only code.",
   "id": "jido_del-3zq.10",
