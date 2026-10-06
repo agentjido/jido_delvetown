@@ -6,14 +6,16 @@
   "blocks": [
     "jido_del-3zq.11"
   ],
+  "closed_at": "2026-10-06T11:36:23Z",
+  "close_reason": "Separated actor, relationship, conversation, and cycle memory ownership with focused idempotency tests.",
   "created": "2026-10-06T01:07:19Z",
   "description": "Move actor memory, relationship updates, friend-reference updates, and conversation memory out of InteractionLedger into focused owners. Leave one small cycle recorder to coordinate a completed decision across those owners. Preserve contact counts, opt-out state, welcome state, follow state, conversation turns, unanswered-follow-up tracking, and the order of durable updates. Acceptance: InteractionLedger is removed or reduced to a clear compatibility facade; actor, relationship, conversation, and cycle-recording tests cover success, retry, and already-terminal events.",
   "id": "jido_del-3zq.6",
   "labels": [],
   "parent": "jido_del-3zq",
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Separate actor and conversation memory ownership",
   "type": "task",
-  "updated_at": "2026-10-06T11:31:00Z"
+  "updated_at": "2026-10-06T11:36:23Z"
 }
