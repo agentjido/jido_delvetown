@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [],
   "blocks": [],
   "created": "2026-10-06T00:40:30Z",
@@ -7,8 +7,8 @@
   "id": "jido_del-iy2",
   "labels": [],
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Support image post plumbing for DelveTown",
   "type": "epic",
-  "updated_at": "2026-10-06T00:40:30Z"
+  "updated_at": "2026-10-06T00:44:50Z"
 }
