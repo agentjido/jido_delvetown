@@ -3,7 +3,7 @@ defmodule JidoDelvetown.ImagePostContractTest do
 
   alias JidoDelvetown.ImagePostContract
 
-  @fixture_path Path.expand("../fixtures/delvetown/image_post_record.json", __DIR__)
+  @fixture_path Path.expand("../../fixtures/delvetown/image_post_record.json", __DIR__)
 
   test "accepts the fixture from a current public DelveTown image post" do
     assert :ok = ImagePostContract.validate(fixture_record())

@@ -3,7 +3,7 @@ defmodule JidoDelvetown.WelcomePostTest do
 
   alias JidoDelvetown.WelcomePost
 
-  @fixture_path Path.expand("../fixtures/delvetown/mention_post_record.json", __DIR__)
+  @fixture_path Path.expand("../../fixtures/delvetown/mention_post_record.json", __DIR__)
   @did "did:plc:newmember"
   @handle "new.delve.town"
 
