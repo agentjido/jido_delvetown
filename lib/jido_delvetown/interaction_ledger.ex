@@ -180,19 +180,24 @@ defmodule JidoDelvetown.InteractionLedger do
       record_uri: Map.get(candidate, :uri),
       source_id: candidate.id,
       occurred_at: Map.get(candidate, :indexed_at) || completed_at,
-      payload: %{
-        cycle_kind: cycle.kind,
-        mode: cycle.mode,
-        intent: cycle.intent,
-        action: decision.action,
-        cycle_status: cycle.status,
-        text: Map.get(decision, :text),
-        topic: Map.get(decision, :topic),
-        model_reason: Map.get(decision, :reason),
-        response_format: Map.get(decision, :format),
-        selection: Map.get(cycle, :selection, %{}),
-        publication_target: publication_target(candidate)
-      }
+      payload:
+        maybe_add_publication_actor(
+          %{
+            cycle_kind: cycle.kind,
+            mode: cycle.mode,
+            intent: cycle.intent,
+            action: decision.action,
+            cycle_status: cycle.status,
+            text: Map.get(decision, :text),
+            topic: Map.get(decision, :topic),
+            model_reason: Map.get(decision, :reason),
+            response_format: Map.get(decision, :format),
+            selection: Map.get(cycle, :selection, %{}),
+            publication_target: publication_target(candidate)
+          },
+          decision,
+          candidate
+        )
     }
 
     with {:ok, _event} <- observe(attrs),
@@ -330,6 +335,15 @@ defmodule JidoDelvetown.InteractionLedger do
       root: Map.get(candidate, :root)
     }
   end
+
+  defp maybe_add_publication_actor(payload, %{action: "welcome"}, candidate) do
+    Map.put(payload, :publication_actor, %{
+      did: get_in(candidate, [:author, :did]),
+      handle: get_in(candidate, [:author, :handle])
+    })
+  end
+
+  defp maybe_add_publication_actor(payload, _decision, _candidate), do: payload
 
   def context_for(candidate, opts \\ []) when is_map(candidate) do
     actor = maybe_actor(get_in(candidate, [:author, :did]), opts)

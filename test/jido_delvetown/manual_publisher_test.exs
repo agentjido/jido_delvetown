@@ -2,13 +2,14 @@ defmodule JidoDelvetown.ManualPublisherTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.{InteractionLedger, ManualPublisher, Protocol, Repo}
-  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent}
+  alias JidoDelvetown.Storage.{Actor, AuditEvent, Effect, InteractionEvent}
   alias JidoDelvetown.Test.{FakeSession, FakeTransport}
 
   setup do
     Repo.delete_all(AuditEvent)
     Repo.delete_all(Effect)
     Repo.delete_all(InteractionEvent)
+    Repo.delete_all(Actor)
 
     previous = %{
       session_module: Application.get_env(:jido_delvetown, :session_module),
@@ -23,6 +24,7 @@ defmodule JidoDelvetown.ManualPublisherTest do
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :test_owner, self())
+    Application.put_env(:jido_delvetown, :query_results, %{})
     System.put_env("DELVETOWN_WRITE_ENABLED", "false")
     System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "true")
 
@@ -117,6 +119,51 @@ defmodule JidoDelvetown.ManualPublisherTest do
     refute_received {:create_record, _collection, _record, _rkey}
   end
 
+  test "publishes a simulated welcome with its verified mention and reply target once" do
+    did = "did:plc:newmember"
+    event = simulated_welcome("event:manual-welcome", did, "new.delve.town")
+    Repo.insert!(event)
+
+    Application.put_env(:jido_delvetown, :query_results, %{
+      "town.delve.actor.getProfile" => {:ok, %{"did" => did, "handle" => "new.delve.town"}}
+    })
+
+    assert {:ok, publication} = ManualPublisher.publish(event.event_key)
+    assert publication.reused? == false
+
+    assert_received {:appview_query, "town.delve.actor.getProfile", %{actor: ^did}}
+    assert_received {:create_record, "town.delve.feed.post", record, _rkey}
+    assert record["$type"] == "town.delve.feed.post"
+    assert record.text == "@new.delve.town Welcome to the OTP discussions."
+    assert [facet] = record.facets
+    assert facet.index == %{byte_start: 0, byte_end: 15}
+    assert facet.features == [%{"$type" => "town.delve.richtext.facet#mention", did: did}]
+    assert record.reply.parent.uri == event.record_uri
+
+    effect_key = Protocol.effect_key("welcome", [did])
+    assert %Effect{status: "completed", operation_key: ^effect_key} = Repo.get(Effect, effect_key)
+
+    assert {:ok, repeated} = ManualPublisher.publish(event.event_key)
+    assert repeated.reused? == true
+    assert repeated.uri == publication.uri
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
+  test "does not manually publish a welcome when the saved handle resolves to another DID" do
+    did = "did:plc:newmember"
+    event = simulated_welcome("event:unsafe-welcome", did, "new.delve.town")
+    Repo.insert!(event)
+
+    Application.put_env(:jido_delvetown, :query_results, %{
+      "town.delve.actor.getProfile" =>
+        {:ok, %{"did" => "did:plc:other", "handle" => "new.delve.town"}}
+    })
+
+    assert {:error, :welcome_identity_unresolved} = ManualPublisher.publish(event.event_key)
+    refute_received {:create_record, _collection, _record, _rkey}
+    assert Repo.get(Effect, Protocol.effect_key("welcome", [did])) == nil
+  end
+
   defp simulated_reply(event_key) do
     now = ~U[2026-10-05 12:00:00.000000Z]
 
@@ -140,6 +187,34 @@ defmodule JidoDelvetown.ManualPublisherTest do
             "uri" => "at://did:plc:root/town.delve.feed.post/root",
             "cid" => "root-cid"
           }
+        }
+      },
+      terminal_at: now
+    }
+  end
+
+  defp simulated_welcome(event_key, did, handle) do
+    now = ~U[2026-10-05 12:00:00.000000Z]
+    uri = "at://#{did}/town.delve.feed.post/3mx6intro"
+
+    %InteractionEvent{
+      event_key: event_key,
+      kind: "new_member",
+      actor_did: did,
+      record_uri: uri,
+      source_id: did,
+      occurred_at: now,
+      state: "completed",
+      attempt_count: 1,
+      payload: %{
+        "action" => "welcome",
+        "cycle_status" => "simulated",
+        "text" => "@#{handle} Welcome to the OTP discussions.",
+        "publication_actor" => %{"did" => did, "handle" => handle},
+        "publication_target" => %{
+          "uri" => uri,
+          "cid" => "bafyreintro",
+          "root" => %{"uri" => uri, "cid" => "bafyreintro"}
         }
       },
       terminal_at: now

@@ -133,6 +133,14 @@ defmodule JidoDelvetown.FollowEngagementTest do
     assert {:ok, state} = run()
     assert state.last_run.status == "acted"
 
+    assert_received {:create_record, "town.delve.feed.post", record, _rkey}
+    assert record.text =~ "@follower.test"
+    assert [facet] = record.facets
+
+    assert facet.features == [
+             %{"$type" => "town.delve.richtext.facet#mention", did: "did:plc:follower"}
+           ]
+
     key = Protocol.effect_key("welcome", ["did:plc:follower"])
 
     assert %Effect{
@@ -156,6 +164,8 @@ defmodule JidoDelvetown.FollowEngagementTest do
   defp configure_follow(id, is_read \\ false) do
     Application.put_env(:jido_delvetown, :query_results, %{
       "town.delve.membership.getMembership" => {:ok, %{"status" => "member"}},
+      "town.delve.actor.getProfile" =>
+        {:ok, %{"did" => "did:plc:follower", "handle" => "follower.test"}},
       "town.delve.notification.listNotifications" =>
         {:ok,
          %{

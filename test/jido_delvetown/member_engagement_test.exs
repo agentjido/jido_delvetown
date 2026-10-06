@@ -27,6 +27,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
     old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
+    old_dry_run = System.get_env("DELVETOWN_DRY_RUN_MARK_ACTIONED")
     old_limit = System.get_env("DELVETOWN_DAILY_WELCOME_LIMIT")
     old_age = System.get_env("DELVETOWN_MEMBER_MAX_AGE_HOURS")
 
@@ -35,6 +36,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
     System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "false")
     System.put_env("DELVETOWN_DAILY_WELCOME_LIMIT", "2")
     System.put_env("DELVETOWN_MEMBER_MAX_AGE_HOURS", "24")
 
@@ -45,6 +47,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
       end)
 
       restore_env("DELVETOWN_WRITE_ENABLED", old_write)
+      restore_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", old_dry_run)
       restore_env("DELVETOWN_DAILY_WELCOME_LIMIT", old_limit)
       restore_env("DELVETOWN_MEMBER_MAX_AGE_HOURS", old_age)
     end)
@@ -66,6 +69,25 @@ defmodule JidoDelvetown.MemberEngagementTest do
     refute_received {:appview_query, "town.delve.notification.listNotifications", _params}
     assert_received {:decision, "welcome_new_member", payload}
     assert payload.candidate.text =~ "OTP"
+
+    assert_received {:appview_query, "town.delve.actor.getProfile",
+                     %{actor: "did:plc:new-member"}}
+
+    assert_received {:create_record, "town.delve.feed.post", record, _rkey}
+    assert record["$type"] == "town.delve.feed.post"
+    assert record.text =~ "@new-member.delve.town"
+    assert [facet] = record.facets
+    assert facet["$type"] == "town.delve.richtext.facet"
+    assert facet.index == %{byte_start: 0, byte_end: 22}
+
+    assert facet.features == [
+             %{
+               "$type" => "town.delve.richtext.facet#mention",
+               did: "did:plc:new-member"
+             }
+           ]
+
+    refute Map.has_key?(record, :reply)
 
     event_key = InteractionLedger.event_key("new_member", ["did:plc:new-member"])
     assert %InteractionEvent{state: "completed"} = Repo.get(InteractionEvent, event_key)
@@ -166,15 +188,114 @@ defmodule JidoDelvetown.MemberEngagementTest do
     refute_received {:decision, _intent, _payload}
   end
 
+  test "replies to a safe introduction post from the new member" do
+    did = "did:plc:intro-member"
+    joined_at = recent_time(-10)
+    configure_members([member(did, joined_at)], introduction_feed(did))
+    welcome_decision("The OTP discussions may be useful to you.")
+
+    assert {:ok, state} = run()
+    assert state.last_run.status == "acted"
+    assert state.last_run.reads == 4
+
+    uri = "at://#{did}/town.delve.feed.post/3mx6intro"
+
+    assert_received {:create_record, "town.delve.feed.post", record, _rkey}
+    assert record.text =~ "@intro-member.delve.town"
+
+    assert record.reply == %{
+             parent: %{uri: uri, cid: "bafyreintro"},
+             root: %{uri: uri, cid: "bafyreintro"}
+           }
+
+    event_key = InteractionLedger.event_key("new_member", [did])
+    event = Repo.get!(InteractionEvent, event_key)
+    assert event.record_uri == uri
+    assert event.payload["publication_target"]["uri"] == uri
+  end
+
+  test "does not publish when the handle does not resolve to the member DID" do
+    did = "did:plc:unresolved"
+    joined_at = recent_time(-10)
+
+    configure_members([member(did, joined_at)], [], %{
+      "did" => "did:plc:different",
+      "handle" => "unresolved.delve.town"
+    })
+
+    welcome_decision("Welcome to the systems discussions.")
+
+    assert {:ok, state} = run()
+    assert state.last_run.status == "failed"
+    assert state.last_run.errors == ["welcome_identity_unresolved"]
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    effect_key = Protocol.effect_key("welcome", [did])
+    assert Repo.get(Effect, effect_key) == nil
+  end
+
+  test "stores a mention-aware simulated welcome without a protocol write" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
+    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+
+    did = "did:plc:dry-member"
+    joined_at = recent_time(-10)
+    configure_members([member(did, joined_at)], introduction_feed(did))
+    welcome_decision("What are you building with OTP?")
+
+    assert {:ok, state} = run()
+    assert state.last_run.status == "simulated"
+    assert state.last_run.effects == 0
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    event_key = InteractionLedger.event_key("new_member", [did])
+    event = Repo.get!(InteractionEvent, event_key)
+    assert event.state == "completed"
+    assert event.payload["text"] == "@dry-member.delve.town What are you building with OTP?"
+
+    assert event.payload["publication_actor"] == %{
+             "did" => did,
+             "handle" => "dry-member.delve.town"
+           }
+
+    assert event.payload["publication_target"]["uri"] ==
+             "at://#{did}/town.delve.feed.post/3mx6intro"
+
+    assert Repo.get(Effect, Protocol.effect_key("welcome", [did])) == nil
+  end
+
   defp run(state \\ Agent.new!().state) do
     Jido.Exec.run(MemberDiscoveryCycle, %{mode: "normal"}, %{agent_state: state})
   end
 
-  defp configure_members(actors) do
+  defp configure_members(actors, feed \\ [], profile \\ nil) do
+    actor = List.first(actors) || %{}
+    profile = profile || Map.take(actor, ["did", "handle", "displayName"])
+
     Application.put_env(:jido_delvetown, :query_results, %{
       "town.delve.membership.getMembership" => {:ok, %{"status" => "member"}},
-      "town.delve.actor.searchActors" => {:ok, %{"actors" => actors}}
+      "town.delve.actor.searchActors" => {:ok, %{"actors" => actors}},
+      "town.delve.actor.getProfile" => {:ok, profile},
+      "town.delve.feed.getAuthorFeed" => {:ok, %{"feed" => feed}}
     })
+  end
+
+  defp introduction_feed(did) do
+    uri = "at://#{did}/town.delve.feed.post/3mx6intro"
+
+    [
+      %{
+        "post" => %{
+          "uri" => uri,
+          "cid" => "bafyreintro",
+          "author" => %{
+            "did" => did,
+            "handle" => String.replace_prefix(did, "did:plc:", "") <> ".delve.town"
+          },
+          "record" => %{"text" => "Hello DelveTown. This is my first post."}
+        }
+      }
+    ]
   end
 
   defp welcome_decision(text) do

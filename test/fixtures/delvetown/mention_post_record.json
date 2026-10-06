@@ -1,0 +1,26 @@
+{
+  "source": {
+    "checkedAt": "2026-10-05",
+    "uri": "at://did:plc:icsmycvuyim3px5keldxcmba/town.delve.feed.post/3mx65e3fbhs2z",
+    "note": "Normalized fixture of the mention facet shape observed on the public post."
+  },
+  "record": {
+    "$type": "town.delve.feed.post",
+    "text": "Welcome @new.delve.town",
+    "facets": [
+      {
+        "$type": "town.delve.richtext.facet",
+        "index": {
+          "byteStart": 8,
+          "byteEnd": 23
+        },
+        "features": [
+          {
+            "$type": "town.delve.richtext.facet#mention",
+            "did": "did:plc:newmember"
+          }
+        ]
+      }
+    ]
+  }
+}

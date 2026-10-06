@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.ManualPublisher do
   @moduledoc "Publishes one selected simulated draft under a separate manual write guard."
 
-  alias JidoDelvetown.{Candidate, Config, InteractionLedger, Protocol, Store}
+  alias JidoDelvetown.{Candidate, Config, InteractionLedger, Protocol, Store, WelcomePost}
   alias JidoDelvetown.Storage.InteractionEvent
 
   @post_collection "town.delve.feed.post"
@@ -101,11 +101,16 @@ defmodule JidoDelvetown.ManualPublisher do
        when is_binary(did) and did != "" do
     effect_key = Protocol.effect_key("welcome", [did])
 
-    with {:ok, result} <-
+    with {:ok, handle} <- welcome_handle(event, did),
+         {:ok, identity} <- WelcomePost.resolve_identity(did, handle),
+         {:ok, text} <- WelcomePost.render_text(value(event.payload, :text), identity.handle),
+         target = welcome_target(event.payload, did),
+         {:ok, record} <- WelcomePost.record(text, did, identity.handle, target),
+         {:ok, result} <-
            Protocol.create_manual_record(
              effect_key,
              @post_collection,
-             top_level_record(event),
+             record,
              subject_key: did,
              actor_did: did
            ) do
@@ -114,6 +119,28 @@ defmodule JidoDelvetown.ManualPublisher do
   end
 
   defp publish_welcome(_event), do: {:error, :missing_actor}
+
+  defp welcome_handle(event, did) do
+    saved_actor = value(event.payload, :publication_actor, %{})
+
+    case value(saved_actor, :handle) do
+      handle when is_binary(handle) and handle != "" ->
+        {:ok, handle}
+
+      _missing ->
+        case InteractionLedger.actor(did) do
+          %{handle: handle} when is_binary(handle) and handle != "" -> {:ok, handle}
+          _actor -> {:error, :missing_actor_handle}
+        end
+    end
+  end
+
+  defp welcome_target(payload, did) do
+    case WelcomePost.safe_reply_target(value(payload, :publication_target, %{}), did) do
+      {:ok, target} -> target
+      {:error, _reason} -> nil
+    end
+  end
 
   defp top_level_record(event) do
     %{

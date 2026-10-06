@@ -14,13 +14,14 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     WelcomeActor
   }
 
-  alias JidoDelvetown.Config
+  alias JidoDelvetown.{Config, WelcomePost}
 
   @impl true
   def run(%{cycle: %{status: "failed"} = cycle}, _context), do: {:ok, cycle}
 
   def run(%{cycle: cycle}, _context) do
-    with :ok <- validate(cycle) do
+    with :ok <- validate(cycle),
+         {:ok, cycle} <- prepare_welcome(cycle) do
       {:ok, apply(cycle)}
     else
       {:error, reason} ->
@@ -90,8 +91,11 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
       action in ["like", "repost"] and not valid_subject?(cycle.candidate) ->
         {:error, :invalid_subject}
 
-      action in ["follow", "welcome"] and not valid_actor?(cycle.candidate) ->
+      action == "follow" and not valid_actor?(cycle.candidate) ->
         {:error, :invalid_actor}
+
+      action == "welcome" and not valid_welcome_actor?(cycle.candidate) ->
+        {:error, :invalid_welcome_actor}
 
       true ->
         :ok
@@ -125,7 +129,16 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     do: FollowActor.run(%{did: candidate.author.did}, %{})
 
   defp execute(%{action: "welcome", text: text}, candidate),
-    do: WelcomeActor.run(%{did: candidate.author.did, text: text, langs: ["en"]}, %{})
+    do:
+      WelcomeActor.run(
+        %{
+          did: candidate.author.did,
+          handle: candidate.author.handle,
+          text: text,
+          target: welcome_target(candidate)
+        },
+        %{}
+      )
 
   defp valid_text?(text), do: is_binary(text) and String.length(text) in 1..300
 
@@ -146,6 +159,29 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
   defp valid_actor?(%{author: %{did: did}}), do: is_binary(did) and did != ""
   defp valid_actor?(_candidate), do: false
+
+  defp valid_welcome_actor?(%{author: %{did: did, handle: handle}}),
+    do: WelcomePost.valid_identity?(did, handle)
+
+  defp valid_welcome_actor?(_candidate), do: false
+
+  defp prepare_welcome(%{decision: %{action: "welcome", text: text}} = cycle) do
+    with {:ok, prepared} <- WelcomePost.prepare(cycle.candidate, text) do
+      {:ok,
+       cycle
+       |> Map.put(:candidate, prepared.candidate)
+       |> put_in([:decision, :text], prepared.text)
+       |> Map.update!(:reads, &(&1 + prepared.reads))}
+    end
+  end
+
+  defp prepare_welcome(cycle), do: {:ok, cycle}
+
+  defp welcome_target(%{uri: uri, cid: cid, root: root})
+       when not is_nil(uri) and not is_nil(cid) and not is_nil(root),
+       do: %{uri: uri, cid: cid, root: root}
+
+  defp welcome_target(_candidate), do: nil
 
   defp effect_count(%{reused?: true}), do: 0
   defp effect_count(_receipt), do: 1
