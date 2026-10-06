@@ -18,10 +18,10 @@ defmodule Mix.Tasks.Delvetown.MigrateSqlite do
 
     try do
       if "--preview" in args do
-        print_result(JidoDelvetown.LegacyImporter.preview())
+        print_result(JidoDelvetown.Persistence.Legacy.Importer.preview())
       else
-        print_result(JidoDelvetown.LegacyImporter.run())
-        print_result(JidoDelvetown.LegacyImporter.verify())
+        print_result(JidoDelvetown.Persistence.Legacy.Importer.run())
+        print_result(JidoDelvetown.Persistence.Legacy.Importer.verify())
       end
     after
       GenServer.stop(database)

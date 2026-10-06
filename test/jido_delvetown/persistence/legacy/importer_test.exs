@@ -1,12 +1,13 @@
-defmodule JidoDelvetown.LegacyImporterTest do
+defmodule JidoDelvetown.Persistence.Legacy.ImporterTest do
   use ExUnit.Case, async: false
 
   import Ecto.Query
 
-  alias JidoDelvetown.LegacyImporter
+  alias JidoDelvetown.Persistence.Legacy.Importer
+  alias JidoDelvetown.Persistence.Legacy.Startup
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Agent
-  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, ScanState}
+  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, LegacyImport, ScanState}
 
   setup do
     root =
@@ -43,9 +44,9 @@ defmodule JidoDelvetown.LegacyImporterTest do
                 events: 1,
                 checkpoints: 1,
                 checkpoint_key: ^checkpoint_key
-              }} = LegacyImporter.preview(context.opts)
+              }} = Importer.preview(context.opts)
 
-      assert {:ok, {:imported, details}} = LegacyImporter.run(context.opts)
+      assert {:ok, {:imported, details}} = Importer.run(context.opts)
       assert details["effects"] == 1
       assert details["checkpoints"] == 1
 
@@ -71,8 +72,8 @@ defmodule JidoDelvetown.LegacyImporterTest do
 
       assert restored.state.last_run == %{summary: "imported"}
 
-      assert {:ok, {:reused, ^details}} = LegacyImporter.run(context.opts)
-      assert {:ok, %{status: :verified}} = LegacyImporter.verify(context.opts)
+      assert {:ok, {:reused, ^details}} = Importer.run(context.opts)
+      assert {:ok, %{status: :verified}} = Importer.verify(context.opts)
 
       assert Repo.one(
                from(event in AuditEvent,
@@ -83,9 +84,9 @@ defmodule JidoDelvetown.LegacyImporterTest do
 
       add_audit_event(context.dets_path, 8)
 
-      assert {:ok, {:imported, changed_details}} = LegacyImporter.run(context.opts)
+      assert {:ok, {:imported, changed_details}} = Importer.run(context.opts)
       assert changed_details["events"] == 2
-      assert {:ok, {:reused, ^changed_details}} = LegacyImporter.run(context.opts)
+      assert {:ok, {:reused, ^changed_details}} = Importer.run(context.opts)
 
       assert Repo.one(
                from(event in AuditEvent,
@@ -104,7 +105,7 @@ defmodule JidoDelvetown.LegacyImporterTest do
     File.write!(context.dets_path, "not a dets table")
 
     assert {:error, {:legacy_dets_open_failed, _reason}} =
-             LegacyImporter.run(context.opts)
+             Importer.run(context.opts)
   end
 
   test "reads an unclean DETS file from a repair copy without changing the source", context do
@@ -126,7 +127,7 @@ defmodule JidoDelvetown.LegacyImporterTest do
 
     source_bytes = File.read!(context.dets_path)
 
-    assert {:ok, %{cursors: 1}} = LegacyImporter.preview(context.opts)
+    assert {:ok, %{cursors: 1}} = Importer.preview(context.opts)
     assert File.read!(context.dets_path) == source_bytes
   end
 
@@ -136,13 +137,38 @@ defmodule JidoDelvetown.LegacyImporterTest do
     Repo.delete_all(from(state in ScanState, where: state.name == "notifications"))
     Repo.delete_all(from(effect in Effect, where: effect.operation_key == "like:invalid"))
 
-    assert {:error, {:sqlite_import_failed, _reason}} = LegacyImporter.run(context.opts)
+    assert {:error, {:sqlite_import_failed, _reason}} = Importer.run(context.opts)
     assert is_nil(Repo.get(ScanState, "notifications"))
     assert is_nil(Repo.get(Effect, "like:invalid"))
   end
 
+  test "startup leaves a complete legacy fixture untouched when import is off", context do
+    write_dets(context.dets_path)
+    {checkpoint_key, _checkpoint_bytes} = write_checkpoint(context.opts)
+
+    Repo.transaction(fn ->
+      Repo.delete_all(from(state in ScanState, where: state.name == "notifications"))
+      Repo.delete_all(from(effect in Effect, where: effect.operation_key == "like:stable"))
+      Repo.delete_all(from(import in LegacyImport, where: import.name == "dets-and-file-v1"))
+
+      assert :ok =
+               Startup.run(
+                 enabled?: false,
+                 settings_import_opts: [env: %{"DELVETOWN_DAILY_REPLY_LIMIT" => "9"}],
+                 state_import_opts: context.opts
+               )
+
+      assert is_nil(Repo.get(ScanState, "notifications"))
+      assert is_nil(Repo.get(Effect, "like:stable"))
+      assert is_nil(Repo.get(LegacyImport, "dets-and-file-v1"))
+      assert {:error, :not_found} = Jido.Persistence.Ecto.get(checkpoint_key, repo: Repo)
+
+      Repo.rollback(:test_complete)
+    end)
+  end
+
   defp write_dets(path) do
-    table = JidoDelvetown.LegacyImporterTest.Dets
+    table = __MODULE__.Dets
     {:ok, ^table} = :dets.open_file(table, file: String.to_charlist(path), type: :set)
 
     :ok = :dets.insert(table, {:cursor, "cursor-1"})
@@ -199,7 +225,7 @@ defmodule JidoDelvetown.LegacyImporterTest do
   end
 
   defp add_audit_event(path, sequence) do
-    table = JidoDelvetown.LegacyImporterTest.ChangedDets
+    table = __MODULE__.ChangedDets
     {:ok, ^table} = :dets.open_file(table, file: String.to_charlist(path), type: :set)
 
     :ok =
@@ -213,7 +239,7 @@ defmodule JidoDelvetown.LegacyImporterTest do
   end
 
   defp write_invalid_dets(path) do
-    table = JidoDelvetown.LegacyImporterTest.InvalidDets
+    table = __MODULE__.InvalidDets
     {:ok, ^table} = :dets.open_file(table, file: String.to_charlist(path), type: :set)
     :ok = :dets.insert(table, {:cursor, "must-roll-back"})
 

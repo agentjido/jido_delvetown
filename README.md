@@ -68,6 +68,15 @@ Preview the eligible environment settings without showing private values:
 JidoDelvetown.Settings.LegacyEnvImporter.preview()
 ```
 
+The DETS and file-checkpoint importer is isolated under
+`JidoDelvetown.Persistence.Legacy`. Keep it while a direct upgrade from any
+pre-SQLite release is supported. Remove that importer, its old path helpers,
+and `DELVETOWN_LEGACY_IMPORT_ENABLED` together only when the oldest supported
+upgrade source already uses SQLite. The `legacy_imports` table is also used by
+the one-time environment importer. Remove its schema only after both importers
+are retired and a later database migration has removed the table from every
+supported SQLite version.
+
 SQLite keeps the Jido checkpoint, runtime settings, bounded decision state,
 daily budget, recent topics, processed record IDs, conversation summaries,
 effect receipts, audit events, and Oban jobs. Oban Cron creates durable cycle

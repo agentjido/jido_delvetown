@@ -1,4 +1,4 @@
-defmodule JidoDelvetown.LegacyImporter do
+defmodule JidoDelvetown.Persistence.Legacy.Importer do
   @moduledoc "Imports the former DETS store and Jido file checkpoint into SQLite."
 
   import Ecto.Query
@@ -8,7 +8,7 @@ defmodule JidoDelvetown.LegacyImporter do
   alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, LegacyImport, ScanState}
 
   @import_name "dets-and-file-v1"
-  @dets_table JidoDelvetown.LegacyImporter.Dets
+  @dets_table __MODULE__.Dets
   @namespace "jido/delvetown"
   @agent_id "delvetown-agent"
 
