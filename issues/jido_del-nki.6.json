@@ -9,14 +9,15 @@
     "jido_del-nki.8",
     "jido_del-nki.9"
   ],
+  "closed_at": "2026-10-06T14:49:06Z",
   "created": "2026-10-06T01:49:52Z",
   "description": "Add an operator command that creates one durable generation request and staged draft from a prompt, caption, and alt text. Show estimated operation settings before the call. Never publish from this command and return the saved draft ID and provenance.",
   "id": "jido_del-nki.6",
   "labels": [],
   "parent": "jido_del-nki",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Add a safe manual image generation command",
   "type": "task",
-  "updated_at": "2026-10-06T14:44:15Z"
+  "updated_at": "2026-10-06T14:49:06Z"
 }
