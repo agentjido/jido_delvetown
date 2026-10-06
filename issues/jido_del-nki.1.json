@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-iy2.6"
+  ],
   "blocks": [],
   "created": "2026-10-06T01:49:52Z",
   "description": "Define the provider-neutral generator interface, supported inputs, output bytes, media metadata, usage data, errors, timeouts, and provenance. Use the verified OpenAI ReqLLM call as the first compatibility target.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Define the ReqLLM image generation contract",
   "type": "task",
-  "updated_at": "2026-10-06T01:49:52Z"
+  "updated_at": "2026-10-06T01:50:18Z"
 }

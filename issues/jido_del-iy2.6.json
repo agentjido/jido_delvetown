@@ -4,7 +4,8 @@
     "jido_del-iy2.5"
   ],
   "blocks": [
-    "jido_del-iy2.8"
+    "jido_del-iy2.8",
+    "jido_del-nki.1"
   ],
   "closed_at": "2026-10-06T01:24:04Z",
   "created": "2026-10-06T00:40:43Z",
@@ -16,5 +17,5 @@
   "status": "closed",
   "title": "Verify and document the image plumbing boundary",
   "type": "task",
-  "updated_at": "2026-10-06T01:24:04Z"
+  "updated_at": "2026-10-06T01:50:18Z"
 }
