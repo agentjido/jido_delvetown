@@ -1,7 +1,14 @@
 defmodule JidoDelvetown.DirectEngagementTest do
   use ExUnit.Case, async: false
 
-  alias JidoDelvetown.{Agent, ProactiveParticipationCycle, ReactiveParticipationCycle, Repo}
+  alias JidoDelvetown.{
+    Agent,
+    ProactiveParticipationCycle,
+    ReactiveParticipationCycle,
+    Repo,
+    ScanProgress
+  }
+
   alias JidoDelvetown.Storage.{Actor, Conversation, Effect, InteractionEvent, ScanState}
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport, RuntimeSettings}
 
@@ -192,6 +199,116 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert state.last_run.action == "skip"
     assert state.last_run.proposal.reason == "direct_request_pending"
     refute_received {:decision, _intent, _payload}
+  end
+
+  test "a notification page drains every direct event before its cursor advances" do
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+    assert {:ok, _scan} = ScanProgress.put_cursor("notifications", "page-1")
+
+    first = notification("page-reply-1", "reply", "Where should this process live?", "one")
+    second = notification("page-reply-2", "reply", "What should restart it?", "two")
+
+    Application.put_env(:jido_delvetown, :query_results, %{
+      "town.delve.membership.getMembership" => {:ok, %{"status" => "member"}},
+      "town.delve.notification.listNotifications" =>
+        {:ok, %{"cursor" => "page-2", "notifications" => [first, second]}},
+      "town.delve.feed.getPostThread" =>
+        {:ok,
+         %{
+           "thread" => %{
+             "post" => %{
+               "uri" => first["uri"],
+               "cid" => first["cid"],
+               "record" => %{"text" => first["record"]["text"]}
+             },
+             "replies" => []
+           }
+         }}
+    })
+
+    reply_decision()
+
+    assert {:ok, first_state} = run_reactive()
+    assert first_state.last_run.status == "simulated"
+    assert ScanProgress.get("notifications").cursor == "page-1"
+
+    first_page_events = [
+      Repo.get!(InteractionEvent, "notification:page-reply-1"),
+      Repo.get!(InteractionEvent, "notification:page-reply-2")
+    ]
+
+    assert Enum.frequencies_by(first_page_events, & &1.state) == %{
+             "completed" => 1,
+             "pending" => 1
+           }
+
+    assert {:ok, drained_state} = run_reactive(first_state)
+    assert drained_state.last_run.status == "simulated"
+    assert ScanProgress.get("notifications").cursor == "page-2"
+
+    Enum.each(["notification:page-reply-1", "notification:page-reply-2"], fn event_key ->
+      event = Repo.get!(InteractionEvent, event_key)
+      assert event.state == "completed"
+      assert event.attempt_count == 1
+    end)
+
+    refute JidoDelvetown.InteractionEvents.pending?(["mention", "reply"])
+
+    timeline_uri = "at://did:plc:timeline-author/town.delve.feed.post/question"
+    indexed_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+
+    Application.put_env(:jido_delvetown, :query_results, %{
+      "town.delve.membership.getMembership" => {:ok, %{"status" => "member"}},
+      "town.delve.feed.getTimeline" =>
+        {:ok,
+         %{
+           "feed" => [
+             %{
+               "post" => %{
+                 "uri" => timeline_uri,
+                 "cid" => "timeline-question-cid",
+                 "indexedAt" => indexed_at,
+                 "author" => %{
+                   "did" => "did:plc:timeline-author",
+                   "handle" => "timeline-author.test"
+                 },
+                 "viewer" => %{},
+                 "labels" => [],
+                 "record" => %{"text" => "Which process should own this retry?"}
+               }
+             }
+           ]
+         }},
+      "town.delve.feed.getPostThread" =>
+        {:ok,
+         %{
+           "thread" => %{
+             "post" => %{
+               "uri" => timeline_uri,
+               "cid" => "timeline-question-cid",
+               "record" => %{"text" => "Which process should own this retry?"}
+             },
+             "replies" => []
+           }
+         }}
+    })
+
+    Application.put_env(
+      :jido_delvetown,
+      :decision_result,
+      {:ok, %{action: "like", text: nil, topic: "OTP", reason: "Useful question"}}
+    )
+
+    assert {:ok, proactive_state} =
+             Jido.Exec.run(
+               ProactiveParticipationCycle,
+               %{mode: "normal"},
+               %{agent_state: drained_state}
+             )
+
+    assert proactive_state.last_run.status == "simulated"
+    assert proactive_state.last_run.action == "like"
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   defp run_reactive(state \\ Agent.new!().state) do

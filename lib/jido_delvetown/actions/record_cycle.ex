@@ -37,7 +37,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
       if cycle.status == "failed" do
         ScanProgress.release(name, token)
       else
-        ScanProgress.finish(name, token, Map.get(cycle.scan, :next_cursor))
+        ScanProgress.finish(name, token, completed_cursor(cycle))
       end
 
     case result do
@@ -47,6 +47,16 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   end
 
   defp finish_scan(_cycle), do: :ok
+
+  defp completed_cursor(%{kind: "reactive", notifications: notifications, scan: scan}) do
+    if InteractionEvents.all_terminal?(notifications) do
+      Map.get(scan, :next_cursor)
+    else
+      Map.get(scan, :cursor)
+    end
+  end
+
+  defp completed_cursor(cycle), do: Map.get(cycle.scan, :next_cursor)
 
   defp normalize_decision(decision) when map_size(decision) > 0, do: decision
 
