@@ -25,6 +25,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
     assigns =
       snapshot
       |> Map.put(:active_tab, active_tab(params))
+      |> Map.put(:activity_filter, activity_filter(params))
       |> Map.put(:show_setup, map_value(snapshot.setup, :required?, false))
       |> Map.put(:setup_notice, nil)
       |> Map.put(:publish_notice, nil)
@@ -398,6 +399,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
               <DashboardComponents.agent_information {assigns} />
               <DashboardComponents.drafts {assigns} />
               <DashboardComponents.people {assigns} />
+              <DashboardComponents.activity {assigns} />
               <DashboardComponents.settings {assigns} />
               <DashboardComponents.footer {assigns} />
             <% end %>
@@ -412,12 +414,19 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp active_tab(%{"tab" => "inbox"}), do: "inbox"
   defp active_tab(%{"tab" => "people"}), do: "people"
+  defp active_tab(%{"tab" => "activity"}), do: "activity"
   defp active_tab(%{"tab" => "settings"}), do: "settings"
 
   defp active_tab(%{"tab" => tab}) when tab in ["drafts", "simulated-posts", "image-drafts"],
     do: "drafts"
 
   defp active_tab(_params), do: "overview"
+
+  defp activity_filter(%{"activity_filter" => filter})
+       when filter in ~w(actions publications failures jobs settings),
+       do: filter
+
+  defp activity_filter(_params), do: "all"
 
   defp publish_reviewed(kind, source_key, publish) do
     if draft_reviews().approved?(kind, source_key),

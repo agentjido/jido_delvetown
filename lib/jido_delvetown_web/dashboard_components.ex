@@ -3,6 +3,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   use Phoenix.Component
 
+  alias JidoDelvetownWeb.DashboardActivity
+
   @spec styles(map()) :: Phoenix.LiveView.Rendered.t()
   def styles(assigns), do: content(assign(assigns, :dashboard_section, :styles))
 
@@ -76,6 +78,15 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     assigns
     |> assign_new(:people, fn -> %{counts: %{}, records: [], visible_count: 0} end)
     |> assign(:dashboard_section, :people)
+    |> content()
+  end
+
+  @spec activity(map()) :: Phoenix.LiveView.Rendered.t()
+  def activity(assigns) do
+    assigns
+    |> assign_new(:activity, fn -> %{items: [], counts: %{"all" => 0}} end)
+    |> assign_new(:activity_filter, fn -> "all" end)
+    |> assign(:dashboard_section, :activity)
     |> content()
   end
 
@@ -1222,6 +1233,143 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         color: var(--red);
       }
 
+      .activity-shell {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .activity-intro > p:last-child {
+        max-width: 76ch;
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .activity-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        margin-top: 16px;
+      }
+
+      .activity-filter {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 6px 10px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 680;
+        text-decoration: none;
+      }
+
+      .activity-filter strong {
+        min-width: 19px;
+        padding: 1px 5px;
+        border-radius: 99px;
+        background: var(--surface-raised);
+        color: var(--text);
+        font-size: 10px;
+        text-align: center;
+      }
+
+      .activity-filter.active {
+        border-color: color-mix(in srgb, var(--cyan) 38%, var(--line));
+        background: var(--cyan-deep);
+        color: var(--cyan);
+      }
+
+      .activity-list {
+        position: relative;
+        display: grid;
+        gap: 0;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .activity-entry {
+        position: relative;
+        display: grid;
+        grid-template-columns: 11px minmax(0, 1fr);
+        gap: 13px;
+        padding: 0 0 18px;
+      }
+
+      .activity-entry:last-child { padding-bottom: 0; }
+
+      .activity-entry:not(:last-child)::before {
+        position: absolute;
+        top: 8px;
+        bottom: -8px;
+        left: 4px;
+        width: 1px;
+        background: var(--line);
+        content: "";
+      }
+
+      .activity-marker {
+        position: relative;
+        width: 9px;
+        height: 9px;
+        margin-top: 7px;
+        border: 2px solid var(--canvas);
+        border-radius: 50%;
+        background: var(--cyan);
+        box-shadow: 0 0 0 1px var(--cyan);
+      }
+
+      .activity-entry-failures .activity-marker,
+      .activity-entry.failure .activity-marker {
+        background: var(--red);
+        box-shadow: 0 0 0 1px var(--red);
+      }
+
+      .activity-card {
+        min-width: 0;
+        padding: 13px 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .activity-card-header,
+      .activity-title-row,
+      .activity-receipt {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .activity-card-header {
+        justify-content: space-between;
+        margin-bottom: 7px;
+      }
+
+      .activity-card-header time,
+      .activity-label {
+        color: var(--quiet);
+        font-size: 11px;
+      }
+
+      .activity-title-row { justify-content: space-between; }
+      .activity-title-row h3 { margin: 0; font-size: 14px; }
+      .activity-detail { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+
+      .activity-receipt {
+        margin-top: 9px;
+        color: var(--quiet);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        overflow-wrap: anywhere;
+      }
+
+      .activity-receipt a { color: var(--cyan); text-decoration: none; }
+
       .panel-header {
         display: flex;
         align-items: baseline;
@@ -2351,9 +2499,14 @@ defmodule JidoDelvetownWeb.DashboardComponents do
           <span>People</span>
           <span class="nav-count">{people_nav_count(@people)}</span>
         </a>
-        <span class="operator-nav-link" aria-disabled="true">
-          <span>Activity</span><span class="nav-soon">Soon</span>
-        </span>
+        <a
+          id="activity-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "activity")}"}
+          href="/?tab=activity"
+          aria-current={if @active_tab == "activity", do: "page"}
+        >
+          <span>Activity</span>
+        </a>
         <a
           id="settings-tab"
           class={"operator-nav-link #{tab_class(@active_tab, "settings")}"}
@@ -2462,6 +2615,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             aria-current={if @active_tab == "people", do: "page"}
           >
             People <span class="nav-count">{people_nav_count(@people)}</span>
+          </a>
+          <a
+            class={"mobile-nav-link #{tab_class(@active_tab, "activity")}"}
+            href="/?tab=activity"
+            aria-current={if @active_tab == "activity", do: "page"}
+          >
+            Activity
           </a>
           <a
             class={"mobile-nav-link #{tab_class(@active_tab, "settings")}"}
@@ -3451,6 +3611,103 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             <p :if={person_exclusions(person) != []} class="person-exclusions">
               <strong>Participation excluded:</strong> {Enum.join(person_exclusions(person), " · ")}
             </p>
+          </li>
+        </ol>
+      </article>
+    </section>
+
+    <section
+      :if={@dashboard_section == :activity and @active_tab == "activity"}
+      id="activity-panel"
+      class="activity-shell"
+      role="tabpanel"
+      aria-labelledby="activity-tab"
+    >
+      <article class="panel activity-intro">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Bounded local audit view</p>
+            <h2>Agent activity and operations</h2>
+          </div>
+          <span class="badge safe">Read only</span>
+        </div>
+
+        <p>
+          Follow agent decisions, completed protocol effects, recovery work, Oban jobs, and settings
+          revisions in one time-ordered view. Failure details and secret settings stay out of this
+          page.
+        </p>
+
+        <nav class="activity-filters" aria-label="Filter activity">
+          <a
+            :for={{key, label} <- activity_filters()}
+            class={"activity-filter #{tab_class(@activity_filter, key)}"}
+            href={activity_filter_url(key)}
+            aria-current={if @activity_filter == key, do: "page"}
+          >
+            <span>{label}</span>
+            <strong>{activity_count(@activity, key)}</strong>
+          </a>
+        </nav>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Newest first</p>
+            <h2>Activity timeline</h2>
+          </div>
+          <span class="count">{activity_visible_label(@activity, @activity_filter)}</span>
+        </div>
+
+        <p :if={activity_items(@activity, @activity_filter) == []} class="empty">
+          No activity matches this filter.
+        </p>
+
+        <ol
+          :if={activity_items(@activity, @activity_filter) != []}
+          class="activity-list"
+          aria-label="Activity timeline"
+        >
+          <li
+            :for={item <- activity_items(@activity, @activity_filter)}
+            class={
+              "activity-entry activity-entry-#{map_value(item, :category)} #{if map_value(item, :failure?, false), do: "failure"}"
+            }
+          >
+            <span class="activity-marker" aria-hidden="true"></span>
+            <div class="activity-card">
+              <div class="activity-card-header">
+                <span class="activity-label">{map_value(item, :label)}</span>
+                <time datetime={map_value(item, :at)}>{inbox_time_label(map_value(item, :at))}</time>
+              </div>
+              <div class="activity-title-row">
+                <h3>{map_value(item, :title)}</h3>
+                <span class={"badge #{action_status_class(map_value(item, :status))}"}>
+                  {state_label(map_value(item, :status))}
+                </span>
+              </div>
+              <p class="activity-detail">{map_value(item, :detail)}</p>
+              <div
+                :if={present_text?(map_value(item, :uri)) or present_text?(map_value(item, :cid))}
+                class="activity-receipt"
+              >
+                <a
+                  :if={activity_uri_url(item)}
+                  href={activity_uri_url(item)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open record ↗
+                </a>
+                <span :if={present_text?(map_value(item, :uri))}>
+                  URI {map_value(item, :uri)}
+                </span>
+                <span :if={present_text?(map_value(item, :cid))}>
+                  CID {map_value(item, :cid)}
+                </span>
+              </div>
+            </div>
           </li>
         </ol>
       </article>
@@ -4480,6 +4737,47 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     if map_value(people, :truncated?, false), do: "#{visible} of #{known}", else: "#{known} total"
   end
 
+  defp activity_filters do
+    [
+      {"all", "All"},
+      {"actions", "Actions"},
+      {"publications", "Publications"},
+      {"failures", "Failures"},
+      {"jobs", "Oban jobs"},
+      {"settings", "Settings"}
+    ]
+  end
+
+  defp activity_filter_url("all"), do: "/?tab=activity"
+
+  defp activity_filter_url(filter),
+    do: "/?tab=activity&activity_filter=#{URI.encode_www_form(filter)}"
+
+  defp activity_count(activity, filter) do
+    activity
+    |> map_value(:counts, %{})
+    |> map_value(filter, 0)
+    |> people_number()
+  end
+
+  defp activity_items(activity, filter),
+    do: DashboardActivity.filtered_items(activity, filter)
+
+  defp activity_visible_label(activity, filter) do
+    count = activity |> activity_items(filter) |> length()
+    if count == 1, do: "1 entry", else: "#{count} entries"
+  end
+
+  defp activity_uri_url(item) do
+    case map_value(item, :uri) do
+      "at://" <> _rest = uri ->
+        if String.contains?(uri, "/town.delve.feed.post/"), do: post_url(uri), else: nil
+
+      _uri ->
+        nil
+    end
+  end
+
   defp person_name(person) do
     map_value(person, :display_name) || map_value(person, :handle) ||
       display(map_value(person, :did))
@@ -4689,6 +4987,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   defp page_title("inbox"), do: "Participation inbox"
   defp page_title("drafts"), do: "Drafts & approvals"
   defp page_title("people"), do: "People"
+  defp page_title("activity"), do: "Activity"
   defp page_title("settings"), do: "Runtime settings"
   defp page_title(_active_tab), do: "Overview"
 

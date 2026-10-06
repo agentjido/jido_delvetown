@@ -54,6 +54,7 @@ defmodule JidoDelvetown.InspectionTest do
     assert snapshot.effects.completed_receipts == []
     assert snapshot.automation.proactive_review.cron == "5,35 * * * *"
     assert snapshot.automation.proactive_review.last_run.health == "idle"
+    assert snapshot.automation.recent_jobs == []
     assert snapshot.sqlite.migrations.status == "current"
     assert snapshot.sqlite.migrations.pending == []
     assert snapshot.sqlite.legacy_imports == []
@@ -259,6 +260,16 @@ defmodule JidoDelvetown.InspectionTest do
     assert health.last_run.attempt == 1
     assert health.last_run.error_count == 1
     refute inspect(health) =~ "private"
+
+    assert [recent_job] = Inspection.snapshot(limit: 1).automation.recent_jobs
+    assert recent_job.id == job.id
+    assert recent_job.worker == inspect(ProactiveReviewWorker)
+    assert recent_job.state == "completed"
+    assert recent_job.attempt == 1
+    assert recent_job.max_attempts == 5
+    assert recent_job.error_count == 1
+    assert recent_job.completed_at == DateTime.to_iso8601(now)
+    refute inspect(recent_job) =~ "private"
   end
 
   test "image drafts expose bounded preview and publication state" do

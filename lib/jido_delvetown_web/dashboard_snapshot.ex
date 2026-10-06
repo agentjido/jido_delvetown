@@ -5,6 +5,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
   alias JidoDelvetown.Settings.{Behavior, Connection, Console, ImageGeneration, Limits, Setup}
 
   alias JidoDelvetownWeb.{
+    DashboardActivity,
     DashboardDrafts,
     DashboardInbox,
     DashboardOverview,
@@ -54,6 +55,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     drafts = DashboardDrafts.build(inspection)
     people = DashboardPeople.build(inspection)
     settings_editor_status = settings_status(settings_editor)
+    activity = DashboardActivity.build(workflow_events, inspection, settings_editor_status)
 
     %{
       page_title: @page_title,
@@ -76,6 +78,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       inbox: inbox,
       drafts: drafts,
       people: people,
+      activity: activity,
       image_generation: image_generation,
       settings_editor: settings_editor_status,
       theme: setting_value(console_settings, :theme, "system"),

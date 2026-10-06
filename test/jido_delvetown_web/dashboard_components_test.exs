@@ -24,6 +24,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       :agent_information,
       :drafts,
       :people,
+      :activity,
       :settings,
       :footer
     ]
@@ -243,5 +244,84 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
     assert html =~ "Do not mention"
     assert html =~ "https://delve.town/profile/friend.test"
     refute html =~ "phx-click"
+  end
+
+  test "activity shows filtered audit, receipt, job, failure, and settings entries" do
+    activity = %{
+      counts: %{
+        "all" => 5,
+        "actions" => 1,
+        "publications" => 1,
+        "failures" => 1,
+        "jobs" => 1,
+        "settings" => 1
+      },
+      items: [
+        activity_item("settings:4", "settings", "Configuration revision", "Runtime settings v4"),
+        activity_item("job:8", "jobs", "Oban job", "Friend Sync Worker"),
+        activity_item(
+          "failure:reply",
+          "failures",
+          "Failure and recovery",
+          "Reply effect needs attention",
+          status: "uncertain",
+          failure?: true
+        ),
+        activity_item(
+          "receipt:reply",
+          "publications",
+          "Publication receipt",
+          "Reply effect completed",
+          uri: "at://did:plc:agent/town.delve.feed.post/published",
+          cid: "bafy-receipt"
+        ),
+        activity_item("audit:1", "actions", "Action", "Reply", status: "proposed")
+      ]
+    }
+
+    html =
+      render_component(&DashboardComponents.activity/1, %{
+        active_tab: "activity",
+        activity_filter: "all",
+        activity: activity
+      })
+
+    assert html =~ ~s(id="activity-panel")
+    assert html =~ "Agent activity and operations"
+    assert html =~ "Publication receipt"
+    assert html =~ "Reply effect completed"
+    assert html =~ "URI at://did:plc:agent/town.delve.feed.post/published"
+    assert html =~ "CID bafy-receipt"
+    assert html =~ "Friend Sync Worker"
+    assert html =~ "Reply effect needs attention"
+    assert html =~ "Runtime settings v4"
+    assert html =~ ~s(href="/?tab=activity&amp;activity_filter=failures")
+    refute html =~ "phx-click"
+
+    failures_html =
+      render_component(&DashboardComponents.activity/1, %{
+        active_tab: "activity",
+        activity_filter: "failures",
+        activity: activity
+      })
+
+    assert failures_html =~ "Reply effect needs attention"
+    refute failures_html =~ "Runtime settings v4"
+    refute failures_html =~ "Friend Sync Worker"
+  end
+
+  defp activity_item(id, category, label, title, opts \\ []) do
+    %{
+      id: id,
+      category: category,
+      label: label,
+      title: title,
+      status: Keyword.get(opts, :status, "completed"),
+      detail: "Safe bounded detail",
+      at: "2026-10-06T12:00:00Z",
+      uri: Keyword.get(opts, :uri),
+      cid: Keyword.get(opts, :cid),
+      failure?: Keyword.get(opts, :failure?, false)
+    }
   end
 end

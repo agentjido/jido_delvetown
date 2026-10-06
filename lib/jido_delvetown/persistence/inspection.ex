@@ -61,7 +61,8 @@ defmodule JidoDelvetown.Inspection do
       scans: scan_watermarks(repo),
       effects: effect_health(repo, limit),
       automation: %{
-        proactive_review: Automation.proactive_review_health(repo: repo)
+        proactive_review: Automation.proactive_review_health(repo: repo),
+        recent_jobs: recent_jobs(repo, limit)
       },
       sqlite: %{
         migrations: migration_status(repo),
@@ -690,6 +691,31 @@ defmodule JidoDelvetown.Inspection do
       },
       failure_present?: not is_nil(effect.failure)
     }
+  end
+
+  defp recent_jobs(repo, limit) do
+    repo.all(
+      from(job in Oban.Job,
+        order_by: [desc: job.inserted_at, desc: job.id],
+        limit: ^limit,
+        select: %{
+          id: job.id,
+          state: job.state,
+          queue: job.queue,
+          worker: job.worker,
+          attempt: job.attempt,
+          max_attempts: job.max_attempts,
+          error_count: fragment("coalesce(json_array_length(?), 0)", job.errors),
+          inserted_at: job.inserted_at,
+          scheduled_at: job.scheduled_at,
+          attempted_at: job.attempted_at,
+          completed_at: job.completed_at,
+          cancelled_at: job.cancelled_at,
+          discarded_at: job.discarded_at
+        }
+      )
+    )
+    |> Enum.map(&encode_times/1)
   end
 
   defp migration_status(repo) do

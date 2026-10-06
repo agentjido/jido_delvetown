@@ -260,6 +260,10 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.drafts.pending_count == 0
     assert snapshot.people.counts.known == 1
     assert hd(snapshot.people.records).handle == "member.test"
+    assert snapshot.activity.counts["all"] == 2
+    assert snapshot.activity.counts["actions"] == 1
+    assert snapshot.activity.counts["settings"] == 1
+    assert Enum.any?(snapshot.activity.items, &(&1.title == "Reply"))
     assert snapshot.image_generation.enabled?
     assert snapshot.image_generation.budget.remaining == 1
     assert snapshot.theme == "dark"
@@ -319,6 +323,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.drafts.total_count == 0
     assert snapshot.people.records == []
     assert snapshot.people.counts.known == 0
+    assert snapshot.activity.items == []
+    assert snapshot.activity.counts["all"] == 0
     assert snapshot.image_generation == %{}
     assert snapshot.theme == "system"
     refute snapshot.manual_publish_enabled

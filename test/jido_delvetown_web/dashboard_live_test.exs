@@ -388,6 +388,23 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     refute html =~ ~s(id="overview-panel")
   end
 
+  test "renders the filtered Activity timeline and active navigation" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "activity")
+      |> Map.put(:activity_filter, "failures")
+
+    html = render_dashboard(assigns)
+
+    assert html =~ ~s(<h1 id="page-title">Activity</h1>)
+    assert html =~ ~s(id="activity-tab" class="operator-nav-link active")
+    assert html =~ ~s(id="activity-panel")
+    assert html =~ "Agent activity and operations"
+    assert html =~ "Reply effect needs attention"
+    refute html =~ "Runtime settings v3"
+    refute html =~ ~s(id="overview-panel")
+  end
+
   test "renders the runtime settings editor and revision history" do
     html = render_dashboard(Map.put(base_assigns(), :active_tab, "settings"))
 
@@ -1391,6 +1408,79 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
             reference_count: 0,
             opted_out?: true,
             do_not_mention?: true
+          }
+        ]
+      },
+      activity_filter: "all",
+      activity: %{
+        counts: %{
+          "all" => 5,
+          "actions" => 1,
+          "publications" => 1,
+          "failures" => 1,
+          "jobs" => 1,
+          "settings" => 1
+        },
+        items: [
+          %{
+            id: "settings:3",
+            category: "settings",
+            label: "Configuration revision",
+            title: "Runtime settings v3",
+            status: "current",
+            detail: "Operator save · Daily reply limit",
+            at: "2026-10-06T14:00:00Z",
+            uri: nil,
+            cid: nil,
+            failure?: false
+          },
+          %{
+            id: "job:8",
+            category: "jobs",
+            label: "Oban job",
+            title: "Friend Sync Worker",
+            status: "completed",
+            detail: "delvetown queue · attempt 1/3 · 0 errors",
+            at: "2026-10-06T13:00:00Z",
+            uri: nil,
+            cid: nil,
+            failure?: false
+          },
+          %{
+            id: "failure:reply",
+            category: "failures",
+            label: "Failure and recovery",
+            title: "Reply effect needs attention",
+            status: "uncertain",
+            detail: "reply:pending · attempt 1",
+            at: "2026-10-06T12:00:00Z",
+            uri: nil,
+            cid: nil,
+            failure?: true
+          },
+          %{
+            id: "receipt:reply",
+            category: "publications",
+            label: "Publication receipt",
+            title: "Reply effect completed",
+            status: "completed",
+            detail: "town.delve.feed.post · reply:complete",
+            at: "2026-10-06T11:00:00Z",
+            uri: "at://did:plc:agent/town.delve.feed.post/published",
+            cid: "bafy",
+            failure?: false
+          },
+          %{
+            id: "audit:1",
+            category: "actions",
+            label: "Action",
+            title: "Reply",
+            status: "proposed",
+            detail: "Direct technical question",
+            at: "2026-10-06T10:00:00Z",
+            uri: nil,
+            cid: nil,
+            failure?: false
           }
         ]
       },
