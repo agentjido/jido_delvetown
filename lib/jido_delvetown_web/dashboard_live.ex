@@ -189,10 +189,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
               <DashboardComponents.first_run_setup {assigns} />
             <% else %>
               <DashboardComponents.operational_state {assigns} />
-              <DashboardComponents.runtime_health {assigns} />
-              <DashboardComponents.memory_and_effects {assigns} />
-              <DashboardComponents.scan_and_database_status {assigns} />
-              <DashboardComponents.recent_events {assigns} />
+              <DashboardComponents.overview {assigns} />
               <DashboardComponents.planned_controls {assigns} />
               <DashboardComponents.agent_information {assigns} />
               <DashboardComponents.simulated_actions {assigns} />

@@ -2,7 +2,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
   @moduledoc false
 
   alias JidoDelvetown.{Automation, Personality}
-  alias JidoDelvetown.Settings.{Behavior, Connection, Console, Setup}
+  alias JidoDelvetown.Settings.{Behavior, Connection, Console, Limits, Setup}
+  alias JidoDelvetownWeb.DashboardOverview
 
   @page_title "AgentJido / DelveTown"
 
@@ -14,6 +15,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     behavior_settings = Keyword.get(opts, :behavior_settings, Behavior)
     connection_settings = Keyword.get(opts, :connection_settings, Connection)
     console_settings = Keyword.get(opts, :console_settings, Console)
+    limits_settings = Keyword.get(opts, :limits_settings, Limits)
     setup_service = Keyword.get(opts, :setup_service, default_setup_service())
     now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now() end) |> DateTime.truncate(:second)
 
@@ -25,6 +27,18 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     inspection = value_or(inspection_result, %{})
     character_result = safe_read(fn -> character_assigns(personality.character()) end)
     disclosure_result = safe_read(fn -> personality.disclosure() end)
+    workflow_events = list_value(events, :workflow)
+    agent_events = list_value(events, :agent)
+    reactive_review = review_status(review_controller, :reactive_review_status, :reactive)
+    proactive_review = review_status(review_controller, :proactive_review_status, :proactive)
+    limits = settings_snapshot(limits_settings)
+
+    overview =
+      DashboardOverview.build(status, inspection, workflow_events, limits, now,
+        status_error: error_text(status_result),
+        reactive_review: reactive_review,
+        proactive_review: proactive_review
+      )
 
     %{
       page_title: @page_title,
@@ -35,14 +49,15 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       decision: map_value(status, :decision, %{}),
       last_cycle: map_value(status, :last_cycle, %{}),
       last_run: map_value(status, :last_run, %{}),
-      workflow_events: list_value(events, :workflow),
-      agent_events: list_value(events, :agent),
+      workflow_events: workflow_events,
+      agent_events: agent_events,
       inspection: inspection,
       inspection_error: error_text(inspection_result),
       character: value_or(character_result, unavailable_character()),
       disclosure: value_or(disclosure_result, %{}),
-      reactive_review: review_status(review_controller, :reactive_review_status, :reactive),
-      proactive_review: review_status(review_controller, :proactive_review_status, :proactive),
+      reactive_review: reactive_review,
+      proactive_review: proactive_review,
+      overview: overview,
       theme: setting_value(console_settings, :theme, "system"),
       setup: setup_status(setup_service),
       manual_publish_enabled: direct_value(behavior_settings, :manual_publish_enabled?, false),
@@ -108,6 +123,13 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     case safe_read(fn -> apply(settings, function, []) end) do
       {:ok, {:ok, value}} -> value
       _result -> default
+    end
+  end
+
+  defp settings_snapshot(settings) do
+    case safe_read(fn -> apply(settings, :current, []) end) do
+      {:ok, {:ok, value}} when is_map(value) -> value
+      _result -> %{}
     end
   end
 

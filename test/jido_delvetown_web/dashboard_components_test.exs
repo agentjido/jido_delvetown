@@ -14,6 +14,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       :mobile_navigation,
       :first_run_setup,
       :operational_state,
+      :overview,
       :runtime_health,
       :memory_and_effects,
       :scan_and_database_status,

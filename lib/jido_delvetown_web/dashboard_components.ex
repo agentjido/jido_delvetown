@@ -22,6 +22,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   def operational_state(assigns),
     do: content(assign(assigns, :dashboard_section, :operational_state))
 
+  @spec overview(map()) :: Phoenix.LiveView.Rendered.t()
+  def overview(assigns), do: content(assign(assigns, :dashboard_section, :overview))
+
   @spec runtime_health(map()) :: Phoenix.LiveView.Rendered.t()
   def runtime_health(assigns), do: content(assign(assigns, :dashboard_section, :runtime_health))
 
@@ -804,6 +807,131 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         background: color-mix(in srgb, var(--surface) 90%, transparent);
       }
 
+      .overview-stack {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .overview-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .overview-summary-card {
+        display: grid;
+        align-content: start;
+        min-height: 174px;
+      }
+
+      .overview-summary-card .panel-header { margin-bottom: 18px; }
+
+      .overview-value {
+        margin: 0 0 8px;
+        color: var(--text);
+        font-size: 25px;
+        font-weight: 760;
+        letter-spacing: -0.025em;
+      }
+
+      .overview-detail {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .overview-schedule-list {
+        display: grid;
+        gap: 7px;
+        margin: 2px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .overview-schedule-list li {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .overview-schedule-list strong { color: var(--text); font-weight: 680; }
+      .overview-schedule-list time { color: var(--cyan); white-space: nowrap; }
+
+      .overview-detail-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+        gap: 16px;
+      }
+
+      .overview-attention-list {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .overview-attention-item {
+        padding: 11px 12px;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--red);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .overview-attention-item.idle { border-left-color: var(--cyan); }
+      .overview-attention-item strong { display: block; margin-bottom: 3px; font-size: 13px; }
+      .overview-attention-item p { margin: 0; color: var(--muted); font-size: 12px; }
+
+      .overview-budget-list {
+        display: grid;
+        gap: 13px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .overview-budget-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 5px;
+        font-size: 12px;
+      }
+
+      .overview-budget-heading strong { color: var(--text); }
+      .overview-budget-heading span { color: var(--muted); }
+
+      .overview-budget-track {
+        height: 7px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: var(--surface-raised);
+      }
+
+      .overview-budget-track span {
+        display: block;
+        width: var(--budget-use);
+        height: 100%;
+        border-radius: inherit;
+        background: var(--cyan);
+      }
+
+      .overview-actions .event-data { font-family: var(--font-sans); }
+
+      .overview-actions .event-item > time {
+        display: block;
+        margin-top: 6px;
+        color: var(--quiet);
+        font-size: 11px;
+      }
+
       .panel-header {
         display: flex;
         align-items: baseline;
@@ -1386,7 +1514,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .page-header { align-items: start; flex-direction: column; gap: 8px; }
         .header-meta { align-items: center; justify-content: space-between; width: 100%; }
         .refresh-note { text-align: left; }
-        .status-strip, .primary-grid, .health-grid, .event-grid, .about-content { grid-template-columns: 1fr; }
+        .status-strip,
+        .primary-grid,
+        .health-grid,
+        .event-grid,
+        .about-content,
+        .overview-summary-grid,
+        .overview-detail-grid { grid-template-columns: 1fr; }
         .status-item { border-right: 0; border-bottom: 1px solid var(--line); }
         .status-item:last-child { border-bottom: 0; }
         .planned-controls { grid-template-columns: 1fr; }
@@ -1411,6 +1545,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .detail-grid { grid-template-columns: 1fr; gap: 9px; }
         .health-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .event-title { align-items: start; flex-direction: column; gap: 2px; }
+        .overview-schedule-list li { align-items: start; flex-direction: column; gap: 2px; }
         .control-row { display: grid; grid-template-columns: 1fr; }
         .control-row button { width: 100%; }
       }
@@ -1825,80 +1960,170 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     </nav>
 
     <section
-      :if={@dashboard_section == :operational_state and @active_tab == "overview"}
+      :if={@dashboard_section == :overview and @active_tab == "overview"}
       id="overview-panel"
-      class="primary-grid"
+      class="overview-stack"
       role="tabpanel"
       aria-labelledby="overview-tab"
     >
-      <article class="panel">
+      <div class="overview-summary-grid" aria-label="Current operating state">
+        <article class="panel overview-summary-card">
+          <div class="panel-header">
+            <p class="panel-kicker">Autonomy</p>
+            <span class={"badge #{map_value(overview_autonomy(@overview), :state, "attention")}"}>
+              {display(map_value(overview_autonomy(@overview), :mode))}
+            </span>
+          </div>
+          <p class="overview-value">{display(map_value(overview_autonomy(@overview), :label))}</p>
+          <p class="overview-detail">{display(map_value(overview_autonomy(@overview), :detail))}</p>
+        </article>
+
+        <article class="panel overview-summary-card">
+          <div class="panel-header">
+            <p class="panel-kicker">Connection</p>
+            <span class={"badge #{map_value(overview_connection(@overview), :state, "attention")}"}>
+              {display(map_value(overview_connection(@overview), :label))}
+            </span>
+          </div>
+          <p class="overview-value">
+            {if map_value(overview_connection(@overview), :connected?, false),
+              do: "Online",
+              else: "Standby"}
+          </p>
+          <p class="overview-detail">{display(map_value(overview_connection(@overview), :detail))}</p>
+        </article>
+
+        <article class="panel overview-summary-card">
+          <div class="panel-header">
+            <p class="panel-kicker">Next scheduled work</p>
+            <span class={"badge #{if overview_schedule_enabled?(@overview), do: "healthy", else: "attention"}"}>
+              {if overview_schedule_enabled?(@overview), do: "Running", else: "Stopped"}
+            </span>
+          </div>
+          <p :if={overview_schedule_items(@overview) == []} class="overview-detail">
+            No valid schedule is available.
+          </p>
+          <ol :if={overview_schedule_items(@overview) != []} class="overview-schedule-list">
+            <li :for={item <- overview_schedule_items(@overview)}>
+              <strong>{display(map_value(item, :label))}</strong>
+              <time datetime={map_value(item, :next_at_iso8601)}>
+                {display(map_value(item, :relative))}
+              </time>
+            </li>
+          </ol>
+        </article>
+      </div>
+
+      <div class="overview-detail-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Operator queue</p>
+              <h2>Needs attention</h2>
+            </div>
+            <span class={"badge #{if overview_attention(@overview) == [], do: "healthy", else: "attention"}"}>
+              {length(overview_attention(@overview))}
+            </span>
+          </div>
+          <p :if={overview_attention(@overview) == []} class="empty">
+            Nothing needs operator action.
+          </p>
+          <ol :if={overview_attention(@overview) != []} class="overview-attention-list">
+            <li
+              :for={item <- overview_attention(@overview)}
+              class={"overview-attention-item #{map_value(item, :state, "attention")}"}
+            >
+              <strong>{display(map_value(item, :label))}</strong>
+              <p>{display(map_value(item, :detail))}</p>
+            </li>
+          </ol>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Daily limits</p>
+              <h2>Participation budget</h2>
+            </div>
+            <span class="badge safe">SQLite</span>
+          </div>
+          <ul class="overview-budget-list">
+            <li :for={budget <- overview_budgets(@overview)}>
+              <div class="overview-budget-heading">
+                <strong>{display(map_value(budget, :label))}</strong>
+                <span>
+                  {display(map_value(budget, :used, 0))} / {display(map_value(budget, :limit, 0))}
+                </span>
+              </div>
+              <div
+                class="overview-budget-track"
+                role="progressbar"
+                aria-label={map_value(budget, :label)}
+                aria-valuemin="0"
+                aria-valuenow={map_value(budget, :used, 0)}
+                aria-valuemax={max(map_value(budget, :limit, 0), 1)}
+                style={"--budget-use: #{map_value(budget, :percent, 0)}%"}
+              >
+                <span></span>
+              </div>
+            </li>
+          </ul>
+        </article>
+      </div>
+
+      <article class="panel overview-actions">
         <div class="panel-header">
           <div>
-            <p class="panel-kicker">Imp decision</p>
-            <h2>Participation proposal</h2>
+            <p class="panel-kicker">Audit trail</p>
+            <h2>Recent actions</h2>
           </div>
-          <span class="badge idle">Proposal only</span>
+          <span class="count">{length(overview_recent_actions(@overview))} shown</span>
         </div>
-
-        <p class="proposal-action">{display(map_value(@decision, :action))}</p>
-        <p class="proposal-copy">{display(map_value(@decision, :reason))}</p>
-        <blockquote class="proposal-text">{display(map_value(@decision, :text))}</blockquote>
-      </article>
-
-      <article class="panel">
-        <div class="panel-header">
-          <div>
-            <p class="panel-kicker">Bounded state</p>
-            <h2>Cycle ledger</h2>
-          </div>
-        </div>
-
-        <div class="budget-row" aria-label="Participation budget">
-          <div class="budget-number">
-            <strong>{display(map_value(@budget, :replies, 0))}</strong>
-            <span>replies used</span>
-          </div>
-          <div class="budget-number">
-            <strong>{display(map_value(@budget, :posts, 0))}</strong>
-            <span>posts used</span>
-          </div>
-        </div>
-
-        <div class="detail-grid">
-          <div class="metric">
-            <p class="metric-label">Intent</p>
-            <p class="metric-value">{display(map_value(@last_cycle, :intent))}</p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">Cycle type</p>
-            <p class="metric-value">{display(map_value(@last_cycle, :kind))}</p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">Status</p>
-            <p class="metric-value">{display(map_value(@last_cycle, :status))}</p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">Candidate</p>
-            <p class="metric-value">{display(map_value(@last_cycle, :candidate_id))}</p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">Policy score</p>
-            <p class="metric-value">
-              {display(map_value(map_value(@last_run, :selection, %{}), :score))}
-            </p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">Selection reason</p>
-            <p class="metric-value">
-              {display(map_value(map_value(@last_run, :selection, %{}), :reason))}
-            </p>
-          </div>
-        </div>
-
-        <p class="state-next" style="margin-top: 13px;">
-          {display(map_value(@last_run, :summary))}
+        <p :if={overview_recent_actions(@overview) == []} class="empty">
+          No participation action is recorded yet.
         </p>
+        <ol :if={overview_recent_actions(@overview) != []} class="event-list">
+          <li :for={action <- overview_recent_actions(@overview)} class="event-item">
+            <div class="event-title">
+              <strong>{display(map_value(action, :label))}</strong>
+              <span class={"badge #{action_status_class(map_value(action, :status))}"}>
+                {state_label(map_value(action, :status, "recorded"))}
+              </span>
+            </div>
+            <p class="event-data">{display(map_value(action, :detail))}</p>
+            <time datetime={map_value(action, :at)}>{display(map_value(action, :at))}</time>
+          </li>
+        </ol>
       </article>
+
+      <nav class="delve-links" aria-label="Open AgentJido in DelveTown">
+        <span>Open in DelveTown</span>
+        <a href="https://delve.town/" target="_blank" rel="noreferrer">Town feed ↗</a>
+        <a
+          :if={profile_url(@status)}
+          href={profile_url(@status)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          AgentJido profile ↗
+        </a>
+        <a
+          :if={post_url(map_value(@last_cycle, :candidate_id))}
+          href={post_url(map_value(@last_cycle, :candidate_id))}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Proposed thread ↗
+        </a>
+        <a
+          :if={post_url(published_uri(@last_run, @workflow_events), session_actor(@status))}
+          href={post_url(published_uri(@last_run, @workflow_events), session_actor(@status))}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Published reply ↗
+        </a>
+      </nav>
     </section>
 
     <section
@@ -2552,6 +2777,33 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     length(inspection_list(inspection, [:simulated_posts])) +
       length(inspection_list(inspection, [:like_proposals]))
   end
+
+  defp overview_autonomy(overview), do: map_value(overview, :autonomy, %{})
+  defp overview_connection(overview), do: map_value(overview, :connection, %{})
+  defp overview_attention(overview), do: inspection_list(overview, [:attention])
+  defp overview_budgets(overview), do: inspection_list(overview, [:budgets])
+
+  defp overview_schedule_items(overview),
+    do: inspection_list(overview, [:schedule, :items])
+
+  defp overview_schedule_enabled?(overview),
+    do: inspection_value(overview, [:schedule, :enabled?], false)
+
+  defp overview_recent_actions(overview),
+    do: inspection_list(overview, [:recent_actions])
+
+  defp action_status_class(status)
+       when status in ["ok", :ok, "completed", "published", "acted"],
+       do: "safe"
+
+  defp action_status_class(status)
+       when status in ["error", :error, "failed", "permanent_failure", "uncertain"],
+       do: "attention"
+
+  defp action_status_class(status) when status in ["proposed", "queued", "running"],
+    do: "active"
+
+  defp action_status_class(_status), do: "idle"
 
   defp tab_class(active_tab, tab) when active_tab == tab, do: "active"
   defp tab_class(_active_tab, _tab), do: ""

@@ -6,9 +6,17 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
   defmodule HealthyDataSource do
     def status do
       %{
+        autonomy_mode: "observe",
+        credentials_configured?: true,
+        session: %{connected?: true, handle: "agentjido.test"},
+        schedule_enabled?: true,
+        cron: "*/15 * * * *",
+        proactive_review_cron: "5,35 * * * *",
+        member_discovery_cron: "7 * * * *",
+        friend_sync_cron: "17 * * * *",
         writes_enabled?: false,
         dry_run_mark_actioned?: true,
-        budget: %{replies: 2},
+        budget: %{replies: 2, posts: 0, welcomes: 1, follows: 0, likes: 2},
         decision: %{action: "reply"},
         last_cycle: %{status: "simulated"},
         last_run: %{summary: "One reply simulated"}
@@ -16,10 +24,25 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     end
 
     def recent_events(12) do
-      %{workflow: [%{type: "cycle.simulated"}], agent: [%{type: "agent.updated"}]}
+      %{
+        workflow: [
+          %{
+            type: :decision,
+            at: "2026-10-06T12:30:00Z",
+            data: %{action: "reply", cycle_status: "simulated", model_reason: "Direct question"}
+          }
+        ],
+        agent: [%{type: "agent.updated"}]
+      }
     end
 
-    def inspect_state(limit: 6), do: %{events: %{limit: 6}}
+    def inspect_state(limit: 6) do
+      %{
+        events: %{limit: 6, counts: %{"pending" => 0, "failed" => 0}},
+        effects: %{attention: []},
+        sqlite: %{migrations: %{status: "current"}}
+      }
+    end
   end
 
   defmodule HealthyPersonality do
@@ -56,6 +79,19 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     def theme, do: {:ok, "dark"}
   end
 
+  defmodule HealthyLimitsSettings do
+    def current do
+      {:ok,
+       %{
+         daily_reply_limit: 3,
+         daily_post_limit: 1,
+         daily_welcome_limit: 2,
+         daily_follow_limit: 5,
+         daily_like_limit: 5
+       }}
+    end
+  end
+
   defmodule HealthySetup do
     def status do
       {:ok,
@@ -83,6 +119,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     def proactive_review_status, do: raise("proactive unavailable")
     def manual_publish_enabled?, do: raise("config unavailable")
     def dashboard, do: exit(:config_unavailable)
+    def current, do: {:error, :settings_unavailable}
   end
 
   test "assembles the healthy dashboard display snapshot" do
@@ -94,6 +131,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         behavior_settings: HealthyBehaviorSettings,
         connection_settings: HealthyConnectionSettings,
         console_settings: HealthyConsoleSettings,
+        limits_settings: HealthyLimitsSettings,
         setup_service: HealthySetup,
         now: ~U[2026-10-06 12:34:56.789Z]
       )
@@ -103,13 +141,18 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.inspection_error == nil
     assert snapshot.operational_state.key == "safe"
     assert snapshot.operational_state.label == "Dry run: actions simulated"
-    assert snapshot.budget == %{replies: 2}
+    assert snapshot.budget == %{replies: 2, posts: 0, welcomes: 1, follows: 0, likes: 2}
     assert snapshot.decision == %{action: "reply"}
     assert snapshot.last_cycle == %{status: "simulated"}
     assert snapshot.last_run == %{summary: "One reply simulated"}
-    assert snapshot.workflow_events == [%{type: "cycle.simulated"}]
+    assert [%{type: :decision}] = snapshot.workflow_events
     assert snapshot.agent_events == [%{type: "agent.updated"}]
-    assert snapshot.inspection == %{events: %{limit: 6}}
+
+    assert snapshot.inspection == %{
+             events: %{limit: 6, counts: %{"pending" => 0, "failed" => 0}},
+             effects: %{attention: []},
+             sqlite: %{migrations: %{status: "current"}}
+           }
 
     assert snapshot.character == %{
              name: "AgentJido",
@@ -121,6 +164,11 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.disclosure == %{processing: "Automated processing is disclosed."}
     assert snapshot.reactive_review == %{status: :idle, disabled?: false}
     assert snapshot.proactive_review == %{status: :queued, disabled?: true}
+    assert snapshot.overview.autonomy.label == "Observe"
+    assert snapshot.overview.connection.label == "Connected"
+    assert snapshot.overview.attention == []
+    assert hd(snapshot.overview.schedule.items).label == "Timeline review"
+    assert hd(snapshot.overview.recent_actions).label == "Reply"
     assert snapshot.theme == "dark"
     assert snapshot.setup.required?
     assert snapshot.setup.available?
@@ -140,6 +188,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         behavior_settings: UnavailableDependency,
         connection_settings: UnavailableDependency,
         console_settings: UnavailableDependency,
+        limits_settings: UnavailableDependency,
         setup_service: UnavailableDependency,
         now: ~U[2026-10-06 12:34:56Z]
       )
@@ -165,6 +214,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.reactive_review.disabled?
     assert snapshot.proactive_review.status == :failed
     assert snapshot.proactive_review.disabled?
+    assert snapshot.overview.autonomy.label == "Unavailable"
+    assert Enum.any?(snapshot.overview.attention, &(&1.key == "runtime"))
     assert snapshot.theme == "system"
     refute snapshot.manual_publish_enabled
     assert snapshot.port == 4040

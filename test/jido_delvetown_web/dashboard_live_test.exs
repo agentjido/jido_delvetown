@@ -139,22 +139,19 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ ~s(role="switch")
     assert html =~ ~s(aria-checked="false")
     assert html =~ ">OFF</strong>"
-    assert html =~ "Participation proposal"
-    assert html =~ "answer_direct_request"
-    assert html =~ "One reply proposed"
-    assert html =~ "Policy score"
-    assert html =~ "direct scored 138"
-    assert html =~ "Interaction memory"
-    assert html =~ "Recent actor contact"
-    assert html =~ "member.test"
-    assert html =~ "Effect health"
-    assert html =~ "Uncertain"
-    assert html =~ "at://receipt"
-    assert html =~ "Scan watermarks"
-    assert html =~ "notifications"
-    assert html =~ "SQLite status"
-    assert html =~ "3 migrations applied"
-    assert html =~ "dets-and-file-v1"
+    assert html =~ "Autonomy"
+    assert html =~ "Observe"
+    assert html =~ "Connection"
+    assert html =~ "Signed in as @agentjido.test"
+    assert html =~ "Next scheduled work"
+    assert html =~ "Inbox review"
+    assert html =~ "Needs attention"
+    assert html =~ "1 effect needs reconciliation"
+    assert html =~ "Participation budget"
+    assert html =~ "Replies and reposts"
+    assert html =~ ~s(role="progressbar")
+    assert html =~ "Recent actions"
+    assert html =~ "Direct technical question"
     assert html =~ "Run reactive review"
     assert html =~ "Approve human-in-the-loop post"
     assert html =~ "Ready for review"
@@ -197,7 +194,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     refute html =~ ~s(name="setup[openai_api_key]")
     assert html =~ ~s(phx-submit="save_setup")
     assert html =~ "Save and test connection"
-    refute html =~ "Participation proposal"
+    refute html =~ ~s(id="overview-panel")
   end
 
   test "saves setup, tests the connection, and opens the dashboard" do
@@ -237,7 +234,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
              DashboardLive.handle_event("open_dashboard", %{}, saved_socket)
 
     refute dashboard_socket.assigns.show_setup
-    assert render_dashboard(dashboard_socket.assigns) =~ "Participation proposal"
+    assert render_dashboard(dashboard_socket.assigns) =~ ~s(id="overview-panel")
   end
 
   test "keeps saved setup visible when the connection test fails" do
@@ -394,7 +391,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ ~s(phx-value-event_key="event:simulated-reply")
     refute html =~ "phx-value-event-key"
     refute html =~ ~s(disabled="")
-    refute html =~ "Participation proposal"
+    refute html =~ ~s(id="overview-panel")
   end
 
   test "replaces the publish button with the saved publication link" do
@@ -827,12 +824,73 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       port: 4040,
       refreshed_at: "2026-10-05T12:00:00Z",
       refreshed_label: "12:00:00 UTC",
+      overview: overview_assigns(),
       operational_state: %{
         key: "safe",
         label: "Safe: writes off",
         effect: "Protocol effects are blocked. Review cycles can inspect and propose.",
         next: nil
       }
+    }
+  end
+
+  defp overview_assigns do
+    %{
+      autonomy: %{
+        mode: "observe",
+        label: "Observe",
+        state: "safe",
+        detail: "Collect activity and prepare local proposals. Protocol writes stay off."
+      },
+      connection: %{
+        connected?: true,
+        label: "Connected",
+        state: "healthy",
+        detail: "Signed in as @agentjido.test."
+      },
+      attention: [
+        %{
+          key: "effects",
+          label: "1 effect needs reconciliation",
+          detail: "Inspect reserved, uncertain, or failed effects before another write.",
+          state: "attention"
+        }
+      ],
+      schedule: %{
+        enabled?: true,
+        items: [
+          %{
+            key: "reactive",
+            label: "Inbox review",
+            cron: "*/15 * * * *",
+            next_at_iso8601: "2026-10-05T12:15:00Z",
+            relative: "in 15 min"
+          }
+        ]
+      },
+      budgets: [
+        %{
+          key: "replies",
+          label: "Replies and reposts",
+          used: 1,
+          limit: 3,
+          remaining: 2,
+          percent: 33
+        },
+        %{key: "posts", label: "Posts", used: 0, limit: 1, remaining: 1, percent: 0},
+        %{key: "welcomes", label: "Welcomes", used: 0, limit: 2, remaining: 2, percent: 0},
+        %{key: "follows", label: "Follows", used: 0, limit: 5, remaining: 5, percent: 0},
+        %{key: "likes", label: "Likes", used: 0, limit: 5, remaining: 5, percent: 0}
+      ],
+      recent_actions: [
+        %{
+          type: "decision",
+          label: "Reply",
+          status: "proposed",
+          detail: "Direct technical question",
+          at: "2026-10-05T12:00:00Z"
+        }
+      ]
     }
   end
 
