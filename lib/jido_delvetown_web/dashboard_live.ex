@@ -15,6 +15,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
       snapshot()
       |> Map.put(:active_tab, active_tab(params))
       |> Map.put(:publish_notice, nil)
+      |> Map.put(:like_publish_notice, nil)
       |> Map.put(:image_publish_notice, nil)
 
     {:ok, assign(socket, assigns)}
@@ -46,6 +47,28 @@ defmodule JidoDelvetownWeb.DashboardLive do
      |> assign(snapshot())
      |> assign(:active_tab, "simulated-posts")
      |> assign(:publish_notice, notice)}
+  end
+
+  @impl true
+  def handle_event("publish_simulated_like", %{"event_key" => event_key}, socket) do
+    notice =
+      case publisher().publish(event_key) do
+        {:ok, publication} ->
+          %{
+            kind: "safe",
+            text: "The like was published to DelveTown.",
+            uri: map_value(publication, :target_uri)
+          }
+
+        {:error, reason} ->
+          %{kind: "attention", text: like_publish_error(reason), uri: nil}
+      end
+
+    {:noreply,
+     socket
+     |> assign(snapshot())
+     |> assign(:active_tab, "simulated-posts")
+     |> assign(:like_publish_notice, notice)}
   end
 
   @impl true
@@ -1583,8 +1606,8 @@ defmodule JidoDelvetownWeb.DashboardLive do
         <p class="simulated-intro">
           These items were selected by the agent during review or dry-run cycles. They were stored
           locally and were not sent to DelveTown. Like proposals stay separate because they have no
-          generated text body. A publish button sends only a selected text draft. Scheduled agent
-          writes stay off. This list refreshes every 3 seconds.
+          generated text body. A confirmed publish button sends only the selected item. Scheduled
+          agent writes stay off. This list refreshes every 3 seconds.
         </p>
 
         <p
@@ -1608,6 +1631,22 @@ defmodule JidoDelvetownWeb.DashboardLive do
             <h3 id="like-heading">Like proposals</h3>
             <span class="count">{length(inspection_list(@inspection, [:like_proposals]))}</span>
           </div>
+
+          <p
+            :if={@like_publish_notice}
+            class={"publish-notice #{map_value(@like_publish_notice, :kind)}"}
+            role="status"
+          >
+            {map_value(@like_publish_notice, :text)}
+            <a
+              :if={post_url(map_value(@like_publish_notice, :uri))}
+              href={post_url(map_value(@like_publish_notice, :uri))}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View target post ↗
+            </a>
+          </p>
 
           <p :if={inspection_list(@inspection, [:like_proposals]) == []} class="empty">
             No like proposals yet. A selected timeline post will appear here after the next review.
@@ -1651,6 +1690,19 @@ defmodule JidoDelvetownWeb.DashboardLive do
                 >
                   View target post ↗
                 </a>
+                <span :if={like_published?(proposal)} class="published-state">Published</span>
+                <button
+                  :if={like_publishable?(proposal)}
+                  type="button"
+                  class="publish-button"
+                  phx-click="publish_simulated_like"
+                  phx-value-event_key={map_value(proposal, :event_key)}
+                  phx-disable-with="Publishing…"
+                  data-confirm="Publish this exact like to DelveTown?"
+                  disabled={not @manual_publish_enabled}
+                >
+                  Publish like to DelveTown
+                </button>
               </div>
             </li>
           </ol>
@@ -2024,6 +2076,14 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp like_state_class("published"), do: "safe"
   defp like_state_class(_state), do: "idle"
 
+  defp like_published?(proposal),
+    do: map_value(proposal, :publication_state) == "published"
+
+  defp like_publishable?(proposal) do
+    map_value(proposal, :proposal_status) == "simulated" and
+      map_value(proposal, :event_state) == "completed" and not like_published?(proposal)
+  end
+
   defp published?(post), do: map_value(post, :published_status) == "completed"
 
   defp published_post_url(post, status) do
@@ -2038,6 +2098,27 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp publish_error(:invalid_draft_text), do: "The saved draft text is not valid."
   defp publish_error(:missing_reply_target), do: "The reply target could not be loaded."
   defp publish_error(_reason), do: "DelveTown did not accept the draft. Check the local logs."
+
+  defp like_publish_error(:manual_publish_disabled),
+    do: "Manual publishing is off. Set DELVETOWN_MANUAL_PUBLISH_ENABLED=true and restart."
+
+  defp like_publish_error(:not_found), do: "The saved simulated like was not found."
+  defp like_publish_error(:not_simulated), do: "This item is not a simulated like."
+
+  defp like_publish_error(reason)
+       when reason in [
+              :missing_like_target,
+              :like_target_mismatch,
+              :like_target_changed,
+              :like_target_unavailable
+            ],
+       do: "The target post changed or is no longer available. No like was sent."
+
+  defp like_publish_error({:like_not_eligible, reason}),
+    do: "The like is no longer eligible: #{state_label(reason)}. No like was sent."
+
+  defp like_publish_error(_reason),
+    do: "DelveTown did not accept the like. Check the local logs."
 
   defp image_publish_error(:manual_publish_disabled),
     do: "Manual publishing is off. Set DELVETOWN_MANUAL_PUBLISH_ENABLED=true and restart."

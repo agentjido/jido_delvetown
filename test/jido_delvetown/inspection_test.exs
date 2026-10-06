@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.InspectionTest do
   use ExUnit.Case, async: false
 
-  alias JidoDelvetown.{ImageDrafts, Inspection, Repo}
+  alias JidoDelvetown.{ImageDrafts, Inspection, InteractionLedger, Repo}
   alias JidoDelvetown.Workers.ProactiveReviewWorker
 
   alias JidoDelvetown.Storage.{
@@ -216,6 +216,21 @@ defmodule JidoDelvetown.InspectionTest do
 
     refute inspect(snapshot.like_proposals) =~ "hidden model trace"
     refute inspect(snapshot.like_proposals) =~ "private failure detail"
+
+    assert {:ok, _event} =
+             InteractionLedger.record_manual_publication("like:duplicate-simulated", %{
+               status: "completed",
+               published_at: "2026-10-05T11:02:00Z",
+               uri: "at://did:plc:bot/town.delve.feed.like/published",
+               effect_key: "like:durable"
+             })
+
+    [published | _rest] = Inspection.snapshot(simulated_limit: 10).like_proposals
+    assert published.target_uri == target_one.target_uri
+    assert published.publication_state == "published"
+    assert published.published_at == "2026-10-05T11:02:00Z"
+    assert published.published_uri == "at://did:plc:bot/town.delve.feed.like/published"
+    assert published.publication_effect_key == "like:durable"
   end
 
   test "active memory exposes bounded actor, conversation, scan, and receipt fields" do

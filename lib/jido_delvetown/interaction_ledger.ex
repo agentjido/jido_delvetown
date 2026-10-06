@@ -281,6 +281,7 @@ defmodule JidoDelvetown.InteractionLedger do
   def outreach_count(kind, since, opts \\ [])
       when is_binary(kind) and is_struct(since, DateTime) do
     repo = repo(opts)
+    excluded_event_key = Keyword.get(opts, :exclude_event_key)
 
     effects =
       repo.aggregate(
@@ -293,24 +294,27 @@ defmodule JidoDelvetown.InteractionLedger do
         :operation_key
       )
 
-    simulations =
-      repo.aggregate(
-        from(event in InteractionEvent,
-          where:
-            event.state == "completed" and event.terminal_at >= ^since and
-              fragment("json_extract(?, '$.cycle_status')", event.payload) == "simulated" and
-              fragment("json_extract(?, '$.action')", event.payload) == ^kind
-        ),
-        :count,
-        :event_key
+    simulation_query =
+      from(event in InteractionEvent,
+        where:
+          event.state == "completed" and event.terminal_at >= ^since and
+            fragment("json_extract(?, '$.cycle_status')", event.payload) == "simulated" and
+            fragment("json_extract(?, '$.action')", event.payload) == ^kind and
+            fragment(
+              "coalesce(json_extract(?, '$.manual_publication.status'), '') != 'completed'",
+              event.payload
+            )
       )
+
+    simulation_query = exclude_event(simulation_query, excluded_event_key)
+    simulations = repo.aggregate(simulation_query, :count, :event_key)
 
     effects + simulations
   end
 
   def recent_outreach_for_actor?(kind, actor_did, since, opts \\ [])
       when is_binary(kind) and is_binary(actor_did) and is_struct(since, DateTime) do
-    repo(opts).exists?(
+    query =
       from(event in InteractionEvent,
         where:
           event.actor_did == ^actor_did and event.state == "completed" and
@@ -321,8 +325,15 @@ defmodule JidoDelvetown.InteractionLedger do
               "simulated"
             ]
       )
-    )
+
+    query = exclude_event(query, Keyword.get(opts, :exclude_event_key))
+    repo(opts).exists?(query)
   end
+
+  defp exclude_event(query, event_key) when is_binary(event_key) and event_key != "",
+    do: from(event in query, where: event.event_key != ^event_key)
+
+  defp exclude_event(query, _event_key), do: query
 
   defp finish_candidate(_event_key, %{status: "proposed"}), do: {:ok, :pending}
 

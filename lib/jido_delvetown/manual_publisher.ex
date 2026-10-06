@@ -1,18 +1,28 @@
 defmodule JidoDelvetown.ManualPublisher do
   @moduledoc "Publishes one selected simulated draft under a separate manual write guard."
 
-  alias JidoDelvetown.{Candidate, Config, InteractionLedger, Protocol, Store, WelcomePost}
+  alias JidoDelvetown.{
+    Candidate,
+    Config,
+    InteractionLedger,
+    OutgoingLikePolicy,
+    Protocol,
+    Store,
+    WelcomePost
+  }
+
   alias JidoDelvetown.Storage.InteractionEvent
 
   @post_collection "town.delve.feed.post"
-  @supported_actions ["post", "reply", "welcome"]
+  @like_collection "town.delve.feed.like"
+  @supported_actions ["like", "post", "reply", "welcome"]
 
   def publish(event_key) when is_binary(event_key) and event_key != "" do
     with :ok <- enabled(),
          %InteractionEvent{} = event <- InteractionLedger.event(event_key),
          :ok <- publishable(event),
          {:ok, result, effect_key} <- publish_event(event),
-         publication = publication_details(result, effect_key),
+         publication = event |> publication_details(result, effect_key),
          {:ok, _event} <- InteractionLedger.record_manual_publication(event_key, publication) do
       _result =
         Store.add_event(:manual_publish, %{
@@ -41,10 +51,17 @@ defmodule JidoDelvetown.ManualPublisher do
     action = value(payload, :action)
 
     cond do
-      value(payload, :cycle_status) != "simulated" -> {:error, :not_simulated}
-      action not in @supported_actions -> {:error, :unsupported_action}
-      not valid_text?(value(payload, :text)) -> {:error, :invalid_draft_text}
-      true -> :ok
+      value(payload, :cycle_status) != "simulated" ->
+        {:error, :not_simulated}
+
+      action not in @supported_actions ->
+        {:error, :unsupported_action}
+
+      action != "like" and not valid_text?(value(payload, :text)) ->
+        {:error, :invalid_draft_text}
+
+      true ->
+        :ok
     end
   end
 
@@ -53,11 +70,104 @@ defmodule JidoDelvetown.ManualPublisher do
 
   defp publish_event(%InteractionEvent{payload: payload} = event) do
     case value(payload, :action) do
+      "like" -> publish_like(event)
       "reply" -> publish_reply(event)
       "post" -> publish_post(event)
       "welcome" -> publish_welcome(event)
     end
   end
+
+  defp publish_like(%InteractionEvent{} = event) do
+    with {:ok, target} <- saved_like_target(event),
+         {:ok, candidate} <- fetch_like_candidate(target.uri),
+         :ok <- validate_live_like_target(candidate, target, event.actor_did),
+         effect_key = Protocol.effect_key("like", [target.uri]),
+         {:ok, result} <- publish_like_candidate(event, candidate, target, effect_key) do
+      {:ok, result, effect_key}
+    end
+  end
+
+  defp publish_like_candidate(event, candidate, target, effect_key) do
+    case Store.effect(effect_key) do
+      nil ->
+        with :ok <- current_like_eligibility(candidate, event.event_key) do
+          create_manual_like(event, target, effect_key)
+        end
+
+      effect ->
+        with :ok <- validate_existing_like_effect(effect, target.uri) do
+          create_manual_like(event, target, effect_key)
+        end
+    end
+  end
+
+  defp create_manual_like(event, target, effect_key) do
+    Protocol.create_manual_record(
+      effect_key,
+      @like_collection,
+      %{
+        subject: %{uri: target.uri, cid: target.cid},
+        created_at: Protocol.now()
+      },
+      subject_key: target.uri,
+      actor_did: event.actor_did
+    )
+  end
+
+  defp saved_like_target(%InteractionEvent{} = event) do
+    target = value(event.payload, :publication_target, %{})
+    uri = value(target, :uri)
+    cid = value(target, :cid)
+
+    cond do
+      not valid_post_uri?(uri) or not present?(cid) -> {:error, :missing_like_target}
+      event.record_uri != uri -> {:error, :like_target_mismatch}
+      true -> {:ok, %{uri: uri, cid: cid}}
+    end
+  end
+
+  defp fetch_like_candidate(uri) do
+    with {:ok, response} <-
+           Protocol.query("town.delve.feed.getPostThread", %{
+             uri: uri,
+             depth: 0,
+             parent_height: 0
+           }),
+         %{post: candidate} <- Candidate.thread(response) do
+      {:ok, Map.put(candidate, :memory, InteractionLedger.context_for(candidate))}
+    else
+      {:error, _reason} = error -> error
+      _invalid -> {:error, :like_target_unavailable}
+    end
+  end
+
+  defp validate_live_like_target(candidate, target, actor_did) do
+    cond do
+      candidate.uri != target.uri -> {:error, :like_target_mismatch}
+      candidate.cid != target.cid -> {:error, :like_target_changed}
+      get_in(candidate, [:author, :did]) != actor_did -> {:error, :like_target_changed}
+      true -> :ok
+    end
+  end
+
+  defp current_like_eligibility(candidate, event_key) do
+    case OutgoingLikePolicy.evaluate(candidate, %{},
+           exclude_event_key: event_key,
+           local_effect?: false
+         ) do
+      :ok -> :ok
+      {:skip, reason} -> {:error, {:like_not_eligible, reason}}
+    end
+  end
+
+  defp validate_existing_like_effect(
+         %{collection: @like_collection, subject_key: subject_key},
+         subject_key
+       ),
+       do: :ok
+
+  defp validate_existing_like_effect(_effect, _subject_key),
+    do: {:error, :like_effect_mismatch}
 
   defp publish_reply(%InteractionEvent{} = event) do
     with {:ok, target} <- reply_target(event),
@@ -197,18 +307,40 @@ defmodule JidoDelvetown.ManualPublisher do
 
   defp validate_reply_target(_target), do: {:error, :missing_reply_target}
 
-  defp publication_details(result, effect_key) do
+  defp publication_details(event, result, effect_key) do
     receipt = result.receipt || %{}
 
-    %{
+    publication = %{
       status: "completed",
       published_at: Protocol.now(),
       uri: value(receipt, :uri),
       cid: value(receipt, :cid),
       effect_key: effect_key,
-      reused?: result.reused?
+      reused?: result.reused?,
+      reconciled?: Map.get(result, :reconciled?, false)
     }
+
+    maybe_add_like_target(publication, event)
   end
+
+  defp maybe_add_like_target(publication, %InteractionEvent{payload: payload}) do
+    if value(payload, :action) == "like" do
+      target = value(payload, :publication_target, %{})
+
+      publication
+      |> Map.put(:target_uri, value(target, :uri))
+      |> Map.put(:target_cid, value(target, :cid))
+    else
+      publication
+    end
+  end
+
+  defp valid_post_uri?(uri) when is_binary(uri),
+    do: Regex.match?(~r/\Aat:\/\/[^\/\s]+\/town\.delve\.feed\.post\/[^\/\s]+\z/, uri)
+
+  defp valid_post_uri?(_uri), do: false
+
+  defp present?(value), do: is_binary(value) and value != ""
 
   defp valid_text?(text), do: is_binary(text) and String.length(text) in 1..300
 

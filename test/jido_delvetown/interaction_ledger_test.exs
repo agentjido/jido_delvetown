@@ -240,10 +240,19 @@ defmodule JidoDelvetown.InteractionLedgerTest do
     }
 
     assert :ok = Ledger.record_cycle(cycle, %{action: "like"}, DateTime.to_iso8601(now))
+    event = Repo.get_by!(InteractionEvent, record_uri: cycle.candidate.uri)
+
     assert Ledger.outreach_count("like", since) == 1
     assert Ledger.recent_outreach_for_actor?("like", actor_did, since)
+    assert Ledger.outreach_count("like", since, exclude_event_key: event.event_key) == 0
 
-    event = Repo.get_by!(InteractionEvent, record_uri: cycle.candidate.uri)
+    refute Ledger.recent_outreach_for_actor?(
+             "like",
+             actor_did,
+             since,
+             exclude_event_key: event.event_key
+           )
+
     assert event.payload["like_review"]["author"]["handle"] == "liked-author.test"
     assert String.length(event.payload["like_review"]["post_text"]) == 500
     assert event.payload["like_review"]["selected_at"] == DateTime.to_iso8601(now)

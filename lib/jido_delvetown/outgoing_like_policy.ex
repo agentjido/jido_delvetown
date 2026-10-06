@@ -139,7 +139,7 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     count =
       case Keyword.fetch(opts, :daily_like_count) do
         {:ok, value} -> value
-        :error -> daily_like_count(state, now)
+        :error -> daily_like_count(state, now, opts)
       end
 
     if is_integer(count) and count < Config.daily_like_limit(),
@@ -151,24 +151,38 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     in_cooldown? =
       case Keyword.fetch(opts, :actor_in_cooldown?) do
         {:ok, value} -> value
-        :error -> actor_in_cooldown?(get_in(candidate, [:author, :did]), now)
+        :error -> actor_in_cooldown?(get_in(candidate, [:author, :did]), now, opts)
       end
 
     if in_cooldown?, do: {:skip, "actor_like_cooldown"}, else: :ok
   end
 
-  defp daily_like_count(state, now) do
+  defp daily_like_count(state, now, opts) do
     state_count = get_in(state, [:budget, :likes]) || 0
     start_of_day = DateTime.new!(DateTime.to_date(now), ~T[00:00:00], "Etc/UTC")
-    max(state_count, InteractionLedger.outreach_count("like", start_of_day))
+
+    ledger_count =
+      InteractionLedger.outreach_count(
+        "like",
+        start_of_day,
+        exclude_event_key: Keyword.get(opts, :exclude_event_key)
+      )
+
+    max(state_count, ledger_count)
   end
 
-  defp actor_in_cooldown?(did, now) when is_binary(did) do
+  defp actor_in_cooldown?(did, now, opts) when is_binary(did) do
     since = DateTime.add(now, -Config.like_actor_cooldown_hours(), :hour)
-    InteractionLedger.recent_outreach_for_actor?("like", did, since)
+
+    InteractionLedger.recent_outreach_for_actor?(
+      "like",
+      did,
+      since,
+      exclude_event_key: Keyword.get(opts, :exclude_event_key)
+    )
   end
 
-  defp actor_in_cooldown?(_did, _now), do: true
+  defp actor_in_cooldown?(_did, _now, _opts), do: true
 
   defp local_like_effect?(uri) when is_binary(uri) do
     case Repo.get(Effect, Protocol.effect_key("like", [uri])) do

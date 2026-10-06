@@ -203,6 +203,11 @@ defmodule JidoDelvetown.Inspection do
             fragment("json_extract(?, '$.like_review.budget.remaining')", event.payload),
           published_status:
             fragment("json_extract(?, '$.manual_publication.status')", event.payload),
+          published_at:
+            fragment("json_extract(?, '$.manual_publication.published_at')", event.payload),
+          published_uri: fragment("json_extract(?, '$.manual_publication.uri')", event.payload),
+          publication_effect_key:
+            fragment("json_extract(?, '$.manual_publication.effect_key')", event.payload),
           occurred_at: event.occurred_at,
           terminal_at: event.terminal_at
         }
@@ -229,6 +234,9 @@ defmodule JidoDelvetown.Inspection do
       selection_reason: row.selection_reason,
       policy_score: row.policy_score,
       selected_at: row.selected_at || iso8601(row.terminal_at) || iso8601(row.occurred_at),
+      published_at: row.published_at,
+      published_uri: row.published_uri,
+      publication_effect_key: row.publication_effect_key,
       budget: %{
         date: row.budget_date,
         likes: row.budget_likes,
@@ -240,6 +248,7 @@ defmodule JidoDelvetown.Inspection do
 
   defp like_publication_state(%{event_state: "failed"}), do: "failed"
   defp like_publication_state(%{event_state: "ignored"}), do: "ignored"
+  defp like_publication_state(%{published_status: "completed"}), do: "published"
 
   defp like_publication_state(%{published_status: status})
        when is_binary(status) and status != "",

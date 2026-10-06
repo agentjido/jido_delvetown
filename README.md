@@ -244,7 +244,10 @@ successful publication stores its receipt in SQLite and replaces the button
 with a link to the published post. The same tab shows like proposals in a
 separate review list. Each like item includes bounded target text, author,
 selection score and reason, daily budget state, and proposal or terminal state.
-This view does not publish a like.
+An eligible simulated like has a confirmed publish button when
+`DELVETOWN_MANUAL_PUBLISH_ENABLED=true`. The action reloads the live target,
+rechecks its URI, CID, and eligibility, and uses the durable like effect before
+it sends one write. Scheduled writes remain off.
 
 The link bar opens the public AgentJido profile, the current proposal target,
 and the last published reply when a write receipt is available.

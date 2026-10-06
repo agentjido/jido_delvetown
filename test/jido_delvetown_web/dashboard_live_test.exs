@@ -239,6 +239,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assigns =
       base_assigns()
       |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :like_proposals], [
         %{
           event_key: "like:simulated",
@@ -284,9 +285,41 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "2026-10-05T11:00:00Z"
     assert html =~ "View target post"
     assert html =~ "/profile/did%3Aplc%3Aauthor/post/target-one"
+    assert html =~ "Publish like to DelveTown"
+    assert html =~ ~s(phx-click="publish_simulated_like")
+    assert html =~ ~s(phx-value-event_key="like:simulated")
+    assert html =~ "Publish this exact like to DelveTown?"
     assert html =~ "Failed"
     assert html =~ "Target post text was not stored for this older proposal."
-    refute html =~ "Publish this exact like"
+    refute html =~ ~s(phx-value-event_key="like:failed")
+  end
+
+  test "shows a durable published like state without another publish button" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:manual_publish_enabled, true)
+      |> put_in([:inspection, :like_proposals], [
+        %{
+          event_key: "like:published",
+          event_state: "completed",
+          proposal_status: "simulated",
+          publication_state: "published",
+          target_uri: "at://did:plc:author/town.delve.feed.post/target-one",
+          target_author: %{did: "did:plc:author", handle: "author.test"},
+          post_text: "A durable target.",
+          selection_reason: "useful discussion",
+          selected_at: "2026-10-05T11:00:00Z",
+          published_at: "2026-10-05T11:02:00Z",
+          budget: %{}
+        }
+      ])
+
+    html = render_dashboard(assigns)
+
+    assert html =~ "Published"
+    assert html =~ "View target post"
+    refute html =~ "Publish like to DelveTown"
   end
 
   test "shows local image previews and a confirmed manual publish action" do
@@ -582,6 +615,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       proactive_review: review_feedback(:idle),
       manual_publish_enabled: false,
       publish_notice: nil,
+      like_publish_notice: nil,
       image_publish_notice: nil,
       character: %{
         name: "AgentJido",
