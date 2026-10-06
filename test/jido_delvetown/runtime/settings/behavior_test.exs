@@ -4,7 +4,7 @@ defmodule JidoDelvetown.Settings.BehaviorTest do
   alias JidoDelvetown.Settings
   alias JidoDelvetown.Settings.{Behavior, Bootstrap}
 
-  test "reads behavior and conversation policy from SQLite settings" do
+  test "reads behavior policy from SQLite settings" do
     scope = bootstrap_scope()
 
     refute Behavior.writes_enabled?(scope: scope)
@@ -13,9 +13,6 @@ defmodule JidoDelvetown.Settings.BehaviorTest do
     assert {:ok, 45_000} = Behavior.decision_timeout(scope: scope)
     assert Behavior.action_enabled?("reply", scope: scope)
     assert Behavior.action_enabled?("skip", scope: scope)
-
-    assert {:ok, %{turn_limit: 4, max_age_hours: 72, non_response_limit: 2}} =
-             Behavior.conversation_policy(scope: scope)
 
     assert {:ok, _updated} =
              Settings.update(
@@ -26,10 +23,7 @@ defmodule JidoDelvetown.Settings.BehaviorTest do
                  enabled_actions: ["like"],
                  manual_publish_enabled: true,
                  dry_run_mark_actioned: true,
-                 mark_notifications_seen: true,
-                 conversation_turn_limit: 8,
-                 conversation_max_age_hours: 24,
-                 conversation_non_response_limit: 3
+                 mark_notifications_seen: true
                },
                scope: scope,
                confirmed: [:autonomy_mode, :mark_notifications_seen]
@@ -45,9 +39,6 @@ defmodule JidoDelvetown.Settings.BehaviorTest do
 
     assert {:ok, ["like", "skip"]} =
              Behavior.filter_enabled_actions(["reply", "like", "skip"], scope: scope)
-
-    assert {:ok, %{turn_limit: 8, max_age_hours: 24, non_response_limit: 3}} =
-             Behavior.conversation_policy(scope: scope)
   end
 
   test "converts OpenAI model names to the ReqLLM model input" do

@@ -1,16 +1,17 @@
 defmodule JidoDelvetown.FriendSync do
   @moduledoc "Reads the account's follow collection into durable local friend memory."
 
-  alias JidoDelvetown.{Config, FriendList, Protocol}
+  alias JidoDelvetown.{FriendList, Protocol}
+  alias JidoDelvetown.Settings.Limits
 
   @follow_collection "town.delve.graph.follow"
   @page_limit 100
 
   def sync(opts \\ []) do
     source = Keyword.get(opts, :source, Protocol)
-    max_records = Keyword.get(opts, :max_records, Config.friend_sync_limit())
 
-    with {:ok, page_result} <- fetch_follow_records(source, max_records),
+    with {:ok, max_records} <- max_records(opts),
+         {:ok, page_result} <- fetch_follow_records(source, max_records),
          {:ok, dids} <- follow_dids(page_result.records),
          {actors, profile_errors} <- fetch_profiles(source, dids),
          {:ok, saved} <- FriendList.sync_following(actors) do
@@ -20,6 +21,13 @@ defmodule JidoDelvetown.FriendSync do
          records: length(page_result.records),
          profile_errors: profile_errors
        })}
+    end
+  end
+
+  defp max_records(opts) do
+    case Keyword.fetch(opts, :max_records) do
+      {:ok, max_records} -> {:ok, max_records}
+      :error -> Limits.fetch(:friend_sync_limit)
     end
   end
 

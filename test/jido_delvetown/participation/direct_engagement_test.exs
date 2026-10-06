@@ -18,17 +18,17 @@ defmodule JidoDelvetown.DirectEngagementTest do
     ]
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
-    old_limit = System.get_env("DELVETOWN_DAILY_REPLY_LIMIT")
-
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
 
     restore_settings =
-      RuntimeSettings.preserve!(autonomy_mode: "observe", dry_run_mark_actioned: false)
-
-    System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "3")
+      RuntimeSettings.preserve!(
+        autonomy_mode: "observe",
+        dry_run_mark_actioned: false,
+        daily_reply_limit: 3
+      )
 
     on_exit(fn ->
       Enum.each(previous, fn
@@ -37,7 +37,6 @@ defmodule JidoDelvetown.DirectEngagementTest do
       end)
 
       restore_settings.()
-      restore_env("DELVETOWN_DAILY_REPLY_LIMIT", old_limit)
     end)
 
     :ok
@@ -151,7 +150,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
   end
 
   test "the daily limit leaves a direct event pending for a later cycle" do
-    System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "0")
+    RuntimeSettings.update!(daily_reply_limit: 0)
     notification = notification("limited-1", "reply", "Can you explain this limit?")
     configure_reactive(notification)
 
@@ -263,7 +262,4 @@ defmodule JidoDelvetown.DirectEngagementTest do
   end
 
   defp root_uri, do: "at://did:plc:root/town.delve.feed.post/root"
-
-  defp restore_env(name, nil), do: System.delete_env(name)
-  defp restore_env(name, value), do: System.put_env(name, value)
 end

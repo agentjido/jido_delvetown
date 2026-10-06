@@ -5,12 +5,6 @@ defmodule JidoDelvetown.Settings.Behavior do
 
   @control_actions ~w(acknowledge skip)
 
-  @type conversation_policy :: %{
-          turn_limit: pos_integer(),
-          max_age_hours: pos_integer(),
-          non_response_limit: pos_integer()
-        }
-
   @spec decision_model(keyword()) :: {:ok, String.t()} | {:error, term()}
   def decision_model(opts \\ []), do: value(:decision_model, opts)
 
@@ -79,18 +73,6 @@ defmodule JidoDelvetown.Settings.Behavior do
   def filter_enabled_actions(actions, opts \\ []) when is_list(actions) do
     with {:ok, enabled} <- enabled_actions(opts) do
       {:ok, Enum.filter(actions, &(&1 in @control_actions or &1 in enabled))}
-    end
-  end
-
-  @spec conversation_policy(keyword()) :: {:ok, conversation_policy()} | {:error, term()}
-  def conversation_policy(opts \\ []) do
-    with {:ok, settings} <- Settings.current(opts) do
-      {:ok,
-       %{
-         turn_limit: settings.values.conversation_turn_limit,
-         max_age_hours: settings.values.conversation_max_age_hours,
-         non_response_limit: settings.values.conversation_non_response_limit
-       }}
     end
   end
 

@@ -41,13 +41,6 @@ Set the temporary account variables and the remaining process settings:
 export DELVETOWN_IDENTIFIER="bot-handle-or-email"
 export DELVETOWN_APP_PASSWORD="app-password"
 export OPENAI_API_KEY="provider-key"
-export DELVETOWN_DAILY_REPLY_LIMIT="3"
-export DELVETOWN_DAILY_LIKE_LIMIT="5"
-export DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS="24"
-export DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS="48"
-export DELVETOWN_DAILY_WELCOME_LIMIT="2"
-export DELVETOWN_MEMBER_MAX_AGE_HOURS="24"
-export DELVETOWN_FRIEND_SYNC_LIMIT="1000"
 export DELVETOWN_DATA_DIR="./tmp/jido_delvetown"
 ```
 
@@ -112,6 +105,17 @@ JidoDelvetown.Settings.update(
     decision_model: "openai:gpt-4o-mini",
     decision_timeout_ms: 45_000,
     enabled_actions: ~w(reply like repost post follow welcome),
+    notification_limit: 20,
+    daily_reply_limit: 3,
+    daily_post_limit: 1,
+    daily_welcome_limit: 2,
+    daily_follow_limit: 5,
+    daily_like_limit: 5,
+    like_actor_cooldown_hours: 24,
+    like_candidate_max_age_hours: 48,
+    member_discovery_limit: 20,
+    member_max_age_hours: 24,
+    friend_sync_limit: 1_000,
     conversation_turn_limit: 4,
     conversation_max_age_hours: 72,
     conversation_non_response_limit: 2
@@ -420,7 +424,7 @@ later sync does not add that account again.
 
 The sync is read-only on DelveTown. It writes only to local SQLite. It stops
 without reconciliation if pagination is incomplete or exceeds
-`DELVETOWN_FRIEND_SYNC_LIMIT`. A temporary profile lookup failure still saves
+the stored `friend_sync_limit`. A temporary profile lookup failure still saves
 the stable DID, and a later hourly sync can add the current handle.
 
 The decision model receives at most 12 friends. It receives only public identity,

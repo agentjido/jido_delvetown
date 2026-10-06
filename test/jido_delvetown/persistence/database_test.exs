@@ -41,21 +41,18 @@ defmodule JidoDelvetown.DatabaseTest do
     settings = Repo.get!(Settings, Bootstrap.active_scope())
 
     assert settings.schema_version == Contract.schema_version()
-    assert settings.version == 1
-    assert settings.values["autonomy_mode"] == "observe"
-    refute settings.values["manual_publish_enabled"]
-    refute settings.values["mark_notifications_seen"]
 
-    assert [revision] =
-             Repo.all(
-               from(revision in SettingsRevision,
-                 where: revision.settings_scope == ^settings.scope
-               )
-             )
+    revision =
+      Repo.one!(
+        from(revision in SettingsRevision,
+          where: revision.settings_scope == ^settings.scope and revision.version == 1
+        )
+      )
 
-    assert revision.version == settings.version
-    assert revision.schema_version == settings.schema_version
-    assert revision.values == settings.values
+    assert revision.schema_version == Contract.schema_version()
+    assert revision.values["autonomy_mode"] == "observe"
+    refute revision.values["manual_publish_enabled"]
+    refute revision.values["mark_notifications_seen"]
     assert revision.source == "bootstrap"
   end
 

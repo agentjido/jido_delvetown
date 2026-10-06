@@ -8,7 +8,6 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   alias JidoDelvetown.{
     ActorMemory,
     Candidate,
-    Config,
     ConversationMemory,
     ConversationPolicy,
     EngagementRanker,
@@ -23,7 +22,6 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   @direct_reasons ["mention", "reply"]
   @deferred_reasons ["follow"]
-  @post_limit 1
   @actions %{
     "answer_direct_request" => ["reply", "skip"],
     "continue_conversation" => ["reply", "skip"],
@@ -40,16 +38,17 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   def run(%{cycle: %{kind: "reactive"} = cycle}, _context) do
     state = remember_ignored_notifications(cycle.state, cycle.notifications)
     cycle = Map.put(cycle, :state, state)
+    limits = cycle.limits
 
     direct =
       cycle.notifications
       |> Enum.filter(&direct_candidate?(&1, state))
-      |> rank(:direct, state)
+      |> rank(:direct, state, limits)
 
     follow =
       cycle.notifications
       |> Enum.filter(&follow_candidate?(&1, state))
-      |> rank(:follow, state)
+      |> rank(:follow, state, limits)
 
     follow_up = ConversationPolicy.evaluate(direct)
 
@@ -58,7 +57,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
         candidate = Map.put(direct, :opt_out?, OptOut.requested?(direct.text))
         {:ok, select(cycle, "skip", candidate, "actor_opt_out")}
 
-      direct && state.budget.replies >= Config.daily_reply_limit() ->
+      direct && state.budget.replies >= limits.daily_reply_limit ->
         {:ok, select(cycle, "skip", direct, "reply_budget_exhausted", true)}
 
       direct && match?({:skip, _reason}, follow_up) ->
@@ -81,7 +80,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
         {:ok, select(cycle, "skip", follow, "follow_actor_already_contacted")}
 
       follow ->
-        {:ok, select(cycle, "respond_to_new_follow", follow)}
+        selected = select(cycle, "respond_to_new_follow", follow)
+        {:ok, Map.put(selected, :allowed_actions, follow_actions(state, limits))}
 
       true ->
         {:ok, select(cycle, "skip", nil, "no_direct_request")}
@@ -98,23 +98,25 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   def allowed_actions(intent), do: Map.fetch(@actions, intent)
 
   defp select_proactive(cycle) do
+    limits = cycle.limits
+
     evaluated_posts =
       cycle.recent_posts
       |> Enum.map(&add_memory/1)
-      |> Enum.map(&attach_like_eligibility(&1, cycle.state))
+      |> Enum.map(&attach_like_eligibility(&1, cycle.state, limits))
 
     posts = Enum.filter(evaluated_posts, &like_eligible?/1)
 
     discussion =
       posts
       |> Enum.filter(&Candidate.question?/1)
-      |> rank(:useful_discussion, cycle.state)
+      |> rank(:useful_discussion, cycle.state, limits)
 
     rejected_discussion =
       evaluated_posts
       |> Enum.reject(&like_eligible?/1)
       |> Enum.filter(&Candidate.question?/1)
-      |> rank(:useful_discussion, cycle.state)
+      |> rank(:useful_discussion, cycle.state, limits)
 
     cond do
       InteractionEvents.pending?(@direct_reasons) ->
@@ -125,7 +127,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
           %{cycle | recent_posts: posts},
           "join_useful_discussion",
           discussion,
-          discussion_actions(cycle.state)
+          discussion_actions(cycle.state, limits)
         )
 
       rejected_discussion ->
@@ -140,7 +142,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
            OutgoingLikePolicy.temporary_reason?(reason)
          )}
 
-      daily_note_due?(cycle.state) ->
+      daily_note_due?(cycle.state, limits) ->
         candidate =
           %{
             id: "daily:#{cycle.state.budget.date}",
@@ -150,7 +152,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
             author: %{},
             text: ""
           }
-          |> then(&EngagementRanker.best([&1], :original_post, cycle.state))
+          |> then(&EngagementRanker.best([&1], :original_post, cycle.state, limits: limits))
 
         {:ok, select(%{cycle | recent_posts: posts}, "publish_daily_note", candidate)}
 
@@ -160,10 +162,12 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   end
 
   defp select_member(cycle) do
+    limits = cycle.limits
+
     candidate =
       cycle.members
       |> Enum.filter(&InteractionEvents.processable?(&1.event_key))
-      |> rank(:new_member, cycle.state)
+      |> rank(:new_member, cycle.state, limits)
 
     cond do
       is_nil(candidate) ->
@@ -175,7 +179,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       not valid_member_context?(candidate) ->
         {:ok, select(cycle, "skip", candidate, "insufficient_member_context")}
 
-      member_too_old?(candidate) ->
+      member_too_old?(candidate, limits) ->
         {:ok, select(cycle, "skip", candidate, "member_too_old")}
 
       opt_out?(candidate) ->
@@ -187,7 +191,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       InteractionEvents.pending?(@direct_reasons) ->
         {:ok, select(cycle, "skip", candidate, "direct_request_pending", true)}
 
-      welcome_budget_exhausted?() ->
+      welcome_budget_exhausted?(cycle.state, limits) ->
         {:ok, select(cycle, "skip", candidate, "welcome_budget_exhausted", true)}
 
       true ->
@@ -278,8 +282,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     }
   end
 
-  defp attach_like_eligibility(candidate, state) do
-    case OutgoingLikePolicy.evaluate(candidate, state) do
+  defp attach_like_eligibility(candidate, state, limits) do
+    case OutgoingLikePolicy.evaluate(candidate, state, limits: limits) do
       :ok ->
         Map.put(candidate, :like_eligibility, %{status: "eligible", reason: nil})
 
@@ -291,19 +295,35 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   defp like_eligible?(candidate),
     do: get_in(candidate, [:like_eligibility, :status]) == "eligible"
 
-  defp discussion_actions(state) do
-    if state.budget.replies < Config.daily_reply_limit(),
+  defp discussion_actions(state, limits) do
+    if state.budget.replies < limits.daily_reply_limit,
       do: Map.fetch!(@actions, "join_useful_discussion"),
       else: ["like", "skip"]
   end
 
+  defp follow_actions(state, limits) do
+    ["acknowledge"]
+    |> maybe_add_budgeted_action(
+      "follow",
+      Map.get(state.budget, :follows, 0) < limits.daily_follow_limit
+    )
+    |> maybe_add_budgeted_action(
+      "welcome",
+      Map.get(state.budget, :welcomes, 0) < limits.daily_welcome_limit
+    )
+    |> Kernel.++(["skip"])
+  end
+
+  defp maybe_add_budgeted_action(actions, action, true), do: actions ++ [action]
+  defp maybe_add_budgeted_action(actions, _action, false), do: actions
+
   defp maybe_put_allowed_actions(cycle, nil), do: cycle
   defp maybe_put_allowed_actions(cycle, actions), do: Map.put(cycle, :allowed_actions, actions)
 
-  defp rank(candidates, opportunity, state) do
+  defp rank(candidates, opportunity, state, limits) do
     candidates
     |> Enum.map(&add_memory/1)
-    |> EngagementRanker.best(opportunity, state)
+    |> EngagementRanker.best(opportunity, state, limits: limits)
   end
 
   defp selection(nil, reason), do: %{score: nil, factors: %{}, reason: reason}
@@ -343,22 +363,29 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     valid_actor?(candidate) and is_binary(get_in(candidate, [:author, :handle]))
   end
 
-  defp member_too_old?(%{indexed_at: indexed_at}) when is_binary(indexed_at) do
+  defp member_too_old?(%{indexed_at: indexed_at}, limits) when is_binary(indexed_at) do
     case DateTime.from_iso8601(indexed_at) do
       {:ok, joined_at, _offset} ->
-        DateTime.diff(DateTime.utc_now(), joined_at, :hour) > Config.member_max_age_hours()
+        DateTime.diff(DateTime.utc_now(), joined_at, :hour) > limits.member_max_age_hours
 
       _invalid ->
         true
     end
   end
 
-  defp member_too_old?(_candidate), do: true
+  defp member_too_old?(_candidate, _limits), do: true
 
-  defp welcome_budget_exhausted? do
+  defp welcome_budget_exhausted?(state, limits) do
     now = DateTime.utc_now()
     start_of_day = DateTime.new!(DateTime.to_date(now), ~T[00:00:00], "Etc/UTC")
-    InteractionEvents.outreach_count("welcome", start_of_day) >= Config.daily_welcome_limit()
+
+    count =
+      max(
+        Map.get(state.budget, :welcomes, 0),
+        InteractionEvents.outreach_count("welcome", start_of_day)
+      )
+
+    count >= limits.daily_welcome_limit
   end
 
   defp processed?(state, id) do
@@ -391,7 +418,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     put_in(state, [:notifications, :processed], processed)
   end
 
-  defp daily_note_due?(state), do: state.budget.posts < @post_limit
+  defp daily_note_due?(state, limits), do: state.budget.posts < limits.daily_post_limit
 
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason

@@ -6,15 +6,6 @@ defmodule JidoDelvetown.OutgoingLikePolicyTest do
   @now ~U[2026-10-05 12:00:00Z]
   @agent_did "did:plc:bot"
 
-  setup do
-    old_limit = System.get_env("DELVETOWN_DAILY_LIKE_LIMIT")
-    System.put_env("DELVETOWN_DAILY_LIKE_LIMIT", "2")
-
-    on_exit(fn -> restore_env("DELVETOWN_DAILY_LIKE_LIMIT", old_limit) end)
-
-    :ok
-  end
-
   test "accepts a safe fresh post from another actor" do
     assert :ok = evaluate(candidate())
   end
@@ -70,7 +61,8 @@ defmodule JidoDelvetown.OutgoingLikePolicyTest do
         agent_did: @agent_did,
         daily_like_count: 0,
         actor_in_cooldown?: false,
-        local_effect?: false
+        local_effect?: false,
+        limits: limits()
       ]
       |> Keyword.merge(overrides)
 
@@ -102,6 +94,11 @@ defmodule JidoDelvetown.OutgoingLikePolicyTest do
     }
   end
 
-  defp restore_env(name, nil), do: System.delete_env(name)
-  defp restore_env(name, value), do: System.put_env(name, value)
+  defp limits do
+    %{
+      daily_like_limit: 2,
+      like_actor_cooldown_hours: 24,
+      like_candidate_max_age_hours: 48
+    }
+  end
 end

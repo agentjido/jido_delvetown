@@ -131,7 +131,10 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     do: put_in(state, [:budget, :posts], state.budget.posts + 1)
 
   defp increment_budget(state, "welcome"),
-    do: put_in(state, [:budget, :posts], state.budget.posts + 1)
+    do: update_in(state, [:budget, :welcomes], &((&1 || 0) + 1))
+
+  defp increment_budget(state, "follow"),
+    do: update_in(state, [:budget, :follows], &((&1 || 0) + 1))
 
   defp increment_budget(state, _action), do: state
 

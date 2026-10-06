@@ -20,8 +20,6 @@ defmodule JidoDelvetown.ManualPublisherTest do
       get_result: Application.get_env(:jido_delvetown, :get_result)
     }
 
-    old_like_limit = System.get_env("DELVETOWN_DAILY_LIKE_LIMIT")
-
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :test_owner, self())
@@ -33,15 +31,13 @@ defmodule JidoDelvetown.ManualPublisherTest do
       RuntimeSettings.preserve!(
         autonomy_mode: "observe",
         manual_publish_enabled: true,
-        enabled_actions: ~w(reply like repost post follow welcome)
+        enabled_actions: ~w(reply like repost post follow welcome),
+        daily_like_limit: 1
       )
-
-    System.put_env("DELVETOWN_DAILY_LIKE_LIMIT", "1")
 
     on_exit(fn ->
       restore_env(previous)
       restore_settings.()
-      restore_system_env("DELVETOWN_DAILY_LIKE_LIMIT", old_like_limit)
     end)
 
     :ok
@@ -419,7 +415,4 @@ defmodule JidoDelvetown.ManualPublisherTest do
       {key, value} -> Application.put_env(:jido_delvetown, key, value)
     end)
   end
-
-  defp restore_system_env(name, nil), do: System.delete_env(name)
-  defp restore_system_env(name, value), do: System.put_env(name, value)
 end

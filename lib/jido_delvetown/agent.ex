@@ -18,7 +18,7 @@ defmodule JidoDelvetown.Agent do
     last_cycle last_post_at last_record_uri last_run model_reason prior_contact priority recency
     format recent_formats recent_openings record_uri relevance response_format score selection voice
     last_seen_at notifications posts processed proactive proposal reads reason recent_topics
-    likes replies root_uri skips started_at status summary text topic turns uri
+    follows likes replies root_uri skips started_at status summary text topic turns uri welcomes
   )a
   @checkpoint_key_lookup Map.new(@checkpoint_keys, &{Atom.to_string(&1), &1})
   @operator_prompt JidoDelvetown.Personality.operator_prompt()
@@ -101,9 +101,18 @@ defmodule JidoDelvetown.Agent do
                  date: Zoi.string() |> Zoi.default(""),
                  replies: Zoi.integer() |> Zoi.min(0) |> Zoi.default(0),
                  likes: Zoi.integer() |> Zoi.min(0) |> Zoi.default(0),
-                 posts: Zoi.integer() |> Zoi.min(0) |> Zoi.default(0)
+                 posts: Zoi.integer() |> Zoi.min(0) |> Zoi.default(0),
+                 welcomes: Zoi.integer() |> Zoi.min(0) |> Zoi.default(0),
+                 follows: Zoi.integer() |> Zoi.min(0) |> Zoi.default(0)
                })
-               |> Zoi.default(%{date: "", replies: 0, likes: 0, posts: 0}),
+               |> Zoi.default(%{
+                 date: "",
+                 replies: 0,
+                 likes: 0,
+                 posts: 0,
+                 welcomes: 0,
+                 follows: 0
+               }),
              decision: Zoi.map() |> Zoi.default(%{}),
              last_cycle: Zoi.map() |> Zoi.default(%{}),
              last_run: Zoi.map() |> Zoi.default(%{})

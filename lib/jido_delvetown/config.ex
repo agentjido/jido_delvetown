@@ -11,42 +11,6 @@ defmodule JidoDelvetown.Config do
     :ok
   end
 
-  def notification_limit do
-    env_integer("DELVETOWN_NOTIFICATION_LIMIT", 20, 1, 100)
-  end
-
-  def daily_reply_limit do
-    env_integer("DELVETOWN_DAILY_REPLY_LIMIT", 3, 0, 100)
-  end
-
-  def daily_like_limit do
-    env_integer("DELVETOWN_DAILY_LIKE_LIMIT", 5, 0, 100)
-  end
-
-  def like_actor_cooldown_hours do
-    env_integer("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", 24, 1, 24 * 30)
-  end
-
-  def like_candidate_max_age_hours do
-    env_integer("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS", 48, 1, 24 * 30)
-  end
-
-  def daily_welcome_limit do
-    env_integer("DELVETOWN_DAILY_WELCOME_LIMIT", 2, 0, 100)
-  end
-
-  def member_discovery_limit do
-    env_integer("DELVETOWN_MEMBER_DISCOVERY_LIMIT", 20, 1, 100)
-  end
-
-  def friend_sync_limit do
-    env_integer("DELVETOWN_FRIEND_SYNC_LIMIT", 1_000, 1, 10_000)
-  end
-
-  def member_max_age_hours do
-    env_integer("DELVETOWN_MEMBER_MAX_AGE_HOURS", 24, 1, 24 * 30)
-  end
-
   def data_dir,
     do: System.get_env("DELVETOWN_DATA_DIR", @default_data_dir) |> Path.expand()
 
@@ -86,16 +50,6 @@ defmodule JidoDelvetown.Config do
       value when is_binary(value) and value != "" -> {:ok, value}
       _value -> {:error, {:missing_environment_variable, name}}
     end
-  end
-
-  defp env_integer(name, default, minimum, maximum) do
-    value =
-      case Integer.parse(System.get_env(name, "")) do
-        {integer, ""} -> integer
-        _other -> default
-      end
-
-    value |> max(minimum) |> min(maximum)
   end
 
   defp enabled_value?(value), do: String.downcase(value) in ["1", "true", "yes"]

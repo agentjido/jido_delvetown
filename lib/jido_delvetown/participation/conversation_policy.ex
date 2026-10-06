@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.ConversationPolicy do
   @moduledoc "Applies bounded follow-up rules to known conversations."
 
-  alias JidoDelvetown.Settings.Behavior
+  alias JidoDelvetown.Settings.Limits
 
   @low_value ["ok", "okay", "thanks", "thank you", "got it", "understood", "noted"]
 
@@ -29,7 +29,7 @@ defmodule JidoDelvetown.ConversationPolicy do
   defp evaluate_known(candidate, conversation, opts) do
     now = Keyword.get(opts, :now, DateTime.utc_now())
 
-    case Keyword.get_lazy(opts, :policy, &Behavior.conversation_policy/0) do
+    case Keyword.get_lazy(opts, :policy, &Limits.conversation_policy/0) do
       {:ok, policy} -> evaluate_with_policy(candidate, conversation, now, policy)
       {:error, _reason} -> {:skip, "conversation_settings_unavailable"}
       policy when is_map(policy) -> evaluate_with_policy(candidate, conversation, now, policy)

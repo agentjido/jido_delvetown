@@ -98,7 +98,14 @@ defmodule JidoDelvetown.AgentTest do
         id: id,
         state: %{
           last_run: %{summary: "saved"},
-          budget: %{date: "2026-10-04", replies: 2, likes: 4, posts: 1},
+          budget: %{
+            date: "2026-10-04",
+            replies: 2,
+            likes: 4,
+            posts: 1,
+            welcomes: 1,
+            follows: 2
+          },
           notifications: %{
             last_seen_at: "2026-10-04T12:00:00Z",
             processed: %{
@@ -130,7 +137,16 @@ defmodule JidoDelvetown.AgentTest do
     assert {:ok, second_agent} = Jido.start_agent(instance, Agent, id: id)
     restored = Jido.AgentServer.agent(second_agent)
     assert restored.state.last_run == %{summary: "saved"}
-    assert restored.state.budget == %{date: "2026-10-04", replies: 2, likes: 4, posts: 1}
+
+    assert restored.state.budget == %{
+             date: "2026-10-04",
+             replies: 2,
+             likes: 4,
+             posts: 1,
+             welcomes: 1,
+             follows: 2
+           }
+
     assert restored.state.notifications.processed["post:one"].action == "like"
     assert restored.state.notifications.processed["post:one"].status == "simulated"
     assert restored.state.proactive.recent_topics == ["OTP"]

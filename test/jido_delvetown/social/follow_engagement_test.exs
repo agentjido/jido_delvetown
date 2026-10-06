@@ -28,7 +28,9 @@ defmodule JidoDelvetown.FollowEngagementTest do
     restore_settings =
       RuntimeSettings.preserve!(
         autonomy_mode: "autonomous",
-        enabled_actions: ~w(reply like repost post follow welcome)
+        enabled_actions: ~w(reply like repost post follow welcome),
+        daily_follow_limit: 5,
+        daily_welcome_limit: 2
       )
 
     on_exit(fn ->
@@ -50,6 +52,7 @@ defmodule JidoDelvetown.FollowEngagementTest do
     assert {:ok, state} = run()
     assert state.last_run.intent == "respond_to_new_follow"
     assert state.last_run.status == "acted"
+    assert state.budget.follows == 1
 
     assert_received {:decision, "respond_to_new_follow", payload}
     assert payload.candidate.author.did == "did:plc:follower"
@@ -135,6 +138,8 @@ defmodule JidoDelvetown.FollowEngagementTest do
 
     assert {:ok, state} = run()
     assert state.last_run.status == "acted"
+    assert state.budget.welcomes == 1
+    assert state.budget.posts == 0
 
     assert_received {:create_record, "town.delve.feed.post", record, _rkey}
     assert record.text =~ "@follower.test"
@@ -154,6 +159,18 @@ defmodule JidoDelvetown.FollowEngagementTest do
            } = Repo.get(Effect, key)
 
     assert Repo.get!(Actor, "did:plc:follower").welcome_status == "completed"
+  end
+
+  test "daily follow and welcome limits remove those actions from a new follow" do
+    RuntimeSettings.update!(daily_follow_limit: 0, daily_welcome_limit: 0)
+    configure_follow("follow-limits")
+    decide("acknowledge")
+
+    assert {:ok, state} = run()
+    assert state.last_run.status == "acknowledged"
+    assert_received {:decision, "respond_to_new_follow", payload}
+    assert payload.allowed_actions == ["acknowledge", "skip"]
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   defp run(state \\ Agent.new!().state) do

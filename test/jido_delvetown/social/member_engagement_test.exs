@@ -27,22 +27,21 @@ defmodule JidoDelvetown.MemberEngagementTest do
     ]
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
-    old_limit = System.get_env("DELVETOWN_DAILY_WELCOME_LIMIT")
-    old_age = System.get_env("DELVETOWN_MEMBER_MAX_AGE_HOURS")
 
     restore_settings =
       RuntimeSettings.preserve!(%{
         autonomy_mode: "autonomous",
         dry_run_mark_actioned: false,
-        enabled_actions: ~w(reply like repost post follow welcome)
+        enabled_actions: ~w(reply like repost post follow welcome),
+        daily_welcome_limit: 2,
+        member_discovery_limit: 20,
+        member_max_age_hours: 24
       })
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    System.put_env("DELVETOWN_DAILY_WELCOME_LIMIT", "2")
-    System.put_env("DELVETOWN_MEMBER_MAX_AGE_HOURS", "24")
 
     on_exit(fn ->
       Enum.each(previous, fn
@@ -51,14 +50,13 @@ defmodule JidoDelvetown.MemberEngagementTest do
       end)
 
       restore_settings.()
-      restore_env("DELVETOWN_DAILY_WELCOME_LIMIT", old_limit)
-      restore_env("DELVETOWN_MEMBER_MAX_AGE_HOURS", old_age)
     end)
 
     :ok
   end
 
   test "discovers and welcomes a recent member who does not follow the agent" do
+    RuntimeSettings.update!(member_discovery_limit: 7)
     joined_at = recent_time(-10)
     configure_members([member("did:plc:new-member", joined_at)])
     welcome_decision("A failure-boundary thread is a useful first stop in town.")
@@ -68,7 +66,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
     assert state.last_run.intent == "welcome_new_member"
     assert state.last_run.status == "acted"
 
-    assert_received {:appview_query, "town.delve.actor.searchActors", %{limit: 20}}
+    assert_received {:appview_query, "town.delve.actor.searchActors", %{limit: 7}}
     refute_received {:appview_query, "town.delve.notification.listNotifications", _params}
     assert_received {:decision, "welcome_new_member", payload}
     assert payload.candidate.text =~ "OTP"
@@ -180,7 +178,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
   end
 
   test "the daily welcome limit leaves the event pending" do
-    System.put_env("DELVETOWN_DAILY_WELCOME_LIMIT", "0")
+    RuntimeSettings.update!(daily_welcome_limit: 0)
     configure_members([member("did:plc:later", recent_time(-10))])
 
     assert {:ok, state} = run()
@@ -331,7 +329,4 @@ defmodule JidoDelvetown.MemberEngagementTest do
     |> DateTime.truncate(:millisecond)
     |> DateTime.to_iso8601()
   end
-
-  defp restore_env(name, nil), do: System.delete_env(name)
-  defp restore_env(name, value), do: System.put_env(name, value)
 end

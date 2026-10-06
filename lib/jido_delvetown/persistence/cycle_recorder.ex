@@ -3,11 +3,12 @@ defmodule JidoDelvetown.CycleRecorder do
 
   alias JidoDelvetown.{
     ActorMemory,
-    Config,
     ConversationMemory,
     InteractionEvents,
     RelationshipMemory
   }
+
+  alias JidoDelvetown.Settings.Limits
 
   @terminal_states ["completed", "ignored", "failed"]
   @like_review_text_limit 500
@@ -141,7 +142,7 @@ defmodule JidoDelvetown.CycleRecorder do
 
   defp maybe_add_like_review(payload, cycle, %{action: "like"}, candidate, selected_at) do
     likes = get_in(cycle, [:state, :budget, :likes]) || 0
-    limit = Config.daily_like_limit()
+    limit = like_limit(cycle)
 
     Map.put(payload, :like_review, %{
       author: %{
@@ -162,6 +163,15 @@ defmodule JidoDelvetown.CycleRecorder do
 
   defp maybe_add_like_review(payload, _cycle, _decision, _candidate, _selected_at),
     do: payload
+
+  defp like_limit(%{limits: %{daily_like_limit: limit}}), do: limit
+
+  defp like_limit(_cycle) do
+    case Limits.fetch(:daily_like_limit) do
+      {:ok, limit} -> limit
+      {:error, _reason} -> 0
+    end
+  end
 
   defp bounded_like_text(candidate) do
     case Map.get(candidate, :text) || get_in(candidate, [:thread, :post, :text]) do

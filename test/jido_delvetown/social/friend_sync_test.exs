@@ -3,6 +3,7 @@ defmodule JidoDelvetown.FriendSyncTest do
 
   alias JidoDelvetown.{FriendList, FriendSync, Repo}
   alias JidoDelvetown.Storage.{Actor, ActorRelationship}
+  alias JidoDelvetown.Test.RuntimeSettings
 
   defmodule FakeSource do
     def list_own_records(collection, params) do
@@ -36,8 +37,12 @@ defmodule JidoDelvetown.FriendSyncTest do
 
     Application.put_env(:jido_delvetown, :test_owner, self())
     Application.put_env(:jido_delvetown, :friend_sync_profiles, %{})
+    restore_settings = RuntimeSettings.preserve!(friend_sync_limit: 1_000)
 
-    on_exit(fn -> restore_env(previous) end)
+    on_exit(fn ->
+      restore_env(previous)
+      restore_settings.()
+    end)
 
     :ok
   end
@@ -139,6 +144,17 @@ defmodule JidoDelvetown.FriendSyncTest do
     assert {:error, :friend_sync_limit_exceeded} =
              FriendSync.sync(source: FakeSource, max_records: 1)
 
+    assert FriendList.list() == []
+  end
+
+  test "uses the stored friend sync limit by default" do
+    RuntimeSettings.update!(friend_sync_limit: 1)
+
+    Application.put_env(:jido_delvetown, :friend_sync_pages, %{
+      nil => {:ok, %{records: [follow("did:plc:one")], cursor: "more"}}
+    })
+
+    assert {:error, :friend_sync_limit_exceeded} = FriendSync.sync(source: FakeSource)
     assert FriendList.list() == []
   end
 

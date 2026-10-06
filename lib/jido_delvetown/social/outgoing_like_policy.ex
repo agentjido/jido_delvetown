@@ -1,7 +1,8 @@
 defmodule JidoDelvetown.OutgoingLikePolicy do
   @moduledoc "Applies deterministic eligibility rules before an outgoing like decision."
 
-  alias JidoDelvetown.{Config, InteractionEvents, OptOut, Protocol, Repo, Session}
+  alias JidoDelvetown.{InteractionEvents, OptOut, Protocol, Repo, Session}
+  alias JidoDelvetown.Settings.Limits
   alias JidoDelvetown.Storage.Effect
 
   @unsafe_labels ~w(
@@ -21,16 +22,17 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
   def evaluate(candidate, state, opts) when is_map(candidate) and is_map(state) do
     now = Keyword.get(opts, :now, DateTime.utc_now())
 
-    with :ok <- valid_subject(candidate),
+    with {:ok, limits} <- limits(opts),
+         :ok <- valid_subject(candidate),
          :ok <- exclude_owned_post(candidate, opts),
          :ok <- exclude_already_liked(candidate, opts),
          :ok <- exclude_duplicate(candidate, state),
          :ok <- exclude_opted_out_actor(candidate),
          :ok <- exclude_blocked_actor(candidate),
-         :ok <- exclude_stale_candidate(candidate, now, opts),
+         :ok <- exclude_stale_candidate(candidate, now, limits, opts),
          :ok <- require_safe_content(candidate),
-         :ok <- enforce_budget(state, now, opts),
-         :ok <- enforce_actor_cooldown(candidate, now, opts) do
+         :ok <- enforce_budget(state, now, limits, opts),
+         :ok <- enforce_actor_cooldown(candidate, now, limits, opts) do
       :ok
     end
   end
@@ -94,9 +96,9 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     if blocked?, do: {:skip, "actor_blocked"}, else: :ok
   end
 
-  defp exclude_stale_candidate(%{indexed_at: indexed_at}, now, opts)
+  defp exclude_stale_candidate(%{indexed_at: indexed_at}, now, limits, opts)
        when is_binary(indexed_at) do
-    max_age = Keyword.get(opts, :max_age_hours, Config.like_candidate_max_age_hours())
+    max_age = Keyword.get(opts, :max_age_hours, limits.like_candidate_max_age_hours)
 
     case DateTime.from_iso8601(indexed_at) do
       {:ok, timestamp, _offset} ->
@@ -109,7 +111,8 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     end
   end
 
-  defp exclude_stale_candidate(_candidate, _now, _opts), do: {:skip, "stale_candidate"}
+  defp exclude_stale_candidate(_candidate, _now, _limits, _opts),
+    do: {:skip, "stale_candidate"}
 
   defp require_safe_content(candidate) do
     text = Map.get(candidate, :text, "")
@@ -135,23 +138,23 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     if unsafe_label? or unsafe_text?, do: {:skip, "unsafe_content"}, else: :ok
   end
 
-  defp enforce_budget(state, now, opts) do
+  defp enforce_budget(state, now, limits, opts) do
     count =
       case Keyword.fetch(opts, :daily_like_count) do
         {:ok, value} -> value
         :error -> daily_like_count(state, now, opts)
       end
 
-    if is_integer(count) and count < Config.daily_like_limit(),
+    if is_integer(count) and count < limits.daily_like_limit,
       do: :ok,
       else: {:skip, "like_budget_exhausted"}
   end
 
-  defp enforce_actor_cooldown(candidate, now, opts) do
+  defp enforce_actor_cooldown(candidate, now, limits, opts) do
     in_cooldown? =
       case Keyword.fetch(opts, :actor_in_cooldown?) do
         {:ok, value} -> value
-        :error -> actor_in_cooldown?(get_in(candidate, [:author, :did]), now, opts)
+        :error -> actor_in_cooldown?(get_in(candidate, [:author, :did]), now, limits, opts)
       end
 
     if in_cooldown?, do: {:skip, "actor_like_cooldown"}, else: :ok
@@ -171,8 +174,8 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     max(state_count, ledger_count)
   end
 
-  defp actor_in_cooldown?(did, now, opts) when is_binary(did) do
-    since = DateTime.add(now, -Config.like_actor_cooldown_hours(), :hour)
+  defp actor_in_cooldown?(did, now, limits, opts) when is_binary(did) do
+    since = DateTime.add(now, -limits.like_actor_cooldown_hours, :hour)
 
     InteractionEvents.recent_outreach_for_actor?(
       "like",
@@ -182,7 +185,22 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     )
   end
 
-  defp actor_in_cooldown?(_did, _now, _opts), do: true
+  defp actor_in_cooldown?(_did, _now, _limits, _opts), do: true
+
+  defp limits(opts) do
+    case Keyword.fetch(opts, :limits) do
+      {:ok, limits} when is_map(limits) -> {:ok, limits}
+      {:ok, _invalid} -> {:skip, "limit_settings_unavailable"}
+      :error -> load_limits()
+    end
+  end
+
+  defp load_limits do
+    case Limits.current() do
+      {:ok, limits} -> {:ok, limits}
+      {:error, _reason} -> {:skip, "limit_settings_unavailable"}
+    end
+  end
 
   defp local_like_effect?(uri) when is_binary(uri) do
     case Repo.get(Effect, Protocol.effect_key("like", [uri])) do

@@ -27,11 +27,6 @@ defmodule JidoDelvetown.CycleTest do
     ]
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
-    old_reply_limit = System.get_env("DELVETOWN_DAILY_REPLY_LIMIT")
-    old_like_limit = System.get_env("DELVETOWN_DAILY_LIKE_LIMIT")
-    old_like_cooldown = System.get_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS")
-    old_like_max_age = System.get_env("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS")
-
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
@@ -41,13 +36,14 @@ defmodule JidoDelvetown.CycleTest do
       RuntimeSettings.preserve!(%{
         autonomy_mode: "observe",
         dry_run_mark_actioned: false,
-        mark_notifications_seen: false
+        mark_notifications_seen: false,
+        notification_limit: 20,
+        daily_reply_limit: 3,
+        daily_post_limit: 1,
+        daily_like_limit: 5,
+        like_actor_cooldown_hours: 24,
+        like_candidate_max_age_hours: 48
       })
-
-    System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "3")
-    System.put_env("DELVETOWN_DAILY_LIKE_LIMIT", "5")
-    System.put_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", "24")
-    System.put_env("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS", "48")
 
     on_exit(fn ->
       Enum.each(previous, fn
@@ -56,10 +52,6 @@ defmodule JidoDelvetown.CycleTest do
       end)
 
       restore_settings.()
-      restore_env("DELVETOWN_DAILY_REPLY_LIMIT", old_reply_limit)
-      restore_env("DELVETOWN_DAILY_LIKE_LIMIT", old_like_limit)
-      restore_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", old_like_cooldown)
-      restore_env("DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS", old_like_max_age)
     end)
 
     :ok
@@ -342,6 +334,34 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:create_record, _collection, _record, _rkey}
   end
 
+  test "a zero daily post limit suppresses the daily note" do
+    RuntimeSettings.update!(daily_post_limit: 0)
+
+    configure_reads(%{
+      "town.delve.feed.getTimeline" =>
+        {:ok,
+         %{
+           "feed" => [
+             %{
+               "post" => %{
+                 "uri" => "at://did:plc:author/town.delve.feed.post/quiet",
+                 "cid" => "quiet-cid",
+                 "author" => %{"did" => "did:plc:author", "handle" => "author.test"},
+                 "record" => %{"text" => "A calm note without a question"}
+               }
+             }
+           ]
+         }}
+    })
+
+    assert {:ok, state} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "review"}, context())
+
+    assert state.last_run.intent == "skip"
+    assert state.last_run.proposal.reason == "no_eligible_work"
+    refute_received {:decision, _intent, _payload}
+  end
+
   test "a proactive review cannot publish a selected like when writes are enabled" do
     RuntimeSettings.update!(autonomy_mode: "autonomous")
     uri = "at://did:plc:author/town.delve.feed.post/question"
@@ -475,6 +495,7 @@ defmodule JidoDelvetown.CycleTest do
   end
 
   test "a reactive cycle restores and advances one bounded notification page" do
+    RuntimeSettings.update!(notification_limit: 7)
     assert {:ok, _scan} = ScanProgress.put_cursor("notifications", "cursor-1")
 
     configure_reads(%{
@@ -488,7 +509,7 @@ defmodule JidoDelvetown.CycleTest do
     assert state.last_run.status == "skipped"
 
     assert_received {:appview_query, "town.delve.notification.listNotifications",
-                     %{cursor: "cursor-1", limit: 20}}
+                     %{cursor: "cursor-1", limit: 7}}
 
     refute_received {:appview_query, "town.delve.notification.listNotifications", _params}
     assert ScanProgress.get("notifications").cursor == "cursor-2"
@@ -565,7 +586,4 @@ defmodule JidoDelvetown.CycleTest do
       Map.put(overrides, "town.delve.membership.getMembership", {:ok, %{"status" => "member"}})
     )
   end
-
-  defp restore_env(name, nil), do: System.delete_env(name)
-  defp restore_env(name, value), do: System.put_env(name, value)
 end

@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.EngagementRanker do
   @moduledoc "Scores engagement opportunities with explicit, stable policy factors."
 
-  alias JidoDelvetown.Config
+  alias JidoDelvetown.Settings.Limits
 
   @topic_terms ~w(agent beam failure jido otp process protocol recovery supervisor tool)
 
@@ -16,13 +16,15 @@ defmodule JidoDelvetown.EngagementRanker do
   end
 
   def score(candidate, opportunity, state, opts \\ []) do
+    limits = Keyword.get_lazy(opts, :limits, &limits/0)
+
     factors = %{
       priority: priority(candidate, opportunity),
       recency: recency(candidate, Keyword.get(opts, :now, DateTime.utc_now())),
       relevance: relevance(candidate),
       prior_contact: prior_contact(candidate),
       conversation_load: conversation_load(candidate),
-      budget: budget(opportunity, state)
+      budget: budget(opportunity, state, limits)
     }
 
     score = factors |> Map.values() |> Enum.sum()
@@ -92,20 +94,38 @@ defmodule JidoDelvetown.EngagementRanker do
     end
   end
 
-  defp budget(opportunity, state) when opportunity in [:direct, :useful_discussion] do
-    remaining = Config.daily_reply_limit() - state.budget.replies
+  defp budget(opportunity, state, limits) when opportunity in [:direct, :useful_discussion] do
+    remaining = limits.daily_reply_limit - state.budget.replies
     remaining |> max(0) |> min(10)
   end
 
-  defp budget(:new_member, state) do
-    remaining = Config.daily_welcome_limit() - state.budget.posts
+  defp budget(:new_member, state, limits) do
+    remaining = limits.daily_welcome_limit - Map.get(state.budget, :welcomes, 0)
     remaining |> max(0) |> min(10)
   end
 
-  defp budget(:original_post, state), do: max(1 - state.budget.posts, 0)
+  defp budget(:original_post, state, limits),
+    do: max(limits.daily_post_limit - state.budget.posts, 0) |> min(10)
 
-  defp budget(:follow, _state), do: 5
-  defp budget(_opportunity, _state), do: 0
+  defp budget(:follow, state, limits),
+    do: max(limits.daily_follow_limit - Map.get(state.budget, :follows, 0), 0) |> min(10)
+
+  defp budget(_opportunity, _state, _limits), do: 0
+
+  defp limits do
+    case Limits.current() do
+      {:ok, limits} ->
+        limits
+
+      {:error, _reason} ->
+        %{
+          daily_reply_limit: 0,
+          daily_welcome_limit: 0,
+          daily_post_limit: 0,
+          daily_follow_limit: 0
+        }
+    end
+  end
 
   defp reason(opportunity, score, factors) do
     "#{opportunity} scored #{score}: priority #{factors.priority}, recency #{factors.recency}, " <>

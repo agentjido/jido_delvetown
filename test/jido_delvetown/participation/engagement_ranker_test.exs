@@ -3,19 +3,6 @@ defmodule JidoDelvetown.EngagementRankerTest do
 
   alias JidoDelvetown.EngagementRanker
 
-  setup do
-    old_limit = System.get_env("DELVETOWN_DAILY_REPLY_LIMIT")
-    System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "3")
-
-    on_exit(fn ->
-      if old_limit,
-        do: System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", old_limit),
-        else: System.delete_env("DELVETOWN_DAILY_REPLY_LIMIT")
-    end)
-
-    :ok
-  end
-
   test "reports every policy factor" do
     now = ~U[2026-10-05 12:00:00Z]
 
@@ -31,7 +18,11 @@ defmodule JidoDelvetown.EngagementRankerTest do
       }
     }
 
-    rank = EngagementRanker.score(candidate, :direct, state(1, 0), now: now)
+    rank =
+      EngagementRanker.score(candidate, :direct, state(1, 0),
+        now: now,
+        limits: limits()
+      )
 
     assert rank.factors == %{
              priority: 100,
@@ -58,8 +49,8 @@ defmodule JidoDelvetown.EngagementRankerTest do
         "An OTP agent protocol failure question"
       )
 
-    first = EngagementRanker.best([older, recent], :direct, state(), now: now)
-    second = EngagementRanker.best([recent, older], :direct, state(), now: now)
+    first = EngagementRanker.best([older, recent], :direct, state(), now: now, limits: limits())
+    second = EngagementRanker.best([recent, older], :direct, state(), now: now, limits: limits())
 
     assert first.id == "notification:a"
     assert second.id == first.id
@@ -71,19 +62,28 @@ defmodule JidoDelvetown.EngagementRankerTest do
     a = candidate("notification:a", "2026-10-05T11:00:00Z", "OTP")
     b = candidate("notification:b", "2026-10-05T11:00:00Z", "OTP")
 
-    assert EngagementRanker.best([b, a], :direct, state(), now: now).id == "notification:a"
-    assert EngagementRanker.best([a, b], :direct, state(), now: now).id == "notification:a"
+    assert EngagementRanker.best([b, a], :direct, state(), now: now, limits: limits()).id ==
+             "notification:a"
+
+    assert EngagementRanker.best([a, b], :direct, state(), now: now, limits: limits()).id ==
+             "notification:a"
   end
 
   test "keeps opportunity priorities explicit" do
     candidate = candidate("event", "2026-10-05T11:00:00Z", "OTP")
     now = ~U[2026-10-05 12:00:00Z]
 
-    direct = EngagementRanker.score(candidate, :direct, state(), now: now)
-    follow = EngagementRanker.score(candidate, :follow, state(), now: now)
-    member = EngagementRanker.score(candidate, :new_member, state(), now: now)
-    discussion = EngagementRanker.score(candidate, :useful_discussion, state(), now: now)
-    post = EngagementRanker.score(candidate, :original_post, state(), now: now)
+    direct = EngagementRanker.score(candidate, :direct, state(), now: now, limits: limits())
+    follow = EngagementRanker.score(candidate, :follow, state(), now: now, limits: limits())
+    member = EngagementRanker.score(candidate, :new_member, state(), now: now, limits: limits())
+
+    discussion =
+      EngagementRanker.score(candidate, :useful_discussion, state(),
+        now: now,
+        limits: limits()
+      )
+
+    post = EngagementRanker.score(candidate, :original_post, state(), now: now, limits: limits())
 
     assert direct.score > follow.score
     assert follow.score > member.score
@@ -103,6 +103,15 @@ defmodule JidoDelvetown.EngagementRankerTest do
   end
 
   defp state(replies \\ 0, posts \\ 0) do
-    %{budget: %{replies: replies, posts: posts}}
+    %{budget: %{replies: replies, posts: posts, welcomes: 0, follows: 0}}
+  end
+
+  defp limits do
+    %{
+      daily_reply_limit: 3,
+      daily_welcome_limit: 2,
+      daily_post_limit: 1,
+      daily_follow_limit: 5
+    }
   end
 end
