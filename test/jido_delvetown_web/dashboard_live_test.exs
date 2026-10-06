@@ -1,6 +1,7 @@
 defmodule JidoDelvetownWeb.DashboardLiveTest do
   use ExUnit.Case, async: true
 
+  alias JidoDelvetown.SelfPortraitDraft
   alias JidoDelvetownWeb.DashboardLive
 
   test "renders agent state without active overview controls" do
@@ -183,6 +184,45 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "Published"
     assert html =~ "/profile/agentjido.test/post/image-rkey"
     refute html =~ "Publish image to DelveTown"
+  end
+
+  test "renders the fixed AgentJido self-portrait as its exact top-level draft" do
+    definition = SelfPortraitDraft.definition()
+    bytes = File.read!(definition.asset_path)
+    preview_data_url = "data:image/png;base64,#{Base.encode64(bytes)}"
+
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "image-drafts")
+      |> put_in([:inspection, :image_drafts], [
+        %{
+          draft_key: definition.draft_key,
+          caption: definition.caption,
+          alt_text: definition.alt_text,
+          validation_state: "valid",
+          publication_state: "staged",
+          artifact: %{
+            digest: definition.expected_digest,
+            preview_data_url: preview_data_url,
+            mime_type: definition.mime_type,
+            byte_size: byte_size(bytes),
+            width: definition.width,
+            height: definition.height,
+            upload_state: "staged"
+          }
+        }
+      ])
+
+    html = render_dashboard(assigns)
+
+    assert html =~ definition.draft_key
+    assert html =~ definition.caption
+    assert html =~ definition.alt_text
+    assert html =~ definition.expected_digest
+    assert html =~ "1024×1024"
+    assert html =~ "data:image/png;base64,"
+    assert html =~ "Top-level image"
+    assert html =~ "Publish image to DelveTown"
   end
 
   test "shows when protocol writes are enabled" do

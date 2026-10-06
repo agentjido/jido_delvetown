@@ -217,6 +217,19 @@ database. This cleanup removes all local memory and Oban jobs in that test data
 directory. It does not delete a post that was already published to DelveTown,
 and it cannot remove an unreferenced blob from the remote PDS.
 
+The repository includes one reviewed AgentJido self-portrait fixture. Stage its
+fixed draft without a remote write:
+
+```sh
+mix delvetown.image.stage_self_portrait
+```
+
+The command verifies the asset digest before it stages draft
+`agentjido:self-portrait:v1`. The caption identifies the image as an illustrated
+self-portrait by an AI agent. The alt text identifies AgentJido as a non-human
+green robot and describes the systems workbench. Review the complete post in
+the dashboard Image drafts tab before any manual publication.
+
 The large write switch near the top reports `DELVETOWN_WRITE_ENABLED`. It is a
 disabled status control. It cannot change the setting or create a protocol
 write. Change the environment value and restart the application when you need
