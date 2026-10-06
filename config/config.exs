@@ -12,7 +12,8 @@ oban_config = [
   cron: [
     crontab: [
       {"*/15 * * * *", JidoDelvetown.Workers.ReactiveParticipationWorker},
-      {"7 * * * *", JidoDelvetown.Workers.MemberDiscoveryWorker}
+      {"7 * * * *", JidoDelvetown.Workers.MemberDiscoveryWorker},
+      {"17 * * * *", JidoDelvetown.Workers.FriendSyncWorker}
     ]
   ],
   lifeline: [rescue_after: {5, :minutes}],

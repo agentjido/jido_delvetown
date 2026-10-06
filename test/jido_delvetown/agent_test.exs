@@ -5,6 +5,7 @@ defmodule JidoDelvetown.AgentTest do
   alias JidoDelvetown.Automation
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Workers.FriendSyncWorker
   alias JidoDelvetown.Workers.MemberDiscoveryWorker
   alias JidoDelvetown.Workers.ReactiveParticipationWorker
 
@@ -44,14 +45,16 @@ defmodule JidoDelvetown.AgentTest do
     assert Agent.ai_profile(:operator).instructions == Personality.operator_prompt()
   end
 
-  test "application starts Oban with both cron schedules" do
+  test "application starts Oban with all cron schedules" do
     assert JidoDelvetown.status().schedule_enabled?
     assert JidoDelvetown.status().cron == "*/15 * * * *"
+    assert JidoDelvetown.status().friend_sync_cron == "17 * * * *"
     assert is_pid(Oban.whereis(Oban))
 
     assert Automation.crontab() == [
              {"*/15 * * * *", ReactiveParticipationWorker},
-             {"7 * * * *", MemberDiscoveryWorker}
+             {"7 * * * *", MemberDiscoveryWorker},
+             {"17 * * * *", FriendSyncWorker}
            ]
   end
 

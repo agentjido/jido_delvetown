@@ -8,6 +8,8 @@ defmodule JidoDelvetown.FriendList do
 
   @relationship_states ~w(unknown yes no)
   @context_limit 12
+  @manual_source "manual"
+  @remote_follow_source "remote_follow"
 
   def add(actor, attrs \\ %{})
 
@@ -37,8 +39,18 @@ defmodule JidoDelvetown.FriendList do
         {:error, :not_found}
 
       relationship ->
+        metadata =
+          relationship.metadata
+          |> remove_friend_source(@manual_source)
+          |> Map.put("friend_excluded", true)
+
         relationship
-        |> Ecto.Changeset.change(friend: false, friend_since: nil, updated_at: now())
+        |> Ecto.Changeset.change(
+          friend: false,
+          friend_since: nil,
+          metadata: metadata,
+          updated_at: now()
+        )
         |> Repo.update()
     end
   end
@@ -127,6 +139,34 @@ defmodule JidoDelvetown.FriendList do
 
   def record_text_references(_text), do: :ok
 
+  def sync_following(actors, opts \\ [])
+
+  def sync_following(actors, opts) when is_list(actors) do
+    at = opts |> Keyword.get(:at) |> parse_time()
+
+    with {:ok, actors} <- normalize_sync_actors(actors) do
+      Repo.transaction(
+        fn ->
+          synced_dids = MapSet.new(actors, &value(&1, :did))
+
+          added =
+            Enum.count(actors, fn actor ->
+              did = value(actor, :did)
+              upsert_actor(did, actor, at)
+              upsert_remote_friend(did, at)
+            end)
+
+          removed = reconcile_remote_friends(synced_dids, at)
+
+          %{seen: MapSet.size(synced_dids), added: added, removed: removed}
+        end,
+        mode: :immediate
+      )
+    end
+  end
+
+  def sync_following(_actors, _opts), do: {:error, :invalid_actors}
+
   def record_follows_agent(did, at \\ nil),
     do: set_relationship_state(did, :follows_agent, "yes", at)
 
@@ -192,11 +232,16 @@ defmodule JidoDelvetown.FriendList do
           friend_since: at,
           first_related_at: at,
           last_related_at: at,
-          metadata: %{}
+          metadata: add_friend_source(%{}, @manual_source)
         }
         |> Repo.insert!()
 
       relationship ->
+        metadata =
+          relationship.metadata
+          |> add_friend_source(@manual_source)
+          |> Map.delete("friend_excluded")
+
         relationship
         |> Ecto.Changeset.change(
           friend: true,
@@ -206,10 +251,90 @@ defmodule JidoDelvetown.FriendList do
           notes: Map.get(attrs, :notes, relationship.notes),
           do_not_mention: Map.get(attrs, :do_not_mention, relationship.do_not_mention),
           friend_since: relationship.friend_since || at,
-          last_related_at: at
+          last_related_at: at,
+          metadata: metadata
         )
         |> Repo.update!()
     end
+  end
+
+  defp upsert_remote_friend(did, at) do
+    case Repo.get(ActorRelationship, did) do
+      nil ->
+        %ActorRelationship{
+          actor_did: did,
+          friend: true,
+          follows_agent: "unknown",
+          agent_follows: "yes",
+          topics: %{},
+          do_not_mention: false,
+          friend_since: at,
+          first_related_at: at,
+          last_related_at: at,
+          reference_count: 0,
+          metadata:
+            %{}
+            |> add_friend_source(@remote_follow_source)
+            |> mark_follow_sync(at)
+        }
+        |> Repo.insert!()
+
+        true
+
+      relationship ->
+        new_source? = @remote_follow_source not in friend_sources(relationship.metadata)
+
+        metadata =
+          relationship.metadata
+          |> add_friend_source(@remote_follow_source)
+          |> mark_follow_sync(at)
+
+        friend? = not Map.get(metadata, "friend_excluded", false)
+
+        relationship
+        |> Ecto.Changeset.change(
+          friend: friend?,
+          agent_follows: "yes",
+          friend_since: if(friend?, do: relationship.friend_since || at),
+          last_related_at: at,
+          metadata: metadata
+        )
+        |> Repo.update!()
+
+        new_source?
+    end
+  end
+
+  defp reconcile_remote_friends(synced_dids, at) do
+    stale =
+      ActorRelationship
+      |> Repo.all()
+      |> Enum.filter(fn relationship ->
+        @remote_follow_source in friend_sources(relationship.metadata) and
+          not MapSet.member?(synced_dids, relationship.actor_did)
+      end)
+
+    Enum.each(stale, fn relationship ->
+      metadata =
+        relationship.metadata
+        |> remove_friend_source(@remote_follow_source)
+        |> mark_follow_sync(at)
+
+      friend? =
+        friend_sources(metadata) != [] and not Map.get(metadata, "friend_excluded", false)
+
+      relationship
+      |> Ecto.Changeset.change(
+        friend: friend?,
+        agent_follows: "no",
+        friend_since: if(friend?, do: relationship.friend_since, else: nil),
+        last_related_at: at,
+        metadata: metadata
+      )
+      |> Repo.update!()
+    end)
+
+    length(stale)
   end
 
   defp upsert_relationship_state(did, field, state, at) do
@@ -318,6 +443,46 @@ defmodule JidoDelvetown.FriendList do
 
   defp valid_topic?(value),
     do: is_binary(value) and String.trim(value) != "" and String.length(value) <= 80
+
+  defp normalize_sync_actors(actors) do
+    actors
+    |> Enum.reduce_while({:ok, %{}}, fn actor, {:ok, normalized} ->
+      with true <- is_map(actor),
+           :ok <- validate_actor(actor),
+           {:ok, did} <- actor_did(actor) do
+        {:cont, {:ok, Map.put(normalized, did, actor)}}
+      else
+        _invalid -> {:halt, {:error, :invalid_actor}}
+      end
+    end)
+    |> case do
+      {:ok, normalized} -> {:ok, Map.values(normalized)}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp add_friend_source(metadata, source) do
+    metadata = metadata || %{}
+
+    Map.put(metadata, "friend_sources", Enum.sort(Enum.uniq([source | friend_sources(metadata)])))
+  end
+
+  defp remove_friend_source(metadata, source) do
+    metadata = metadata || %{}
+    Map.put(metadata, "friend_sources", List.delete(friend_sources(metadata), source))
+  end
+
+  defp friend_sources(metadata) when is_map(metadata) do
+    case Map.get(metadata, "friend_sources", []) do
+      sources when is_list(sources) -> Enum.filter(sources, &is_binary/1)
+      _invalid -> []
+    end
+  end
+
+  defp friend_sources(_metadata), do: []
+
+  defp mark_follow_sync(metadata, at),
+    do: Map.put(metadata || %{}, "last_follow_sync_at", DateTime.to_iso8601(at))
 
   defp result({:ok, _relationship}, did), do: {:ok, get(did)}
   defp result({:error, reason}, _did), do: {:error, reason}

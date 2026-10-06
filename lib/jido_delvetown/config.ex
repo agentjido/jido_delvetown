@@ -67,6 +67,10 @@ defmodule JidoDelvetown.Config do
     env_integer("DELVETOWN_MEMBER_DISCOVERY_LIMIT", 20, 1, 100)
   end
 
+  def friend_sync_limit do
+    env_integer("DELVETOWN_FRIEND_SYNC_LIMIT", 1_000, 1, 10_000)
+  end
+
   def member_max_age_hours do
     env_integer("DELVETOWN_MEMBER_MAX_AGE_HOURS", 24, 1, 24 * 30)
   end

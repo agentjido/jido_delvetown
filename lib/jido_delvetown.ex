@@ -5,6 +5,7 @@ defmodule JidoDelvetown do
   alias JidoDelvetown.Automation
   alias JidoDelvetown.Config
   alias JidoDelvetown.FriendList
+  alias JidoDelvetown.FriendSync
   alias JidoDelvetown.Inspection
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Session
@@ -54,6 +55,7 @@ defmodule JidoDelvetown do
   def add_friend(actor, attrs \\ %{}), do: FriendList.add(actor, attrs)
   def remove_friend(did), do: FriendList.remove(did)
   def record_friend_reference(did), do: FriendList.record_reference(did)
+  def sync_friends, do: FriendSync.sync()
 
   def join(invite_code \\ nil) do
     with true <- Config.write_enabled?() || {:error, :writes_disabled},
@@ -82,6 +84,7 @@ defmodule JidoDelvetown do
         store: Store.counts(),
         schedule_enabled?: Automation.running?(),
         cron: Automation.reactive_cron(),
+        friend_sync_cron: Automation.friend_sync_cron(),
         writes_enabled?: Config.write_enabled?(),
         manual_publish_enabled?: Config.manual_publish_enabled?(),
         dry_run_mark_actioned?: Config.dry_run_mark_actioned?(),

@@ -48,6 +48,7 @@ export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
 export DELVETOWN_DAILY_REPLY_LIMIT="3"
 export DELVETOWN_DAILY_WELCOME_LIMIT="2"
 export DELVETOWN_MEMBER_MAX_AGE_HOURS="24"
+export DELVETOWN_FRIEND_SYNC_LIMIT="1000"
 export DELVETOWN_CONVERSATION_TURN_LIMIT="4"
 export DELVETOWN_CONVERSATION_MAX_AGE_HOURS="72"
 export DELVETOWN_CONVERSATION_NON_RESPONSE_LIMIT="2"
@@ -171,11 +172,13 @@ less and must state that the account is automated.
 ## Schedule and manual runs
 
 Oban Cron adds a reactive cycle job every 15 minutes with `*/15 * * * *`. It
-adds a member discovery job at minute 7 of every hour with `7 * * * *`. Both
-jobs use the `delvetown` queue with one worker. A worker returns cycle failures
-to Oban for retry. One incomplete unique job is allowed for each worker, so a
-slow run does not create a second run of the same cycle. The proactive cycle
-has no automatic schedule while its prompts and policy are being tuned.
+adds a member discovery job at minute 7 of every hour with `7 * * * *`. It also
+syncs the account's follow collection into local friend memory at minute 17 of
+every hour with `17 * * * *`. These jobs use the `delvetown` queue with one
+worker. A worker returns failures to Oban for retry. One incomplete unique job
+is allowed for each worker, so a slow run does not create a second run of the
+same type. The proactive cycle has no automatic schedule while its prompts and
+policy are being tuned.
 
 For an ongoing dry run, keep the application running with these settings:
 
@@ -247,12 +250,23 @@ JidoDelvetown.add_friend(
 JidoDelvetown.friends()
 JidoDelvetown.friend("did:plc:example")
 JidoDelvetown.remove_friend("did:plc:example")
+
+# Run the same read-only follow sync now.
+JidoDelvetown.sync_friends()
 ```
 
 The friend list is separate from actor contact memory. New follow events update
 the `follows_agent` relationship state. A completed follow action updates the
-`agent_follows` state. Neither event makes the actor a friend. An operator must
-add that label with `add_friend/2`.
+`agent_follows` state. The hourly sync reads every current follow record, gets
+each public profile, and imports those followed accounts as friends. It also
+marks accounts that are no longer followed. A manually added friend remains a
+friend after an unfollow. `remove_friend/1` creates a local exclusion, so a
+later sync does not add that account again.
+
+The sync is read-only on DelveTown. It writes only to local SQLite. It stops
+without reconciliation if pagination is incomplete or exceeds
+`DELVETOWN_FRIEND_SYNC_LIMIT`. A temporary profile lookup failure still saves
+the stable DID, and a later hourly sync can add the current handle.
 
 The decision model receives at most 12 friends. It receives only public identity,
 topics, and follow state. It does not receive local notes. A friend with

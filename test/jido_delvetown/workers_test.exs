@@ -2,6 +2,7 @@ defmodule JidoDelvetown.WorkersTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Workers.FriendSyncWorker
   alias JidoDelvetown.Workers.MemberDiscoveryWorker
   alias JidoDelvetown.Workers.ReactiveParticipationWorker
 
@@ -15,19 +16,32 @@ defmodule JidoDelvetown.WorkersTest do
     end
   end
 
+  defmodule FakeFriendSyncer do
+    def sync do
+      send(Application.fetch_env!(:jido_delvetown, :test_owner), :friend_sync)
+      Application.fetch_env!(:jido_delvetown, :friend_sync_result)
+    end
+  end
+
   setup do
     old_runner = Application.get_env(:jido_delvetown, :cycle_runner)
     old_owner = Application.get_env(:jido_delvetown, :test_owner)
     old_result = Application.get_env(:jido_delvetown, :cycle_result)
+    old_syncer = Application.get_env(:jido_delvetown, :friend_syncer)
+    old_sync_result = Application.get_env(:jido_delvetown, :friend_sync_result)
 
     Application.put_env(:jido_delvetown, :cycle_runner, FakeCycleRunner)
     Application.put_env(:jido_delvetown, :test_owner, self())
     Application.put_env(:jido_delvetown, :cycle_result, {:ok, %{status: "completed"}})
+    Application.put_env(:jido_delvetown, :friend_syncer, FakeFriendSyncer)
+    Application.put_env(:jido_delvetown, :friend_sync_result, {:ok, %{seen: 2}})
 
     on_exit(fn ->
       restore_env(:cycle_runner, old_runner)
       restore_env(:test_owner, old_owner)
       restore_env(:cycle_result, old_result)
+      restore_env(:friend_syncer, old_syncer)
+      restore_env(:friend_sync_result, old_sync_result)
     end)
 
     :ok
@@ -43,6 +57,11 @@ defmodule JidoDelvetown.WorkersTest do
     assert_receive {:cycle, :member_discovery}
   end
 
+  test "friend sync jobs save the remote friend list" do
+    assert :ok = FriendSyncWorker.perform(%Oban.Job{})
+    assert_receive :friend_sync
+  end
+
   test "failed cycles return an error for Oban retry" do
     Application.put_env(
       :jido_delvetown,
@@ -55,7 +74,7 @@ defmodule JidoDelvetown.WorkersTest do
   end
 
   test "workers use one durable queue and one incomplete job per cycle" do
-    for worker <- [ReactiveParticipationWorker, MemberDiscoveryWorker] do
+    for worker <- [ReactiveParticipationWorker, MemberDiscoveryWorker, FriendSyncWorker] do
       options = worker.__opts__()
 
       assert options[:queue] == :delvetown
