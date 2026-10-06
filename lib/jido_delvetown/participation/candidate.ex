@@ -32,7 +32,7 @@ defmodule JidoDelvetown.Candidate do
 
     %{
       id: did,
-      event_key: JidoDelvetown.InteractionLedger.event_key("new_member", [did]),
+      event_key: JidoDelvetown.InteractionEvents.event_key("new_member", [did]),
       protocol_id: did,
       uri: nil,
       cid: nil,
@@ -235,7 +235,7 @@ defmodule JidoDelvetown.Candidate do
        do: "notification:" <> protocol_id
 
   defp notification_event_key(_protocol_id, reason, author, uri, subject, indexed_at) do
-    JidoDelvetown.InteractionLedger.event_key("notification", [
+    JidoDelvetown.InteractionEvents.event_key("notification", [
       reason,
       Map.get(author, :did, ""),
       uri || subject || "",

@@ -10,6 +10,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     Config,
     ConversationPolicy,
     EngagementRanker,
+    InteractionEvents,
     InteractionLedger,
     OptOut,
     OutgoingLikePolicy,
@@ -113,7 +114,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       |> rank(:useful_discussion, cycle.state)
 
     cond do
-      InteractionLedger.pending_events?(@direct_reasons) ->
+      InteractionEvents.pending?(@direct_reasons) ->
         {:ok, select(cycle, "skip", nil, "direct_request_pending")}
 
       discussion ->
@@ -158,7 +159,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   defp select_member(cycle) do
     candidate =
       cycle.members
-      |> Enum.filter(&InteractionLedger.processable_event?(&1.event_key))
+      |> Enum.filter(&InteractionEvents.processable?(&1.event_key))
       |> rank(:new_member, cycle.state)
 
     cond do
@@ -180,7 +181,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       prior_contact?(candidate) ->
         {:ok, select(cycle, "skip", candidate, "member_already_contacted")}
 
-      InteractionLedger.pending_events?(@direct_reasons) ->
+      InteractionEvents.pending?(@direct_reasons) ->
         {:ok, select(cycle, "skip", candidate, "direct_request_pending", true)}
 
       welcome_budget_exhausted?() ->
@@ -253,13 +254,13 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   defp direct_candidate?(notification, state) do
     notification.reason in @direct_reasons and
       not processed?(state, notification.id) and
-      InteractionLedger.processable_event?(notification.event_key)
+      InteractionEvents.processable?(notification.event_key)
   end
 
   defp follow_candidate?(notification, state) do
     notification.reason == "follow" and
       not processed?(state, notification.id) and
-      InteractionLedger.processable_event?(notification.event_key)
+      InteractionEvents.processable?(notification.event_key)
   end
 
   defp add_memory(nil), do: nil
@@ -347,7 +348,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   defp welcome_budget_exhausted? do
     now = DateTime.utc_now()
     start_of_day = DateTime.new!(DateTime.to_date(now), ~T[00:00:00], "Etc/UTC")
-    InteractionLedger.outreach_count("welcome", start_of_day) >= Config.daily_welcome_limit()
+    InteractionEvents.outreach_count("welcome", start_of_day) >= Config.daily_welcome_limit()
   end
 
   defp processed?(state, id) do

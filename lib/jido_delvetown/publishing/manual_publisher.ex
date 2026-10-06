@@ -4,6 +4,7 @@ defmodule JidoDelvetown.ManualPublisher do
   alias JidoDelvetown.{
     Candidate,
     Config,
+    InteractionEvents,
     InteractionLedger,
     OutgoingLikePolicy,
     Protocol,
@@ -19,11 +20,11 @@ defmodule JidoDelvetown.ManualPublisher do
 
   def publish(event_key) when is_binary(event_key) and event_key != "" do
     with :ok <- enabled(),
-         %InteractionEvent{} = event <- InteractionLedger.event(event_key),
+         %InteractionEvent{} = event <- InteractionEvents.get(event_key),
          :ok <- publishable(event),
          {:ok, result, effect_key} <- publish_event(event),
          publication = event |> publication_details(result, effect_key),
-         {:ok, _event} <- InteractionLedger.record_manual_publication(event_key, publication) do
+         {:ok, _event} <- InteractionEvents.record_manual_publication(event_key, publication) do
       _result =
         Store.add_event(:manual_publish, %{
           event_key: event_key,

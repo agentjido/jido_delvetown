@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.OutgoingLikePolicy do
   @moduledoc "Applies deterministic eligibility rules before an outgoing like decision."
 
-  alias JidoDelvetown.{Config, InteractionLedger, OptOut, Protocol, Repo, Session}
+  alias JidoDelvetown.{Config, InteractionEvents, OptOut, Protocol, Repo, Session}
   alias JidoDelvetown.Storage.Effect
 
   @unsafe_labels ~w(
@@ -162,7 +162,7 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     start_of_day = DateTime.new!(DateTime.to_date(now), ~T[00:00:00], "Etc/UTC")
 
     ledger_count =
-      InteractionLedger.outreach_count(
+      InteractionEvents.outreach_count(
         "like",
         start_of_day,
         exclude_event_key: Keyword.get(opts, :exclude_event_key)
@@ -174,7 +174,7 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
   defp actor_in_cooldown?(did, now, opts) when is_binary(did) do
     since = DateTime.add(now, -Config.like_actor_cooldown_hours(), :hour)
 
-    InteractionLedger.recent_outreach_for_actor?(
+    InteractionEvents.recent_outreach_for_actor?(
       "like",
       did,
       since,
