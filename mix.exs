@@ -51,7 +51,12 @@ defmodule JidoDelvetown.MixProject do
 
   defp aliases do
     [
-      precommit: ["format --check-formatted", "compile --warnings-as-errors", "test"]
+      precommit: [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "test",
+        "xref graph --format cycles --label compile-connected"
+      ]
     ]
   end
 end

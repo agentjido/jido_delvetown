@@ -30,7 +30,9 @@ defmodule JidoDelvetown.ProtocolTest do
     Application.put_env(:jido_delvetown, :effect_store, EffectStore)
     Application.put_env(:jido_delvetown, :effect_store_opts, repo: Repo)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    restore_settings = RuntimeSettings.preserve!(autonomy_mode: "observe")
+
+    restore_settings =
+      RuntimeSettings.preserve!(autonomy_mode: "observe", daily_like_limit: 5)
 
     on_exit(fn ->
       restore_env(previous)

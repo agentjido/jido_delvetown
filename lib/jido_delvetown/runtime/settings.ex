@@ -7,7 +7,7 @@ defmodule JidoDelvetown.Settings do
   reject stale writes. Protected values also require their key in `:confirmed`.
   """
 
-  alias JidoDelvetown.{Automation, Repo}
+  alias JidoDelvetown.Repo
   alias JidoDelvetown.Settings.{Bootstrap, Contract, Schedules}
   alias JidoDelvetown.Settings.SecretStore
   alias JidoDelvetown.Storage.{Settings, SettingsRevision}
@@ -138,7 +138,7 @@ defmodule JidoDelvetown.Settings do
     schedule_supplied? = Enum.any?(Map.keys(changes), &(&1 in Schedules.keys()))
 
     if active_scope? and schedule_supplied? do
-      case Automation.reconcile_schedules() do
+      case reconcile_schedules() do
         :ok -> result
         {:error, reason} -> {:error, {:settings_activation_failed, :worker_reconcile, reason}}
       end
@@ -149,6 +149,17 @@ defmodule JidoDelvetown.Settings do
 
   defp maybe_reconcile_schedules({:error, _reason} = error, _repo, _scope, _changes),
     do: error
+
+  defp reconcile_schedules do
+    module =
+      Application.get_env(
+        :jido_delvetown,
+        :settings_schedule_reconciler,
+        Module.concat(["JidoDelvetown", "Automation"])
+      )
+
+    apply(module, :reconcile_schedules, [])
+  end
 
   defp update_transaction(repo, scope, changes, opts) do
     with %Settings{} = settings <- repo.get(Settings, scope),

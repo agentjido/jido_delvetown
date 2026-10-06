@@ -3,18 +3,11 @@ defmodule JidoDelvetown.Settings.Schedules do
 
   alias JidoDelvetown.Settings
 
-  alias JidoDelvetown.Workers.{
-    FriendSyncWorker,
-    MemberDiscoveryWorker,
-    ProactiveReviewWorker,
-    ReactiveParticipationWorker
-  }
-
   @entries [
-    {:reactive_review_cron, ReactiveParticipationWorker},
-    {:proactive_review_cron, ProactiveReviewWorker},
-    {:member_discovery_cron, MemberDiscoveryWorker},
-    {:friend_sync_cron, FriendSyncWorker}
+    {:reactive_review_cron, "ReactiveParticipationWorker"},
+    {:proactive_review_cron, "ProactiveReviewWorker"},
+    {:member_discovery_cron, "MemberDiscoveryWorker"},
+    {:friend_sync_cron, "FriendSyncWorker"}
   ]
 
   @keys Enum.map(@entries, &elem(&1, 0))
@@ -34,7 +27,10 @@ defmodule JidoDelvetown.Settings.Schedules do
   @spec crontab(keyword()) :: {:ok, [{String.t(), module()}]} | {:error, term()}
   def crontab(opts \\ []) do
     with {:ok, schedules} <- current(opts) do
-      {:ok, Enum.map(@entries, fn {key, worker} -> {Map.fetch!(schedules, key), worker} end)}
+      {:ok,
+       Enum.map(@entries, fn {key, worker} ->
+         {Map.fetch!(schedules, key), Module.concat(["JidoDelvetown.Workers", worker])}
+       end)}
     end
   end
 end

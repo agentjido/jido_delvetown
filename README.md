@@ -18,6 +18,42 @@ interface for this tracer spike.
 - Delete can only remove supported records from the signed-in account.
 - Profile and account controls are operator functions. They are not AI tools.
 
+## Developer subsystem map
+
+The source root has a small fixed role. `JidoDelvetown` is the public operator
+facade. Under `lib/jido_delvetown`, only `Application`, `Agent`, and `Config`
+can be root modules. All other code belongs to one of these subsystems:
+
+| Subsystem | Ownership | Main entry points |
+| --- | --- | --- |
+| `actions` | Jido Action contracts for reads, decisions, durable recording, and protocol effects | The Action modules registered by `JidoDelvetown.Agent` |
+| `participation` | Candidate policy, ranking, personality, Imp decisions, Flows, and cycle execution | `JidoDelvetown.Participation.CycleRunner` |
+| `persistence` | SQLite access, storage schemas, interaction events, effect receipts, scan progress, memory, inspection, and legacy import | `JidoDelvetown.InteractionEvents`, `JidoDelvetown.EffectStore`, `JidoDelvetown.ScanProgress`, and `JidoDelvetown.Inspection` |
+| `protocol` | Session state and the only application-level boundary for DelveTown protocol reads and writes | `JidoDelvetown.Protocol`; transport modules stay behind it |
+| `publishing` | Manual text and image draft, stage, upload, and publish workflows | `JidoDelvetown.ManualPublisher`, `JidoDelvetown.ImageStager`, and `JidoDelvetown.ImagePublisher` |
+| `runtime` | Process startup, the Jido runtime, Oban control, dashboard startup, and typed settings | `JidoDelvetown.Settings` and `JidoDelvetown.Automation` |
+| `social` | Friend and follower memory, friend sync, member discovery, welcome policy, like policy, and opt-out policy | `JidoDelvetown.FriendList`, `JidoDelvetown.FriendSync`, and the social cycle modules |
+| `workers` | Thin Oban adapters that call the owned participation or social service | The four worker modules named in `JidoDelvetown.Settings.Schedules` |
+| `JidoDelvetownWeb` | Local admin presentation and safe dashboard snapshots; it does not own domain rules | `JidoDelvetownWeb.DashboardLive` and `JidoDelvetownWeb.DashboardSnapshot` |
+
+Use `JidoDelvetown` for operator commands. Use `JidoDelvetown.Settings` for
+typed configuration changes. Use the publishing entry points only for an exact
+operator-approved draft. Application code must use `JidoDelvetown.Protocol`
+instead of a transport module. Workers must delegate work and must not own
+policy.
+
+The test tree under `test/jido_delvetown` mirrors the eight source subsystem
+folders. `JidoDelvetown.ApplicationTest` checks this layout and the root file
+policy. `mix precommit` checks formatting, warnings, tests, and compile-connected
+dependency cycles.
+
+Legacy DETS and checkpoint code stays only while a direct upgrade from a
+pre-SQLite release is supported. Remove the legacy importer, the legacy path
+helpers, and the import flag together when the oldest supported upgrade source
+uses SQLite. Remove the shared `legacy_imports` table only after both legacy
+importers are retired and a later migration removes it from every supported
+database.
+
 ## Setup
 
 Use Elixir 1.19 or later. Imp also needs a C and C++ compiler for its native
