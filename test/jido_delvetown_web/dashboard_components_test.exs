@@ -12,6 +12,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       :styles,
       :sidebar_navigation,
       :mobile_navigation,
+      :first_run_setup,
       :operational_state,
       :runtime_health,
       :memory_and_effects,

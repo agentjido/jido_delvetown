@@ -29,6 +29,22 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     end
   end
 
+  defmodule FakeSetup do
+    def status do
+      Application.fetch_env!(:jido_delvetown, :setup_status_test_result)
+    end
+
+    def save(params) do
+      send(Application.fetch_env!(:jido_delvetown, :test_owner), {:setup_saved, params})
+      Application.fetch_env!(:jido_delvetown, :setup_save_test_result)
+    end
+
+    def test_connection do
+      send(Application.fetch_env!(:jido_delvetown, :test_owner), :setup_connection_tested)
+      Application.fetch_env!(:jido_delvetown, :setup_connection_test_result)
+    end
+  end
+
   setup do
     old_controller = Application.get_env(:jido_delvetown, :reactive_review_controller)
     old_result = Application.get_env(:jido_delvetown, :reactive_review_test_result)
@@ -37,11 +53,25 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     old_proactive_status = Application.get_env(:jido_delvetown, :proactive_review_test_status)
     old_console_settings = Application.get_env(:jido_delvetown, :console_settings)
     old_theme_result = Application.get_env(:jido_delvetown, :console_theme_test_result)
+    old_setup_service = Application.get_env(:jido_delvetown, :setup_service)
+    old_setup_status = Application.get_env(:jido_delvetown, :setup_status_test_result)
+    old_setup_save = Application.get_env(:jido_delvetown, :setup_save_test_result)
+    old_setup_connection = Application.get_env(:jido_delvetown, :setup_connection_test_result)
     old_test_owner = Application.get_env(:jido_delvetown, :test_owner)
 
     Application.put_env(:jido_delvetown, :reactive_review_controller, FakeReviewController)
     Application.put_env(:jido_delvetown, :console_settings, FakeConsoleSettings)
     Application.put_env(:jido_delvetown, :console_theme_test_result, {:ok, %{}})
+    Application.put_env(:jido_delvetown, :setup_service, FakeSetup)
+    Application.put_env(:jido_delvetown, :setup_status_test_result, {:ok, setup_status(false)})
+    Application.put_env(:jido_delvetown, :setup_save_test_result, {:ok, %{}})
+
+    Application.put_env(
+      :jido_delvetown,
+      :setup_connection_test_result,
+      {:ok, %{did: "did:plc:agent", handle: "agent.test"}}
+    )
+
     Application.put_env(:jido_delvetown, :test_owner, self())
 
     Application.put_env(
@@ -76,6 +106,10 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       restore_env(:proactive_review_test_status, old_proactive_status)
       restore_env(:console_settings, old_console_settings)
       restore_env(:console_theme_test_result, old_theme_result)
+      restore_env(:setup_service, old_setup_service)
+      restore_env(:setup_status_test_result, old_setup_status)
+      restore_env(:setup_save_test_result, old_setup_save)
+      restore_env(:setup_connection_test_result, old_setup_connection)
       restore_env(:test_owner, old_test_owner)
     end)
 
@@ -138,6 +172,112 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "published-reply"
     assert html =~ "disabled"
     assert function_exported?(DashboardLive, :handle_event, 3)
+  end
+
+  test "renders first-run setup without accepting an LLM key" do
+    assigns =
+      base_assigns()
+      |> Map.put(:show_setup, true)
+      |> Map.put(:setup, setup_status(true, llm_key_configured?: false))
+
+    html = render_dashboard(assigns)
+
+    assert html =~ ~s(id="first-run-setup")
+    assert html =~ "Connect AgentJido"
+    assert html =~ ~s(id="setup-identifier")
+    assert html =~ ~s(id="setup-app-password")
+    assert html =~ ~s(type="password")
+    assert html =~ "encrypted before it is saved"
+    assert html =~ ~s(id="setup-decision-model")
+    assert html =~ "OPENAI_API_KEY"
+    assert html =~ "Not detected"
+    assert html =~ ~s(value="observe")
+    assert html =~ ~s(value="review")
+    refute html =~ ~s(value="autonomous")
+    refute html =~ ~s(name="setup[openai_api_key]")
+    assert html =~ ~s(phx-submit="save_setup")
+    assert html =~ "Save and test connection"
+    refute html =~ "Participation proposal"
+  end
+
+  test "saves setup, tests the connection, and opens the dashboard" do
+    params = %{
+      "identifier" => "agent.test",
+      "app_password" => "app-password",
+      "decision_model" => "openai:gpt-4o-mini",
+      "autonomy_mode" => "observe",
+      "settings_version" => "1"
+    }
+
+    Application.put_env(
+      :jido_delvetown,
+      :setup_status_test_result,
+      {:ok, setup_status(false)}
+    )
+
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+      |> Phoenix.Component.assign(:show_setup, true)
+
+    assert {:noreply, saved_socket} =
+             DashboardLive.handle_event("save_setup", %{"setup" => params}, socket)
+
+    assert_received {:setup_saved, ^params}
+    assert_received :setup_connection_tested
+    assert saved_socket.assigns.show_setup
+    assert saved_socket.assigns.setup_notice.kind == "safe"
+
+    saved_html = render_dashboard(saved_socket.assigns)
+    assert saved_html =~ "Setup saved and connection verified"
+    assert saved_html =~ "@agent.test"
+    assert saved_html =~ ~s(phx-click="open_dashboard")
+
+    assert {:noreply, dashboard_socket} =
+             DashboardLive.handle_event("open_dashboard", %{}, saved_socket)
+
+    refute dashboard_socket.assigns.show_setup
+    assert render_dashboard(dashboard_socket.assigns) =~ "Participation proposal"
+  end
+
+  test "keeps saved setup visible when the connection test fails" do
+    Application.put_env(
+      :jido_delvetown,
+      :setup_status_test_result,
+      {:ok, setup_status(false, password_configured?: true)}
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :setup_connection_test_result,
+      {:error, :invalid_credentials}
+    )
+
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+      |> Phoenix.Component.assign(:show_setup, true)
+
+    assert {:noreply, updated_socket} =
+             DashboardLive.handle_event(
+               "save_setup",
+               %{
+                 "setup" => %{
+                   "identifier" => "agent.test",
+                   "app_password" => "wrong-password",
+                   "decision_model" => "openai:gpt-4o-mini",
+                   "autonomy_mode" => "observe",
+                   "settings_version" => "1"
+                 }
+               },
+               socket
+             )
+
+    html = render_dashboard(updated_socket.assigns)
+    assert updated_socket.assigns.show_setup
+    assert html =~ "Settings saved; connection failed"
+    assert html =~ "Retry DelveTown connection"
+    refute html =~ ~s(phx-click="open_dashboard")
   end
 
   test "changes the console theme and keeps an invalid selection unchanged" do
@@ -559,6 +699,9 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     %{
       active_tab: "overview",
       theme: "system",
+      show_setup: false,
+      setup: setup_status(false),
+      setup_notice: nil,
       status: %{
         writes_enabled?: false,
         schedule_enabled?: true,
@@ -750,6 +893,33 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       detail: "The worker failed and Oban will retry it.",
       disabled?: true,
       job_id: 11
+    }
+  end
+
+  defp setup_status(required?, opts \\ []) do
+    password_configured? = Keyword.get(opts, :password_configured?, not required?)
+
+    %{
+      available?: true,
+      required?: required?,
+      identifier: if(required?, do: "", else: "agent.test"),
+      password_configured?: password_configured?,
+      decision_model: "openai:gpt-4o-mini",
+      model_options: [
+        %{value: "openai:gpt-4o-mini", label: "OpenAI GPT-4o mini"},
+        %{value: "openai:gpt-5-mini", label: "OpenAI GPT-5 mini"}
+      ],
+      autonomy_mode: "observe",
+      autonomy_options: [
+        %{value: "observe", label: "Observe only"},
+        %{value: "review", label: "Review before action"}
+      ],
+      llm_key: %{
+        provider: "OpenAI",
+        environment: "OPENAI_API_KEY",
+        configured?: Keyword.get(opts, :llm_key_configured?, true)
+      },
+      settings_version: 1
     }
   end
 

@@ -4,7 +4,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   use Phoenix.LiveView
 
   alias JidoDelvetown.{Automation, ImagePublisher, ManualPublisher}
-  alias JidoDelvetown.Settings.Console, as: ConsoleSettings
+  alias JidoDelvetown.Settings.{Console, Setup}
   alias JidoDelvetownWeb.{DashboardComponents, DashboardSnapshot}
 
   @refresh_ms 3_000
@@ -13,9 +13,13 @@ defmodule JidoDelvetownWeb.DashboardLive do
   def mount(params, _session, socket) do
     if connected?(socket), do: schedule_refresh()
 
+    snapshot = DashboardSnapshot.load()
+
     assigns =
-      DashboardSnapshot.load()
+      snapshot
       |> Map.put(:active_tab, active_tab(params))
+      |> Map.put(:show_setup, map_value(snapshot.setup, :required?, false))
+      |> Map.put(:setup_notice, nil)
       |> Map.put(:publish_notice, nil)
       |> Map.put(:like_publish_notice, nil)
       |> Map.put(:image_publish_notice, nil)
@@ -136,6 +140,42 @@ defmodule JidoDelvetownWeb.DashboardLive do
   def handle_event("set_theme", _params, socket), do: {:noreply, socket}
 
   @impl true
+  def handle_event("save_setup", %{"setup" => params}, socket) do
+    notice =
+      case setup_service().save(params) do
+        {:ok, _settings} -> connection_notice(setup_service().test_connection())
+        {:error, reason} -> setup_error_notice(reason)
+      end
+
+    {:noreply,
+     socket
+     |> assign(DashboardSnapshot.load())
+     |> assign(:active_tab, "overview")
+     |> assign(:show_setup, true)
+     |> assign(:setup_notice, notice)}
+  end
+
+  def handle_event("save_setup", _params, socket),
+    do: {:noreply, assign(socket, :setup_notice, setup_error_notice(:invalid_setup_input))}
+
+  @impl true
+  def handle_event("test_setup_connection", _params, socket) do
+    notice = connection_notice(setup_service().test_connection())
+
+    {:noreply,
+     socket
+     |> assign(DashboardSnapshot.load())
+     |> assign(:show_setup, true)
+     |> assign(:setup_notice, notice)}
+  end
+
+  @impl true
+  def handle_event("open_dashboard", _params, socket) do
+    show_setup = map_value(socket.assigns.setup, :required?, true)
+    {:noreply, assign(socket, :show_setup, show_setup)}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="console-root" data-theme={@theme}>
@@ -145,15 +185,19 @@ defmodule JidoDelvetownWeb.DashboardLive do
         <div class="operator-workspace">
           <DashboardComponents.mobile_navigation {assigns} />
           <main id="operator-content" class="dashboard-shell">
-            <DashboardComponents.operational_state {assigns} />
-            <DashboardComponents.runtime_health {assigns} />
-            <DashboardComponents.memory_and_effects {assigns} />
-            <DashboardComponents.scan_and_database_status {assigns} />
-            <DashboardComponents.recent_events {assigns} />
-            <DashboardComponents.planned_controls {assigns} />
-            <DashboardComponents.agent_information {assigns} />
-            <DashboardComponents.simulated_actions {assigns} />
-            <DashboardComponents.footer {assigns} />
+            <%= if @show_setup do %>
+              <DashboardComponents.first_run_setup {assigns} />
+            <% else %>
+              <DashboardComponents.operational_state {assigns} />
+              <DashboardComponents.runtime_health {assigns} />
+              <DashboardComponents.memory_and_effects {assigns} />
+              <DashboardComponents.scan_and_database_status {assigns} />
+              <DashboardComponents.recent_events {assigns} />
+              <DashboardComponents.planned_controls {assigns} />
+              <DashboardComponents.agent_information {assigns} />
+              <DashboardComponents.simulated_actions {assigns} />
+              <DashboardComponents.footer {assigns} />
+            <% end %>
           </main>
         </div>
       </div>
@@ -219,7 +263,54 @@ defmodule JidoDelvetownWeb.DashboardLive do
     do: Application.get_env(:jido_delvetown, :reactive_review_controller, Automation)
 
   defp console_settings,
-    do: Application.get_env(:jido_delvetown, :console_settings, ConsoleSettings)
+    do: Application.get_env(:jido_delvetown, :console_settings, Console)
+
+  defp setup_service,
+    do: Application.get_env(:jido_delvetown, :setup_service, Setup)
+
+  defp connection_notice({:ok, identity}) do
+    handle = map_value(identity, :handle, "configured account")
+    did = map_value(identity, :did)
+
+    %{
+      kind: "safe",
+      title: "Setup saved and connection verified",
+      text: if(did, do: "Connected as @#{handle} · #{did}", else: "Connected as @#{handle}.")
+    }
+  end
+
+  defp connection_notice({:error, reason}) do
+    %{
+      kind: "attention",
+      title: "Settings saved; connection failed",
+      text: connection_error(reason)
+    }
+  end
+
+  defp setup_error_notice(reason) do
+    %{kind: "attention", title: "Setup was not saved", text: setup_error(reason)}
+  end
+
+  defp setup_error({:setup_field_required, field}),
+    do: "Complete the #{String.replace(field, "_", " ")} field."
+
+  defp setup_error({:invalid_setup_value, "autonomy_mode"}),
+    do: "Choose Observe only or Review before action."
+
+  defp setup_error({:invalid_setup_value, field}),
+    do: "Choose a valid #{String.replace(field, "_", " ")}."
+
+  defp setup_error({:stale_settings, _expected, _actual}),
+    do: "Settings changed in another window. Reload this page and try again."
+
+  defp setup_error(_reason), do: "The local settings could not be saved. Check the local logs."
+
+  defp connection_error({:connection_setting_missing, _key}),
+    do: "The saved DelveTown credentials are incomplete."
+
+  defp connection_error(_reason),
+    do:
+      "DelveTown did not accept the connection. Check the identifier and app password, then retry."
 
   defp review_error(:runtime_unavailable, kind) do
     %{

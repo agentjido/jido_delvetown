@@ -14,6 +14,10 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   def mobile_navigation(assigns),
     do: content(assign(assigns, :dashboard_section, :mobile_navigation))
 
+  @spec first_run_setup(map()) :: Phoenix.LiveView.Rendered.t()
+  def first_run_setup(assigns),
+    do: content(assign(assigns, :dashboard_section, :first_run_setup))
+
   @spec operational_state(map()) :: Phoenix.LiveView.Rendered.t()
   def operational_state(assigns),
     do: content(assign(assigns, :dashboard_section, :operational_state))
@@ -357,6 +361,211 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         margin: 0 auto;
         padding: 30px 0 44px;
       }
+
+      .setup-page {
+        width: min(100%, 860px);
+        margin: 0 auto;
+      }
+
+      .setup-header {
+        margin-bottom: 24px;
+      }
+
+      .setup-header h1 {
+        margin: 4px 0 10px;
+        font-size: clamp(28px, 4vw, 40px);
+      }
+
+      .setup-lede {
+        max-width: 66ch;
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      .setup-steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin: 20px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .setup-steps li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 680;
+      }
+
+      .setup-steps span {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        place-items: center;
+        border: 1px solid var(--line-strong);
+        border-radius: 50%;
+        background: var(--surface);
+        color: var(--cyan);
+        font-family: var(--font-mono);
+        font-size: 10px;
+      }
+
+      .setup-notice {
+        display: grid;
+        gap: 4px;
+        margin-bottom: 16px;
+        padding: 14px 16px;
+        border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line));
+        border-radius: var(--radius);
+        background: color-mix(in srgb, var(--green-deep) 60%, var(--surface));
+      }
+
+      .setup-notice.attention {
+        border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+        background: color-mix(in srgb, var(--red-deep) 55%, var(--surface));
+      }
+
+      .setup-notice strong { font-size: 14px; }
+      .setup-notice p { margin: 0; color: var(--muted); font-size: 13px; }
+
+      .setup-notice-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+      }
+
+      .setup-form { display: grid; gap: 14px; }
+
+      .setup-card {
+        display: grid;
+        grid-template-columns: minmax(160px, 0.42fr) minmax(0, 1fr);
+        gap: 28px;
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .setup-card-copy h2 { margin: 3px 0 6px; }
+      .setup-card-copy p:last-child { margin: 0; color: var(--muted); font-size: 12px; }
+      .setup-card-fields { display: grid; gap: 14px; }
+
+      .setup-field { display: grid; gap: 5px; }
+
+      .setup-field label,
+      .setup-field legend {
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 720;
+      }
+
+      .setup-field input,
+      .setup-field select {
+        width: 100%;
+        min-height: 42px;
+        padding: 9px 11px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        background: var(--canvas);
+        color: var(--text);
+        font: inherit;
+      }
+
+      .setup-field input::placeholder { color: var(--quiet); }
+
+      .setup-help {
+        margin: 0;
+        color: var(--quiet);
+        font-size: 11px;
+      }
+
+      .setup-key-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 11px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .setup-key-status div { min-width: 0; }
+      .setup-key-status p { margin: 0; color: var(--muted); font-size: 11px; }
+      .setup-key-status code { color: var(--text); font-family: var(--font-mono); font-size: 12px; }
+
+      .setup-autonomy {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+
+      .setup-autonomy legend { margin-bottom: 2px; }
+
+      .setup-choice {
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr);
+        gap: 2px 9px;
+        padding: 11px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--canvas);
+        cursor: pointer;
+      }
+
+      .setup-choice:has(input:checked) {
+        border-color: color-mix(in srgb, var(--cyan) 55%, var(--line));
+        background: var(--cyan-deep);
+      }
+
+      .setup-choice input { width: 16px; min-height: 16px; margin: 2px 0 0; }
+      .setup-choice strong { font-size: 13px; }
+      .setup-choice span { grid-column: 2; color: var(--muted); font-size: 11px; }
+
+      .setup-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 4px 2px 0;
+      }
+
+      .setup-actions p { max-width: 52ch; margin: 0; color: var(--muted); font-size: 11px; }
+
+      .setup-primary,
+      .setup-secondary {
+        min-height: 40px;
+        padding: 8px 14px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 720;
+        cursor: pointer;
+      }
+
+      .setup-primary {
+        border-color: color-mix(in srgb, var(--cyan) 62%, var(--line));
+        background: var(--cyan-deep);
+        color: var(--text);
+      }
+
+      .setup-primary:hover { border-color: var(--cyan); }
+
+      .setup-secondary {
+        background: var(--surface);
+        color: var(--muted);
+      }
+
+      .setup-secondary:hover { color: var(--text); }
 
       .page-header {
         display: flex;
@@ -1184,6 +1393,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .control-row { justify-content: start; flex-wrap: wrap; }
       }
 
+      @media (max-width: 700px) {
+        .setup-card { grid-template-columns: 1fr; gap: 18px; padding: 18px; }
+        .setup-steps { grid-template-columns: 1fr; }
+        .setup-actions { align-items: stretch; flex-direction: column; }
+        .setup-primary { width: 100%; }
+      }
+
       @media (max-width: 520px) {
         .dashboard-shell { width: min(100% - 20px, 480px); }
         .operator-brand-copy span { display: none; }
@@ -1353,6 +1569,174 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         </nav>
       </div>
     </header>
+
+    <section
+      :if={@dashboard_section == :first_run_setup}
+      id="first-run-setup"
+      class="setup-page"
+      aria-labelledby="setup-title"
+    >
+      <header class="setup-header">
+        <p class="eyebrow">First-run setup</p>
+        <h1 id="setup-title">Connect AgentJido</h1>
+        <p class="setup-lede">
+          Add the local settings that AgentJido needs to read DelveTown and prepare safe proposals.
+          Public writes stay off unless you change the mode later.
+        </p>
+        <ol class="setup-steps" aria-label="Setup steps">
+          <li><span>1</span> DelveTown identity</li>
+          <li><span>2</span> Decision model</li>
+          <li><span>3</span> Safe behavior</li>
+        </ol>
+      </header>
+
+      <div
+        :if={@setup_notice}
+        id="setup-notice"
+        class={"setup-notice #{@setup_notice.kind}"}
+        role="status"
+      >
+        <strong>{@setup_notice.title}</strong>
+        <p>{@setup_notice.text}</p>
+        <div class="setup-notice-actions">
+          <button
+            :if={@setup_notice.kind == "safe"}
+            id="open-dashboard"
+            type="button"
+            class="setup-primary"
+            phx-click="open_dashboard"
+          >
+            Open operator console
+          </button>
+          <button
+            :if={@setup.password_configured? and @setup_notice.kind == "attention"}
+            id="retry-setup-connection"
+            type="button"
+            class="setup-secondary"
+            phx-click="test_setup_connection"
+            phx-disable-with="Testing…"
+          >
+            Retry DelveTown connection
+          </button>
+        </div>
+      </div>
+
+      <form id="first-run-form" class="setup-form" phx-submit="save_setup">
+        <input
+          type="hidden"
+          name="setup[settings_version]"
+          value={@setup.settings_version}
+        />
+
+        <section class="setup-card" aria-labelledby="setup-identity-title">
+          <div class="setup-card-copy">
+            <p class="panel-kicker">Step 1</p>
+            <h2 id="setup-identity-title">DelveTown identity</h2>
+            <p>Your app password is encrypted before it is saved in the local SQLite database.</p>
+          </div>
+          <div class="setup-card-fields">
+            <div class="setup-field">
+              <label for="setup-identifier">Handle or account identifier</label>
+              <input
+                id="setup-identifier"
+                name="setup[identifier]"
+                type="text"
+                value={@setup.identifier}
+                placeholder="agentjido.delve.town"
+                autocomplete="username"
+                required
+              />
+            </div>
+            <div class="setup-field">
+              <label for="setup-app-password">DelveTown app password</label>
+              <input
+                id="setup-app-password"
+                name="setup[app_password]"
+                type="password"
+                placeholder="Enter an app password"
+                autocomplete="current-password"
+                required
+              />
+              <p class="setup-help">
+                The password is never shown again and does not enter settings revision history.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="setup-card" aria-labelledby="setup-model-title">
+          <div class="setup-card-copy">
+            <p class="panel-kicker">Step 2</p>
+            <h2 id="setup-model-title">Decision model</h2>
+            <p>The API key stays in the process environment. It is not saved in SQLite.</p>
+          </div>
+          <div class="setup-card-fields">
+            <div class="setup-field">
+              <label for="setup-decision-model">Model</label>
+              <select id="setup-decision-model" name="setup[decision_model]" required>
+                <option
+                  :for={option <- @setup.model_options}
+                  value={option.value}
+                  selected={option.value == @setup.decision_model}
+                >
+                  {option.label}
+                </option>
+              </select>
+            </div>
+            <div class="setup-key-status" aria-label="LLM API key status">
+              <div>
+                <code>{@setup.llm_key.environment}</code>
+                <p>
+                  {if @setup.llm_key.configured?,
+                    do: "Available to this process",
+                    else: "Not detected"}
+                </p>
+              </div>
+              <span class={"badge #{if @setup.llm_key.configured?, do: "healthy", else: "attention"}"}>
+                {if @setup.llm_key.configured?, do: "Ready", else: "Missing"}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section class="setup-card" aria-labelledby="setup-safety-title">
+          <div class="setup-card-copy">
+            <p class="panel-kicker">Step 3</p>
+            <h2 id="setup-safety-title">Safe behavior</h2>
+            <p>First-run setup does not offer autonomous mode. You can review that change later.</p>
+          </div>
+          <div class="setup-card-fields">
+            <fieldset class="setup-autonomy">
+              <legend>Initial autonomy mode</legend>
+              <label :for={option <- @setup.autonomy_options} class="setup-choice">
+                <input
+                  type="radio"
+                  name="setup[autonomy_mode]"
+                  value={option.value}
+                  checked={option.value == @setup.autonomy_mode}
+                />
+                <strong>{option.label}</strong>
+                <span>{autonomy_help(option.value)}</span>
+              </label>
+            </fieldset>
+          </div>
+        </section>
+
+        <div class="setup-actions">
+          <p>
+            This action saves the local settings, reconnects the session, and verifies the DelveTown identity. It does not publish anything.
+          </p>
+          <button
+            id="save-and-test-setup"
+            type="submit"
+            class="setup-primary"
+            phx-disable-with="Saving and testing…"
+          >
+            Save and test connection
+          </button>
+        </div>
+      </form>
+    </section>
 
     <header :if={@dashboard_section == :operational_state} class="page-header">
       <div>
@@ -2175,6 +2559,12 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   defp page_title("simulated-posts"), do: "Participation inbox"
   defp page_title("image-drafts"), do: "Drafts & approvals"
   defp page_title(_active_tab), do: "Overview"
+
+  defp autonomy_help("review"),
+    do: "Save proposals for approval. No selected action publishes automatically."
+
+  defp autonomy_help(_mode),
+    do: "Inspect activity and prepare proposals. All protocol effects stay blocked."
 
   defp simulated_text(post) do
     case map_value(post, :text) do

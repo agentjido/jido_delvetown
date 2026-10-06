@@ -53,6 +53,23 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     def theme, do: {:ok, "dark"}
   end
 
+  defmodule HealthySetup do
+    def status do
+      {:ok,
+       %{
+         required?: true,
+         identifier: "",
+         password_configured?: false,
+         decision_model: "openai:gpt-4o-mini",
+         model_options: [],
+         autonomy_mode: "observe",
+         autonomy_options: [],
+         llm_key: %{environment: "OPENAI_API_KEY", configured?: true},
+         settings_version: 1
+       }}
+    end
+  end
+
   defmodule UnavailableDependency do
     def status, do: {:error, :agent_not_running}
     def recent_events(_limit), do: exit(:event_store_unavailable)
@@ -73,6 +90,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         review_controller: HealthyReviews,
         config: HealthyConfig,
         console_settings: HealthyConsoleSettings,
+        setup_service: HealthySetup,
         now: ~U[2026-10-06 12:34:56.789Z]
       )
 
@@ -100,6 +118,9 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.reactive_review == %{status: :idle, disabled?: false}
     assert snapshot.proactive_review == %{status: :queued, disabled?: true}
     assert snapshot.theme == "dark"
+    assert snapshot.setup.required?
+    assert snapshot.setup.available?
+    assert snapshot.setup.llm_key.configured?
     assert snapshot.manual_publish_enabled
     assert snapshot.port == 4041
     assert snapshot.refreshed_at == "2026-10-06T12:34:56Z"
@@ -114,6 +135,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         review_controller: UnavailableDependency,
         config: UnavailableDependency,
         console_settings: UnavailableDependency,
+        setup_service: UnavailableDependency,
         now: ~U[2026-10-06 12:34:56Z]
       )
 
@@ -128,6 +150,9 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.agent_events == []
     assert snapshot.inspection == %{}
     assert snapshot.inspection_error =~ "database unavailable"
+    refute snapshot.setup.available?
+    refute snapshot.setup.required?
+    assert snapshot.setup.error == ":agent_not_running"
     assert snapshot.character.name == "AgentJido"
     assert snapshot.character.traits == []
     assert snapshot.disclosure == %{}

@@ -2,7 +2,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
   @moduledoc false
 
   alias JidoDelvetown.{Automation, Config, Personality}
-  alias JidoDelvetown.Settings.Console, as: ConsoleSettings
+  alias JidoDelvetown.Settings.{Console, Setup}
 
   @page_title "AgentJido / DelveTown"
 
@@ -12,7 +12,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     personality = Keyword.get(opts, :personality, Personality)
     review_controller = Keyword.get(opts, :review_controller, default_review_controller())
     config = Keyword.get(opts, :config, Config)
-    console_settings = Keyword.get(opts, :console_settings, ConsoleSettings)
+    console_settings = Keyword.get(opts, :console_settings, Console)
+    setup_service = Keyword.get(opts, :setup_service, default_setup_service())
     now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now() end) |> DateTime.truncate(:second)
 
     status_result = safe_read(fn -> data_source.status() end)
@@ -42,6 +43,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       reactive_review: review_status(review_controller, :reactive_review_status, :reactive),
       proactive_review: review_status(review_controller, :proactive_review_status, :proactive),
       theme: setting_value(console_settings, :theme, "system"),
+      setup: setup_status(setup_service),
       manual_publish_enabled: config_value(config, :manual_publish_enabled?, false),
       port: config_value(config, :dashboard_port, 4040),
       refreshed_at: DateTime.to_iso8601(now),
@@ -93,6 +95,30 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       {:ok, {:ok, value}} -> value
       _result -> default
     end
+  end
+
+  defp setup_status(service) do
+    case safe_read(fn -> apply(service, :status, []) end) do
+      {:ok, {:ok, status}} when is_map(status) -> Map.put(status, :available?, true)
+      {:error, reason} -> unavailable_setup(reason)
+      _result -> unavailable_setup(:invalid_setup_status)
+    end
+  end
+
+  defp unavailable_setup(reason) do
+    %{
+      available?: false,
+      required?: false,
+      identifier: "",
+      password_configured?: false,
+      decision_model: "openai:gpt-4o-mini",
+      model_options: Setup.model_options(),
+      autonomy_mode: "observe",
+      autonomy_options: Setup.safe_autonomy_options(),
+      llm_key: %{provider: "OpenAI", environment: "OPENAI_API_KEY", configured?: false},
+      settings_version: 1,
+      error: inspect(reason, pretty: true, limit: 20)
+    }
   end
 
   defp safe_read(fun) do
@@ -166,5 +192,9 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
 
   defp default_review_controller do
     Application.get_env(:jido_delvetown, :reactive_review_controller, Automation)
+  end
+
+  defp default_setup_service do
+    Application.get_env(:jido_delvetown, :setup_service, Setup)
   end
 end
