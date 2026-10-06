@@ -1,10 +1,48 @@
 defmodule JidoDelvetownWeb.DashboardLiveTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias JidoDelvetown.SelfPortraitDraft
   alias JidoDelvetownWeb.DashboardLive
 
-  test "renders agent state without active overview controls" do
+  defmodule FakeReviewController do
+    def enqueue_reactive_review do
+      Application.fetch_env!(:jido_delvetown, :reactive_review_test_result)
+    end
+
+    def reactive_review_status do
+      Application.fetch_env!(:jido_delvetown, :reactive_review_test_status)
+    end
+  end
+
+  setup do
+    old_controller = Application.get_env(:jido_delvetown, :reactive_review_controller)
+    old_result = Application.get_env(:jido_delvetown, :reactive_review_test_result)
+    old_status = Application.get_env(:jido_delvetown, :reactive_review_test_status)
+
+    Application.put_env(:jido_delvetown, :reactive_review_controller, FakeReviewController)
+
+    Application.put_env(
+      :jido_delvetown,
+      :reactive_review_test_result,
+      {:ok, review_feedback(:queued)}
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :reactive_review_test_status,
+      review_feedback(:idle)
+    )
+
+    on_exit(fn ->
+      restore_env(:reactive_review_controller, old_controller)
+      restore_env(:reactive_review_test_result, old_result)
+      restore_env(:reactive_review_test_status, old_status)
+    end)
+
+    :ok
+  end
+
+  test "renders agent state with the manual reactive review control" do
     html = render_dashboard()
 
     assert html =~ "AgentJido"
@@ -34,7 +72,10 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "dets-and-file-v1"
     assert html =~ "Run reactive review"
     assert html =~ "Approve human-in-the-loop post"
-    assert html =~ "No action or approval handlers are installed"
+    assert html =~ "Ready for review"
+    assert html =~ "current dry-run settings"
+    assert html =~ ~s(id="run-reactive-review")
+    assert html =~ ~s(phx-click="run_reactive_review")
     assert html =~ "AgentJido profile"
     assert html =~ "Proposed thread"
     assert html =~ "Published reply"
@@ -42,8 +83,33 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "3mx4w2xzwzjzs"
     assert html =~ "published-reply"
     assert html =~ "disabled"
-    refute html =~ "phx-click"
     assert function_exported?(DashboardLive, :handle_event, 3)
+  end
+
+  test "reports queued, duplicate, unavailable, and worker-failure review results" do
+    cases = [
+      {{:ok, review_feedback(:queued)}, "queued", "Review queued"},
+      {{:ok, review_feedback(:skipped)}, "skipped", "Review already queued"},
+      {{:error, :runtime_unavailable}, "failed", "Runtime unavailable"},
+      {{:ok, review_feedback(:failed)}, "failed", "Review failed"}
+    ]
+
+    for {result, status, label} <- cases do
+      Application.put_env(:jido_delvetown, :reactive_review_test_result, result)
+
+      socket =
+        %Phoenix.LiveView.Socket{}
+        |> Phoenix.Component.assign(base_assigns())
+
+      assert {:noreply, updated_socket} =
+               DashboardLive.handle_event("run_reactive_review", %{}, socket)
+
+      assert updated_socket.assigns.reactive_review.status == String.to_existing_atom(status)
+
+      html = render_dashboard(updated_socket.assigns)
+      assert html =~ ~s(data-status="#{status}")
+      assert html =~ label
+    end
   end
 
   test "renders durable simulated drafts in the simulated posts tab" do
@@ -400,6 +466,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
         }
       },
       inspection_error: nil,
+      reactive_review: review_feedback(:idle),
       manual_publish_enabled: false,
       publish_notice: nil,
       image_publish_notice: nil,
@@ -421,4 +488,47 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       }
     }
   end
+
+  defp review_feedback(:idle) do
+    %{
+      status: :idle,
+      label: "Ready for review",
+      detail: "Queue one review with the current dry-run settings.",
+      disabled?: false,
+      job_id: nil
+    }
+  end
+
+  defp review_feedback(:queued) do
+    %{
+      status: :queued,
+      label: "Review queued",
+      detail: "The review will run through the normal scan lease.",
+      disabled?: true,
+      job_id: 11
+    }
+  end
+
+  defp review_feedback(:skipped) do
+    %{
+      status: :skipped,
+      label: "Review already queued",
+      detail: "No duplicate job was created.",
+      disabled?: true,
+      job_id: 11
+    }
+  end
+
+  defp review_feedback(:failed) do
+    %{
+      status: :failed,
+      label: "Review failed",
+      detail: "The worker failed and Oban will retry it.",
+      disabled?: true,
+      job_id: 11
+    }
+  end
+
+  defp restore_env(key, nil), do: Application.delete_env(:jido_delvetown, key)
+  defp restore_env(key, value), do: Application.put_env(:jido_delvetown, key, value)
 end

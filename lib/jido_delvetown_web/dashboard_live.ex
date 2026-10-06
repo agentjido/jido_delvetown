@@ -3,7 +3,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   use Phoenix.LiveView
 
-  alias JidoDelvetown.{ImagePublisher, ManualPublisher, Personality}
+  alias JidoDelvetown.{Automation, ImagePublisher, ManualPublisher, Personality}
 
   @refresh_ms 3_000
 
@@ -68,6 +68,21 @@ defmodule JidoDelvetownWeb.DashboardLive do
      |> assign(snapshot())
      |> assign(:active_tab, "image-drafts")
      |> assign(:image_publish_notice, notice)}
+  end
+
+  @impl true
+  def handle_event("run_reactive_review", _params, socket) do
+    feedback =
+      case review_controller().enqueue_reactive_review() do
+        {:ok, review} -> review
+        {:error, reason} -> review_error(reason)
+      end
+
+    {:noreply,
+     socket
+     |> assign(snapshot())
+     |> assign(:active_tab, "overview")
+     |> assign(:reactive_review, feedback)}
   end
 
   @impl true
@@ -890,6 +905,38 @@ defmodule JidoDelvetownWeb.DashboardLive do
           opacity: 1;
         }
 
+        .control-stack {
+          display: grid;
+          gap: 10px;
+        }
+
+        .review-feedback {
+          display: flex;
+          align-items: baseline;
+          justify-content: flex-end;
+          gap: 8px;
+          color: var(--muted);
+          font-size: 13px;
+          text-align: right;
+        }
+
+        .review-feedback strong { color: var(--text); }
+        .review-feedback[data-status="completed"] strong { color: var(--green); }
+        .review-feedback[data-status="running"] strong,
+        .review-feedback[data-status="queued"] strong { color: var(--amber); }
+        .review-feedback[data-status="failed"] strong { color: var(--red); }
+
+        .control-row .run-review-button:not(:disabled) {
+          border-color: rgba(117, 230, 168, 0.62);
+          background: var(--green-deep);
+          color: var(--text);
+          cursor: pointer;
+        }
+
+        .control-row .run-review-button:not(:disabled):hover {
+          border-color: var(--green);
+        }
+
         .about-panel {
           margin-bottom: 18px;
           padding: 16px 18px;
@@ -1405,16 +1452,36 @@ defmodule JidoDelvetownWeb.DashboardLive do
       <section
         :if={@active_tab == "overview"}
         class="planned-controls"
-        aria-label="Planned controls"
+        aria-label="Manual controls"
       >
         <div>
-          <h2>Planned controls</h2>
-          <p>Visible for layout review. No action or approval handlers are installed.</p>
+          <h2>Manual controls</h2>
+          <p>A manual review uses the normal queue, scan lease, and current dry-run settings.</p>
         </div>
-        <div class="control-row">
-          <button type="button" disabled>Run reactive review</button>
-          <button type="button" disabled>Run proactive review</button>
-          <button type="button" disabled>Approve human-in-the-loop post</button>
+        <div class="control-stack">
+          <div
+            id="reactive-review-feedback"
+            class="review-feedback"
+            data-status={map_value(@reactive_review, :status)}
+            aria-live="polite"
+          >
+            <strong>{map_value(@reactive_review, :label)}</strong>
+            <span>{map_value(@reactive_review, :detail)}</span>
+          </div>
+          <div class="control-row">
+            <button
+              id="run-reactive-review"
+              type="button"
+              class="run-review-button"
+              phx-click="run_reactive_review"
+              phx-disable-with="Queuing review…"
+              disabled={map_value(@reactive_review, :disabled?, true)}
+            >
+              Run reactive review
+            </button>
+            <button type="button" disabled>Run proactive review</button>
+            <button type="button" disabled>Approve human-in-the-loop post</button>
+          </div>
         </div>
       </section>
 
@@ -1701,6 +1768,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
         topical_scope: contract.topical_scope
       },
       disclosure: Personality.disclosure(),
+      reactive_review: review_controller().reactive_review_status(),
       manual_publish_enabled: JidoDelvetown.Config.manual_publish_enabled?(),
       port: JidoDelvetown.Config.dashboard_port(),
       refreshed_at: DateTime.to_iso8601(now),
@@ -1846,6 +1914,32 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp image_publisher,
     do: Application.get_env(:jido_delvetown, :image_publisher, ImagePublisher)
+
+  defp review_controller,
+    do: Application.get_env(:jido_delvetown, :reactive_review_controller, Automation)
+
+  defp review_error(:runtime_unavailable) do
+    %{
+      status: :failed,
+      label: "Runtime unavailable",
+      detail: "Start the Agent and Oban runtimes before you run a reactive review.",
+      disabled?: true,
+      job_id: nil
+    }
+  end
+
+  defp review_error({:enqueue_failed, _reason}) do
+    %{
+      status: :failed,
+      label: "Review failed",
+      detail: "The job could not be queued. Check the local logs before you retry.",
+      disabled?: false,
+      job_id: nil
+    }
+  end
+
+  defp review_error(_reason),
+    do: review_error({:enqueue_failed, :unknown})
 
   defp image_published?(draft), do: map_value(draft, :publication_state) == "published"
 
