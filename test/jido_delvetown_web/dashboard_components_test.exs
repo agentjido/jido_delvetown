@@ -23,6 +23,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       :planned_controls,
       :agent_information,
       :drafts,
+      :settings,
       :footer
     ]
 

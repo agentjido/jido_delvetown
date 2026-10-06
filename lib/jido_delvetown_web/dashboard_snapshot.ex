@@ -3,7 +3,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
 
   alias JidoDelvetown.{Automation, Personality}
   alias JidoDelvetown.Settings.{Behavior, Connection, Console, Limits, Setup}
-  alias JidoDelvetownWeb.{DashboardDrafts, DashboardInbox, DashboardOverview}
+  alias JidoDelvetownWeb.{DashboardDrafts, DashboardInbox, DashboardOverview, DashboardSettings}
 
   @page_title "AgentJido / DelveTown"
 
@@ -17,6 +17,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     console_settings = Keyword.get(opts, :console_settings, Console)
     limits_settings = Keyword.get(opts, :limits_settings, Limits)
     setup_service = Keyword.get(opts, :setup_service, default_setup_service())
+    settings_editor = Keyword.get(opts, :settings_editor, default_settings_editor())
     now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now() end) |> DateTime.truncate(:second)
 
     status_result = safe_read(fn -> data_source.status() end)
@@ -42,6 +43,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
 
     inbox = DashboardInbox.build(inspection)
     drafts = DashboardDrafts.build(inspection)
+    settings_editor_status = settings_status(settings_editor)
 
     %{
       page_title: @page_title,
@@ -63,6 +65,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       overview: overview,
       inbox: inbox,
       drafts: drafts,
+      settings_editor: settings_editor_status,
       theme: setting_value(console_settings, :theme, "system"),
       setup: setup_status(setup_service),
       manual_publish_enabled: direct_value(behavior_settings, :manual_publish_enabled?, false),
@@ -144,6 +147,26 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       {:error, reason} -> unavailable_setup(reason)
       _result -> unavailable_setup(:invalid_setup_status)
     end
+  end
+
+  defp settings_status(service) do
+    case safe_read(fn -> apply(service, :load, []) end) do
+      {:ok, {:ok, settings}} when is_map(settings) -> settings
+      {:error, reason} -> unavailable_settings(reason)
+      _result -> unavailable_settings(:invalid_settings_editor)
+    end
+  end
+
+  defp unavailable_settings(reason) do
+    %{
+      available?: false,
+      version: nil,
+      schema_version: nil,
+      sections: [],
+      history: [],
+      activation_guide: [],
+      error: inspect(reason, pretty: true, limit: 20)
+    }
   end
 
   defp unavailable_setup(reason) do
@@ -237,5 +260,9 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
 
   defp default_setup_service do
     Application.get_env(:jido_delvetown, :setup_service, Setup)
+  end
+
+  defp default_settings_editor do
+    Application.get_env(:jido_delvetown, :dashboard_settings, DashboardSettings)
   end
 end

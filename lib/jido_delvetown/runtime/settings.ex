@@ -7,6 +7,8 @@ defmodule JidoDelvetown.Settings do
   reject stale writes. Protected values also require their key in `:confirmed`.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Settings.{Bootstrap, Contract, Schedules}
   alias JidoDelvetown.Settings.SecretStore
@@ -112,6 +114,59 @@ defmodule JidoDelvetown.Settings do
       {:error, _reason} = error -> error
     end
   end
+
+  @doc "Lists recent immutable settings revisions, newest first."
+  @spec revisions(keyword()) :: {:ok, [map()]} | {:error, term()}
+  def revisions(opts \\ []) do
+    repo = Keyword.get(opts, :repo, Repo)
+    scope = Keyword.get(opts, :scope, Bootstrap.active_scope())
+    limit = Keyword.get(opts, :limit, 10)
+
+    if is_integer(limit) and limit > 0 and limit <= 100 do
+      revisions =
+        repo.all(
+          from(revision in SettingsRevision,
+            where: revision.settings_scope == ^scope,
+            order_by: [desc: revision.version],
+            limit: ^limit
+          )
+        )
+
+      {:ok, Enum.map(revisions, &revision_snapshot/1)}
+    else
+      {:error, :invalid_settings_revision_limit}
+    end
+  end
+
+  @doc "Restores recorded settings from one revision and keeps encrypted secrets unchanged."
+  @spec rollback(pos_integer(), keyword()) :: {:ok, snapshot()} | {:error, term()}
+  def rollback(target_version, opts \\ [])
+
+  def rollback(target_version, opts) when is_integer(target_version) and target_version > 0 do
+    repo = Keyword.get(opts, :repo, Repo)
+    scope = Keyword.get(opts, :scope, Bootstrap.active_scope())
+
+    with {:ok, current} <- current(repo: repo, scope: scope),
+         %SettingsRevision{} = revision <- revision(repo, scope, target_version),
+         :ok <- validate_schema_version(revision.schema_version),
+         {:ok, changes} <- rollback_changes(revision.values, current.values),
+         {:ok, metadata} <- rollback_metadata(opts, target_version) do
+      update_opts =
+        opts
+        |> Keyword.put(:repo, repo)
+        |> Keyword.put(:scope, scope)
+        |> Keyword.put_new(:expected_version, current.version)
+        |> Keyword.put_new(:source, "runtime_rollback")
+        |> Keyword.put(:metadata, metadata)
+
+      update(changes, update_opts)
+    else
+      nil -> {:error, {:settings_revision_not_found, target_version}}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  def rollback(_target_version, _opts), do: {:error, :invalid_settings_revision}
 
   @spec update(map() | keyword(), keyword()) :: {:ok, snapshot()} | {:error, term()}
   def update(changes, opts \\ []) do
@@ -506,5 +561,55 @@ defmodule JidoDelvetown.Settings do
         :redact -> {key, @redacted}
       end
     end)
+  end
+
+  defp revision(repo, scope, version) do
+    repo.one(
+      from(revision in SettingsRevision,
+        where: revision.settings_scope == ^scope and revision.version == ^version
+      )
+    )
+  end
+
+  defp revision_snapshot(revision) do
+    %{
+      version: revision.version,
+      schema_version: revision.schema_version,
+      values: revision.values,
+      source: revision.source,
+      metadata: revision.metadata,
+      inserted_at: revision.inserted_at
+    }
+  end
+
+  defp rollback_changes(revision_values, current_values) when is_map(revision_values) do
+    changes =
+      Contract.database_definitions()
+      |> Enum.reject(&(&1.storage == :encrypted_database))
+      |> Enum.reduce(%{}, fn definition, changes ->
+        name = Atom.to_string(definition.key)
+
+        case Map.fetch(revision_values, name) do
+          {:ok, value} ->
+            if value != Map.fetch!(current_values, definition.key),
+              do: Map.put(changes, definition.key, value),
+              else: changes
+
+          :error ->
+            changes
+        end
+      end)
+
+    {:ok, changes}
+  end
+
+  defp rollback_changes(_revision_values, _current_values),
+    do: {:error, :invalid_settings_revision}
+
+  defp rollback_metadata(opts, target_version) do
+    case Keyword.get(opts, :metadata, %{}) do
+      metadata when is_map(metadata) -> {:ok, Map.put(metadata, "target_version", target_version)}
+      _metadata -> {:error, :invalid_settings_metadata}
+    end
   end
 end

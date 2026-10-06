@@ -258,6 +258,95 @@ defmodule JidoDelvetown.SettingsTest do
     assert confirmed.values.mark_notifications_seen
   end
 
+  test "lists revisions newest first with safe values" do
+    scope = bootstrap_scope()
+
+    assert {:ok, second} =
+             Settings.update(
+               %{daily_reply_limit: 8, account_app_password: "history-secret"},
+               scope: scope,
+               source: "operator"
+             )
+
+    assert {:ok, [latest, initial]} = Settings.revisions(scope: scope, limit: 2)
+    assert latest.version == second.version
+    assert latest.source == "operator"
+    assert latest.values["daily_reply_limit"] == 8
+    assert latest.values["account_app_password"] == "[REDACTED]"
+    assert initial.version == 1
+    assert {:error, :invalid_settings_revision_limit} = Settings.revisions(scope: scope, limit: 0)
+  end
+
+  test "rolls back recorded values and keeps the current encrypted secret" do
+    scope = bootstrap_scope()
+
+    assert {:ok, target} =
+             Settings.update(
+               %{daily_reply_limit: 8, account_app_password: "kept-secret"},
+               scope: scope,
+               source: "operator"
+             )
+
+    assert {:ok, changed} =
+             Settings.update(
+               %{daily_reply_limit: 9, autonomy_mode: "review"},
+               scope: scope,
+               expected_version: target.version,
+               source: "operator"
+             )
+
+    assert {:ok, rolled_back} =
+             Settings.rollback(target.version,
+               scope: scope,
+               expected_version: changed.version,
+               source: "operator_console_rollback"
+             )
+
+    assert rolled_back.version == changed.version + 1
+    assert rolled_back.values.daily_reply_limit == 8
+    assert rolled_back.values.autonomy_mode == "observe"
+    assert rolled_back.values.account_app_password == "[REDACTED]"
+
+    assert {:ok, secret} = Settings.fetch_secret(:account_app_password, scope: scope)
+    assert secret.value == "kept-secret"
+
+    rollback_revision = revision(scope, rolled_back.version)
+    assert rollback_revision.source == "operator_console_rollback"
+    assert rollback_revision.metadata["target_version"] == target.version
+    assert {:error, {:settings_revision_not_found, 999}} = Settings.rollback(999, scope: scope)
+  end
+
+  test "requires protected-value confirmation during rollback" do
+    scope = bootstrap_scope()
+
+    assert {:ok, autonomous} =
+             Settings.update(%{autonomy_mode: "autonomous"},
+               scope: scope,
+               confirmed: [:autonomy_mode]
+             )
+
+    assert {:ok, observe} =
+             Settings.update(%{autonomy_mode: "observe"},
+               scope: scope,
+               expected_version: autonomous.version
+             )
+
+    assert {:error, {:confirmation_required, :autonomy_mode, "autonomous"}} =
+             Settings.rollback(autonomous.version,
+               scope: scope,
+               expected_version: observe.version
+             )
+
+    assert {:ok, restored} =
+             Settings.rollback(autonomous.version,
+               scope: scope,
+               expected_version: observe.version,
+               confirmed: [:autonomy_mode]
+             )
+
+    assert restored.values.autonomy_mode == "autonomous"
+  end
+
   test "rejects a stale expected version" do
     scope = bootstrap_scope()
     assert {:ok, first} = Settings.current(scope: scope)

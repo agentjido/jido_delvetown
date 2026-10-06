@@ -242,9 +242,10 @@ SQLite migrations, and legacy import status. It refreshes every three seconds.
 The inspection view does not read raw Agent checkpoints, model context,
 credentials, actor profiles, or private scan lease tokens.
 
-The Image drafts tab shows locally staged image previews, captions, alt text,
-validation state, upload state, and publication state. Staging and review do
-not upload a blob or create a post. Stage an existing local file with:
+The Drafts and Approvals view shows locally staged image previews, captions,
+alt text, validation state, upload state, and publication state. Staging and
+review do not upload a blob or create a post. Stage an existing local file
+with:
 
 ```sh
 mix delvetown.image.stage \
@@ -282,8 +283,8 @@ mix delvetown.image.stage \
 iex -S mix
 ```
 
-Open the Image drafts tab. This path reads the stored bytes for a local preview.
-It does not call the blob upload or record creation endpoints.
+Open the Drafts and Approvals view. This path reads the stored bytes for a local
+preview. It does not call the blob upload or record creation endpoints.
 
 To publish one reviewed draft, save the account credentials, set
 `manual_publish_enabled: true` with `JidoDelvetown.Settings.update/2`, and use
@@ -373,8 +374,14 @@ running and reports the job state. A manual proactive review is always
 proposal-only, even when live writes are enabled. The operator can approve or
 reject its saved proposal in the Drafts and Approvals view.
 
-Use runtime settings to disable the dashboard or change its local port. Restart
-the application after this change.
+The Settings view edits behavior, limits, schedules, connection values, safety
+controls, and console values. It validates the complete settings contract
+before it saves one immutable revision. Each field shows when the value becomes
+active. Protected values need a separate confirmation. A rollback restores the
+recorded non-secret values and keeps the current encrypted app password.
+
+Use the Settings view or `JidoDelvetown.Settings.update/2` to disable the
+dashboard or change its local port. Restart the application after this change.
 
 ```elixir
 JidoDelvetown.Settings.update(%{

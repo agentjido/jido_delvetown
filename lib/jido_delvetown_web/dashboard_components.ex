@@ -53,6 +53,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   @spec drafts(map()) :: Phoenix.LiveView.Rendered.t()
   def drafts(assigns), do: content(assign(assigns, :dashboard_section, :drafts))
 
+  @spec settings(map()) :: Phoenix.LiveView.Rendered.t()
+  def settings(assigns), do: content(assign(assigns, :dashboard_section, :settings))
+
   @spec footer(map()) :: Phoenix.LiveView.Rendered.t()
   def footer(assigns), do: content(assign(assigns, :dashboard_section, :footer))
 
@@ -1539,6 +1542,211 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         overflow-wrap: anywhere;
       }
 
+      .settings-shell {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .settings-intro {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .settings-version {
+        flex: 0 0 auto;
+        padding: 5px 9px;
+        border: 1px solid var(--line);
+        border-radius: 99px;
+        color: var(--muted);
+        font-family: var(--font-mono);
+        font-size: 11px;
+      }
+
+      .settings-form { display: grid; gap: 14px; }
+
+      .settings-section {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .settings-section-heading { margin-bottom: 16px; }
+      .settings-section-heading h2 { margin-bottom: 3px; font-size: 18px; }
+      .settings-section-heading p { margin: 0; color: var(--muted); font-size: 13px; }
+
+      .settings-field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 15px;
+      }
+
+      .settings-field {
+        display: grid;
+        align-content: start;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .settings-field.full { grid-column: 1 / -1; }
+
+      .settings-label-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .settings-label-row label,
+      .settings-legend {
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .activation-chip {
+        flex: 0 0 auto;
+        color: var(--cyan);
+        font-size: 10px;
+        font-weight: 720;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .settings-field input[type="text"],
+      .settings-field input[type="password"],
+      .settings-field input[type="number"],
+      .settings-field select {
+        width: 100%;
+        min-height: 42px;
+        padding: 8px 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: 9px;
+        background: var(--surface-raised);
+        color: var(--text);
+        font: inherit;
+      }
+
+      .settings-field input[type="text"]:focus,
+      .settings-field input[type="password"]:focus,
+      .settings-field input[type="number"]:focus,
+      .settings-field select:focus { border-color: var(--cyan); }
+
+      .settings-help {
+        margin: 0;
+        color: var(--quiet);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .settings-check,
+      .settings-option {
+        display: flex;
+        align-items: start;
+        gap: 9px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .settings-check input,
+      .settings-option input { margin-top: 3px; accent-color: var(--cyan); }
+
+      .settings-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        margin: 0;
+        padding: 11px 12px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface-raised);
+      }
+
+      .settings-confirmations {
+        display: grid;
+        gap: 9px;
+        padding: 14px;
+        border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--line));
+        border-radius: var(--radius-sm);
+        background: color-mix(in srgb, var(--amber-deep) 34%, var(--surface));
+      }
+
+      .settings-confirmations h3 { margin: 0; font-size: 14px; }
+      .settings-confirmations p { margin: 0; color: var(--muted); font-size: 12px; }
+
+      .settings-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 15px 18px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .settings-actions p { margin: 0; color: var(--muted); font-size: 12px; }
+
+      .settings-save,
+      .rollback-button {
+        min-height: 40px;
+        padding: 8px 13px;
+        border: 1px solid color-mix(in srgb, var(--cyan) 62%, var(--line));
+        border-radius: 9px;
+        background: var(--cyan-deep);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 720;
+      }
+
+      .settings-save:hover,
+      .rollback-button:hover { border-color: var(--cyan); }
+
+      .settings-history {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .revision-list {
+        display: grid;
+        gap: 9px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .revision-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 14px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .revision-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px; }
+      .revision-title strong { font-family: var(--font-mono); font-size: 13px; }
+      .revision-title time { color: var(--quiet); font-size: 11px; }
+      .revision-copy { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+
+      .rollback-form {
+        display: grid;
+        justify-items: end;
+        gap: 7px;
+        max-width: 290px;
+      }
+
+      .rollback-form .settings-check { font-size: 11px; text-align: left; }
+      .current-revision { color: var(--green); font-size: 11px; font-weight: 720; }
+
       .planned-controls {
         display: grid;
         grid-template-columns: minmax(210px, 1fr) minmax(0, 2fr);
@@ -1743,7 +1951,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .about-content,
         .overview-summary-grid,
         .overview-detail-grid,
-        .inbox-command-bar { grid-template-columns: 1fr; }
+        .inbox-command-bar,
+        .settings-field-grid { grid-template-columns: 1fr; }
         .status-item { border-right: 0; border-bottom: 1px solid var(--line); }
         .status-item:last-child { border-bottom: 0; }
         .planned-controls { grid-template-columns: 1fr; }
@@ -1774,6 +1983,10 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .draft-state-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .draft-review-actions { width: 100%; margin-left: 0; }
         .draft-review-actions button { flex: 1 1 auto; }
+        .settings-intro, .settings-actions { align-items: stretch; flex-direction: column; }
+        .revision-item { grid-template-columns: 1fr; }
+        .rollback-form { justify-items: stretch; max-width: none; }
+        .rollback-button { width: 100%; }
         .control-row { display: grid; grid-template-columns: 1fr; }
         .control-row button { width: 100%; }
       }
@@ -1831,9 +2044,14 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         <span class="operator-nav-link" aria-disabled="true">
           <span>Activity</span><span class="nav-soon">Soon</span>
         </span>
-        <span class="operator-nav-link" aria-disabled="true">
-          <span>Settings</span><span class="nav-soon">Soon</span>
-        </span>
+        <a
+          id="settings-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "settings")}"}
+          href="/?tab=settings"
+          aria-current={if @active_tab == "settings", do: "page"}
+        >
+          <span>Settings</span>
+        </a>
       </nav>
 
       <section
@@ -1927,6 +2145,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             aria-current={if @active_tab == "drafts", do: "page"}
           >
             Drafts <span class="nav-count">{drafts_nav_count(@drafts)}</span>
+          </a>
+          <a
+            class={"mobile-nav-link #{tab_class(@active_tab, "settings")}"}
+            href="/?tab=settings"
+            aria-current={if @active_tab == "settings", do: "page"}
+          >
+            Settings
           </a>
         </nav>
       </div>
@@ -3148,6 +3373,288 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       </article>
     </section>
 
+    <section
+      :if={@dashboard_section == :settings and @active_tab == "settings"}
+      id="settings-panel"
+      class="settings-shell"
+      role="tabpanel"
+      aria-labelledby="settings-tab"
+    >
+      <article class="panel settings-intro">
+        <div>
+          <p class="panel-kicker">SQLite runtime configuration</p>
+          <h2>Runtime settings</h2>
+          <p class="proposal-copy">
+            Changes are validated and saved as an immutable revision. Each field shows when its
+            value becomes active. App passwords stay encrypted and do not appear in history.
+          </p>
+        </div>
+        <span :if={map_value(@settings_editor, :version)} class="settings-version">
+          version {map_value(@settings_editor, :version)} · schema {map_value(
+            @settings_editor,
+            :schema_version
+          )}
+        </span>
+      </article>
+
+      <p
+        :if={@settings_notice}
+        class={"publish-notice #{map_value(@settings_notice, :kind)}"}
+        role="status"
+      >
+        <strong>{map_value(@settings_notice, :title)}</strong><br />
+        {map_value(@settings_notice, :text)}
+      </p>
+
+      <article :if={not map_value(@settings_editor, :available?, false)} class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Settings unavailable</p>
+            <h2>The settings store could not be read</h2>
+          </div>
+          <span class="badge attention">Needs attention</span>
+        </div>
+        <p class="proposal-copy">Check the SQLite database and the local logs.</p>
+        <details class="technical-details">
+          <summary>Technical details</summary>
+          <pre>{map_value(@settings_editor, :error)}</pre>
+        </details>
+      </article>
+
+      <form
+        :if={map_value(@settings_editor, :available?, false)}
+        id="runtime-settings-form"
+        class="settings-form"
+        phx-submit="save_settings"
+      >
+        <input
+          type="hidden"
+          name="settings[version]"
+          value={map_value(@settings_editor, :version)}
+        />
+
+        <article
+          :for={section <- settings_sections(@settings_editor)}
+          class="settings-section"
+          data-section={map_value(section, :key)}
+          aria-labelledby={"settings-#{map_value(section, :key)}-heading"}
+        >
+          <div class="settings-section-heading">
+            <h2 id={"settings-#{map_value(section, :key)}-heading"}>
+              {map_value(section, :label)}
+            </h2>
+            <p>{map_value(section, :description)}</p>
+          </div>
+
+          <div class="settings-field-grid">
+            <div
+              :for={field <- settings_fields(section)}
+              class={settings_field_class(field)}
+            >
+              <%= case map_value(field, :input) do %>
+                <% :checkbox -> %>
+                  <div class="settings-label-row">
+                    <span class="settings-legend">{map_value(field, :label)}</span>
+                    <span class="activation-chip">{map_value(field, :activation_label)}</span>
+                  </div>
+                  <input
+                    type="hidden"
+                    name={settings_input_name(field)}
+                    value="false"
+                  />
+                  <label class="settings-check" for={map_value(field, :id)}>
+                    <input
+                      id={map_value(field, :id)}
+                      type="checkbox"
+                      name={settings_input_name(field)}
+                      value="true"
+                      checked={map_value(field, :checked?, false)}
+                    />
+                    <span>{map_value(field, :help)}</span>
+                  </label>
+                <% :checkboxes -> %>
+                  <div class="settings-label-row">
+                    <span id={"#{map_value(field, :id)}-label"} class="settings-legend">
+                      {map_value(field, :label)}
+                    </span>
+                    <span class="activation-chip">{map_value(field, :activation_label)}</span>
+                  </div>
+                  <fieldset
+                    class="settings-options"
+                    aria-labelledby={"#{map_value(field, :id)}-label"}
+                  >
+                    <label :for={option <- map_value(field, :options, [])} class="settings-option">
+                      <input
+                        type="checkbox"
+                        name={"#{settings_input_name(field)}[]"}
+                        value={map_value(option, :value)}
+                        checked={map_value(option, :value) in map_value(field, :selected, [])}
+                      />
+                      <span>{map_value(option, :label)}</span>
+                    </label>
+                  </fieldset>
+                  <p :if={map_value(field, :validation)} class="settings-help">
+                    {map_value(field, :validation)}
+                  </p>
+                <% :select -> %>
+                  <div class="settings-label-row">
+                    <label for={map_value(field, :id)}>{map_value(field, :label)}</label>
+                    <span class="activation-chip">{map_value(field, :activation_label)}</span>
+                  </div>
+                  <select
+                    id={map_value(field, :id)}
+                    name={settings_input_name(field)}
+                  >
+                    <option
+                      :for={option <- map_value(field, :options, [])}
+                      value={map_value(option, :value)}
+                      selected={map_value(option, :value) == map_value(field, :value)}
+                    >
+                      {map_value(option, :label)}
+                    </option>
+                  </select>
+                  <p :if={map_value(field, :help)} class="settings-help">
+                    {map_value(field, :help)}
+                  </p>
+                <% input -> %>
+                  <div class="settings-label-row">
+                    <label for={map_value(field, :id)}>{map_value(field, :label)}</label>
+                    <span class="activation-chip">{map_value(field, :activation_label)}</span>
+                  </div>
+                  <input
+                    id={map_value(field, :id)}
+                    type={settings_html_input_type(input)}
+                    name={settings_input_name(field)}
+                    value={map_value(field, :value)}
+                    min={map_value(field, :min)}
+                    max={map_value(field, :max)}
+                    autocomplete={settings_autocomplete(field)}
+                    placeholder={settings_placeholder(field)}
+                  />
+                  <p :if={map_value(field, :help)} class="settings-help">
+                    {map_value(field, :help)}
+                  </p>
+                  <p :if={map_value(field, :validation)} class="settings-help">
+                    {map_value(field, :validation)}
+                  </p>
+              <% end %>
+            </div>
+          </div>
+        </article>
+
+        <article class="settings-confirmations" aria-labelledby="protected-settings-heading">
+          <h3 id="protected-settings-heading">Protected changes</h3>
+          <p>These checks apply only if the matching protected value is selected.</p>
+          <label class="settings-check" for="confirm-autonomous">
+            <input
+              id="confirm-autonomous"
+              type="checkbox"
+              name="settings[confirm_autonomous]"
+              value="true"
+            />
+            <span>I confirm that autonomous mode can create public DelveTown effects.</span>
+          </label>
+          <label class="settings-check" for="confirm-notifications">
+            <input
+              id="confirm-notifications"
+              type="checkbox"
+              name="settings[confirm_notifications]"
+              value="true"
+            />
+            <span>I confirm that marking notifications as seen is a remote protocol write.</span>
+          </label>
+        </article>
+
+        <div class="settings-actions">
+          <p>
+            Save creates one local revision. It does not test the connection or publish content.
+          </p>
+          <button
+            id="save-runtime-settings"
+            type="submit"
+            class="settings-save"
+            phx-disable-with="Saving settings…"
+          >
+            Save settings
+          </button>
+        </div>
+      </form>
+
+      <article
+        :if={map_value(@settings_editor, :available?, false)}
+        class="settings-history"
+        aria-labelledby="settings-history-heading"
+      >
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Immutable local record</p>
+            <h2 id="settings-history-heading">Revision history</h2>
+          </div>
+          <span class="count">{length(settings_history(@settings_editor))} recent</span>
+        </div>
+        <p :if={settings_history(@settings_editor) == []} class="empty">
+          No settings revisions are available.
+        </p>
+        <ol :if={settings_history(@settings_editor) != []} class="revision-list">
+          <li :for={revision <- settings_history(@settings_editor)} class="revision-item">
+            <div>
+              <div class="revision-title">
+                <strong>v{map_value(revision, :version)}</strong>
+                <span>{map_value(revision, :source)}</span>
+                <time datetime={map_value(revision, :inserted_at)}>
+                  {map_value(revision, :inserted_label)}
+                </time>
+              </div>
+              <p class="revision-copy">{Enum.join(map_value(revision, :changed, []), " · ")}</p>
+            </div>
+
+            <span :if={map_value(revision, :current?, false)} class="current-revision">
+              Current version
+            </span>
+
+            <form
+              :if={not map_value(revision, :current?, false)}
+              class="rollback-form"
+              phx-submit="rollback_settings"
+            >
+              <input
+                type="hidden"
+                name="target_version"
+                value={map_value(revision, :version)}
+              />
+              <input
+                type="hidden"
+                name="rollback[version]"
+                value={map_value(@settings_editor, :version)}
+              />
+              <label
+                :if={map_value(revision, :confirms_autonomous?, false)}
+                class="settings-check"
+              >
+                <input type="checkbox" name="rollback[confirm_autonomous]" value="true" />
+                <span>Confirm autonomous mode</span>
+              </label>
+              <label
+                :if={map_value(revision, :confirms_notifications?, false)}
+                class="settings-check"
+              >
+                <input type="checkbox" name="rollback[confirm_notifications]" value="true" />
+                <span>Confirm remote notification writes</span>
+              </label>
+              <button
+                type="submit"
+                class="rollback-button"
+                data-confirm={"Restore recorded values from version #{map_value(revision, :version)}? The current app password will stay unchanged."}
+                phx-disable-with="Rolling back…"
+              >
+                Roll back to v{map_value(revision, :version)}
+              </button>
+            </form>
+          </li>
+        </ol>
+      </article>
+    </section>
+
     <p :if={@dashboard_section == :footer} class="footer-note">
       Local dashboard on port {@port}. Scheduled protocol writes remain controlled by the write lock.
     </p>
@@ -3222,6 +3729,34 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     drafts
     |> map_value(:type_counts, %{})
     |> draft_count(kind)
+  end
+
+  defp settings_sections(settings), do: inspection_list(settings, [:sections])
+  defp settings_fields(section), do: inspection_list(section, [:fields])
+  defp settings_history(settings), do: inspection_list(settings, [:history])
+
+  defp settings_field_class(field) do
+    if map_value(field, :input) == :checkboxes,
+      do: "settings-field full",
+      else: "settings-field"
+  end
+
+  defp settings_input_name(field), do: "settings[#{map_value(field, :name)}]"
+
+  defp settings_html_input_type(:password), do: "password"
+  defp settings_html_input_type(:number), do: "number"
+  defp settings_html_input_type(_input), do: "text"
+
+  defp settings_autocomplete(field) do
+    case map_value(field, :key) do
+      :account_identifier -> "username"
+      :account_app_password -> "new-password"
+      _key -> nil
+    end
+  end
+
+  defp settings_placeholder(field) do
+    if map_value(field, :secret_stored?, false), do: "Stored; leave blank to keep", else: nil
   end
 
   defp inbox_proposal_label(inbox) do
@@ -3334,6 +3869,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp page_title("inbox"), do: "Participation inbox"
   defp page_title("drafts"), do: "Drafts & approvals"
+  defp page_title("settings"), do: "Runtime settings"
   defp page_title(_active_tab), do: "Overview"
 
   defp autonomy_help("review"),

@@ -60,6 +60,26 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     end
   end
 
+  defmodule FakeDashboardSettings do
+    def load do
+      Application.fetch_env!(:jido_delvetown, :dashboard_settings_test_status)
+    end
+
+    def save(params) do
+      send(Application.fetch_env!(:jido_delvetown, :test_owner), {:settings_saved, params})
+      Application.fetch_env!(:jido_delvetown, :dashboard_settings_save_result)
+    end
+
+    def rollback(version, params) do
+      send(
+        Application.fetch_env!(:jido_delvetown, :test_owner),
+        {:settings_rolled_back, version, params}
+      )
+
+      Application.fetch_env!(:jido_delvetown, :dashboard_settings_rollback_result)
+    end
+  end
+
   defmodule FakePublisher do
     def publish(event_key) do
       send(Application.fetch_env!(:jido_delvetown, :test_owner), {:draft_published, event_key})
@@ -83,6 +103,16 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     old_draft_review_result = Application.get_env(:jido_delvetown, :draft_review_test_result)
     old_draft_review_approved = Application.get_env(:jido_delvetown, :draft_review_approved)
     old_manual_publisher = Application.get_env(:jido_delvetown, :manual_publisher)
+    old_dashboard_settings = Application.get_env(:jido_delvetown, :dashboard_settings)
+
+    old_dashboard_settings_status =
+      Application.get_env(:jido_delvetown, :dashboard_settings_test_status)
+
+    old_dashboard_settings_save =
+      Application.get_env(:jido_delvetown, :dashboard_settings_save_result)
+
+    old_dashboard_settings_rollback =
+      Application.get_env(:jido_delvetown, :dashboard_settings_rollback_result)
 
     old_manual_publisher_result =
       Application.get_env(:jido_delvetown, :manual_publisher_test_result)
@@ -105,6 +135,34 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     Application.put_env(:jido_delvetown, :test_owner, self())
     Application.put_env(:jido_delvetown, :draft_reviews, FakeDraftReviews)
     Application.put_env(:jido_delvetown, :manual_publisher, FakePublisher)
+    Application.put_env(:jido_delvetown, :dashboard_settings, FakeDashboardSettings)
+
+    Application.put_env(
+      :jido_delvetown,
+      :dashboard_settings_test_status,
+      {:ok, settings_assigns()}
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :dashboard_settings_save_result,
+      {:ok,
+       %{
+         changed: ["Daily reply limit"],
+         activations: [%{key: :next_cycle, label: "Next cycle"}]
+       }}
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :dashboard_settings_rollback_result,
+      {:ok,
+       %{
+         changed: ["Daily reply limit"],
+         activations: [%{key: :next_cycle, label: "Next cycle"}],
+         target_version: 1
+       }}
+    )
 
     Application.put_env(
       :jido_delvetown,
@@ -159,6 +217,10 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       restore_env(:draft_review_approved, old_draft_review_approved)
       restore_env(:manual_publisher, old_manual_publisher)
       restore_env(:manual_publisher_test_result, old_manual_publisher_result)
+      restore_env(:dashboard_settings, old_dashboard_settings)
+      restore_env(:dashboard_settings_test_status, old_dashboard_settings_status)
+      restore_env(:dashboard_settings_save_result, old_dashboard_settings_save)
+      restore_env(:dashboard_settings_rollback_result, old_dashboard_settings_rollback)
       restore_env(:test_owner, old_test_owner)
     end)
 
@@ -237,6 +299,77 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ ~s(phx-click="run_reactive_review")
     assert html =~ "Scan DelveTown now"
     refute html =~ ~s(id="overview-panel")
+  end
+
+  test "renders the runtime settings editor and revision history" do
+    html = render_dashboard(Map.put(base_assigns(), :active_tab, "settings"))
+
+    assert html =~ ~s(<h1 id="page-title">Runtime settings</h1>)
+    assert html =~ ~s(id="settings-tab" class="operator-nav-link active")
+    assert html =~ ~s(id="settings-panel")
+    assert html =~ ~s(id="runtime-settings-form")
+    assert html =~ ~s(phx-submit="save_settings")
+    assert html =~ ~s(name="settings[account_app_password]")
+    assert html =~ ~s(type="password")
+    assert html =~ ~s(name="settings[enabled_actions][]")
+    assert html =~ ~s(name="settings[confirm_autonomous]")
+    assert html =~ "After worker sync"
+    assert html =~ "After restart"
+    assert html =~ "Revision history"
+    assert html =~ ~s(phx-submit="rollback_settings")
+    assert html =~ "Roll back to v2"
+    assert html =~ "The current app password will stay unchanged"
+    refute html =~ ~s(id="overview-panel")
+  end
+
+  test "saves settings and reports validation errors" do
+    params = %{"version" => "3", "daily_reply_limit" => "8"}
+
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+      |> Phoenix.Component.assign(:active_tab, "settings")
+
+    assert {:noreply, saved_socket} =
+             DashboardLive.handle_event("save_settings", %{"settings" => params}, socket)
+
+    assert_received {:settings_saved, ^params}
+    assert saved_socket.assigns.active_tab == "settings"
+    assert saved_socket.assigns.settings_notice.title == "Settings saved"
+    assert saved_socket.assigns.settings_notice.text =~ "Daily reply limit"
+    assert saved_socket.assigns.settings_notice.text =~ "Next cycle"
+
+    Application.put_env(
+      :jido_delvetown,
+      :dashboard_settings_save_result,
+      {:error, {:invalid_form_value, :daily_reply_limit, :not_an_integer}}
+    )
+
+    assert {:noreply, error_socket} =
+             DashboardLive.handle_event("save_settings", %{"settings" => params}, saved_socket)
+
+    assert error_socket.assigns.settings_notice.kind == "attention"
+    assert error_socket.assigns.settings_notice.text =~ "whole number"
+  end
+
+  test "rolls settings back through the editor service" do
+    params = %{"version" => "3", "confirm_autonomous" => "true"}
+
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+      |> Phoenix.Component.assign(:active_tab, "settings")
+
+    assert {:noreply, rolled_back_socket} =
+             DashboardLive.handle_event(
+               "rollback_settings",
+               %{"target_version" => "2", "rollback" => params},
+               socket
+             )
+
+    assert_received {:settings_rolled_back, "2", ^params}
+    assert rolled_back_socket.assigns.active_tab == "settings"
+    assert rolled_back_socket.assigns.settings_notice.title == "Settings rolled back"
   end
 
   test "renders first-run setup without accepting an LLM key" do
@@ -954,6 +1087,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       like_publish_notice: nil,
       image_publish_notice: nil,
       draft_review_notice: nil,
+      settings_notice: nil,
       character: %{
         name: "AgentJido",
         mission: "Make BEAM agent engineering easier to understand.",
@@ -974,12 +1108,121 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
         published_count: 0,
         type_counts: %{text: 0, like: 0, image: 0}
       },
+      settings_editor: settings_assigns(),
       operational_state: %{
         key: "safe",
         label: "Safe: writes off",
         effect: "Protocol effects are blocked. Review cycles can inspect and propose.",
         next: nil
       }
+    }
+  end
+
+  defp settings_assigns do
+    %{
+      available?: true,
+      version: 3,
+      schema_version: 2,
+      activation_guide: [],
+      sections: [
+        settings_section("connection", "Connection", [
+          settings_field(:account_app_password, "App password", :password,
+            value: "",
+            activation_label: "After reconnect",
+            secret_stored?: true
+          )
+        ]),
+        settings_section("behavior", "Behavior", [
+          settings_field(:enabled_actions, "Enabled actions", :checkboxes,
+            selected: ["reply", "like"],
+            options: [
+              %{value: "reply", label: "Reply"},
+              %{value: "like", label: "Like"}
+            ]
+          )
+        ]),
+        settings_section("limits", "Limits", [
+          settings_field(:daily_reply_limit, "Daily reply limit", :number,
+            value: 3,
+            min: 0,
+            max: 100
+          )
+        ]),
+        settings_section("schedules", "Schedules", [
+          settings_field(:reactive_review_cron, "Reactive review cron", :cron,
+            value: "*/15 * * * *",
+            activation_label: "After worker sync"
+          )
+        ]),
+        settings_section("safety", "Safety", [
+          settings_field(:autonomy_mode, "Autonomy mode", :select,
+            value: "observe",
+            options: [
+              %{value: "observe", label: "Observe only"},
+              %{value: "autonomous", label: "Autonomous"}
+            ]
+          ),
+          settings_field(:manual_publish_enabled, "Allow manual publish", :checkbox,
+            checked?: false
+          )
+        ]),
+        settings_section("console", "Console", [
+          settings_field(:dashboard_port, "Dashboard port", :number,
+            value: 4040,
+            min: 1,
+            max: 65_535,
+            activation_label: "After restart"
+          )
+        ])
+      ],
+      history: [
+        %{
+          version: 3,
+          current?: true,
+          source: "Operator save",
+          inserted_at: "2026-10-06T14:00:00Z",
+          inserted_label: "Oct 06 · 14:00 UTC",
+          changed: ["Daily reply limit"],
+          confirms_autonomous?: false,
+          confirms_notifications?: false
+        },
+        %{
+          version: 2,
+          current?: false,
+          source: "Initial setup",
+          inserted_at: "2026-10-06T13:00:00Z",
+          inserted_label: "Oct 06 · 13:00 UTC",
+          changed: ["Account identifier"],
+          confirms_autonomous?: false,
+          confirms_notifications?: false
+        }
+      ]
+    }
+  end
+
+  defp settings_section(key, label, fields) do
+    %{key: key, label: label, description: "#{label} settings.", fields: fields}
+  end
+
+  defp settings_field(key, label, input, opts) do
+    name = Atom.to_string(key)
+
+    %{
+      key: key,
+      name: name,
+      id: "setting-#{String.replace(name, "_", "-")}",
+      label: label,
+      input: input,
+      value: Keyword.get(opts, :value),
+      checked?: Keyword.get(opts, :checked?, false),
+      selected: Keyword.get(opts, :selected, []),
+      options: Keyword.get(opts, :options, []),
+      activation_label: Keyword.get(opts, :activation_label, "Next cycle"),
+      validation: Keyword.get(opts, :validation),
+      help: Keyword.get(opts, :help, "Activation details."),
+      secret_stored?: Keyword.get(opts, :secret_stored?, false),
+      min: Keyword.get(opts, :min),
+      max: Keyword.get(opts, :max)
     }
   end
 

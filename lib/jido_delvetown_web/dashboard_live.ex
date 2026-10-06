@@ -5,7 +5,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   alias JidoDelvetown.{Automation, DraftReviews, ImagePublisher, ManualPublisher}
   alias JidoDelvetown.Settings.{Console, Setup}
-  alias JidoDelvetownWeb.{DashboardComponents, DashboardSnapshot}
+  alias JidoDelvetownWeb.{DashboardComponents, DashboardSettings, DashboardSnapshot}
 
   @refresh_ms 3_000
 
@@ -24,6 +24,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
       |> Map.put(:like_publish_notice, nil)
       |> Map.put(:image_publish_notice, nil)
       |> Map.put(:draft_review_notice, nil)
+      |> Map.put(:settings_notice, nil)
 
     {:ok, assign(socket, assigns)}
   end
@@ -168,6 +169,49 @@ defmodule JidoDelvetownWeb.DashboardLive do
   def handle_event("set_theme", _params, socket), do: {:noreply, socket}
 
   @impl true
+  def handle_event("save_settings", %{"settings" => params}, socket) do
+    notice =
+      case settings_editor().save(params) do
+        {:ok, result} -> settings_success_notice(result, :save)
+        {:error, reason} -> settings_error_notice(reason)
+      end
+
+    {:noreply,
+     socket
+     |> assign(DashboardSnapshot.load())
+     |> assign(:active_tab, "settings")
+     |> assign(:settings_notice, notice)}
+  end
+
+  def handle_event("save_settings", _params, socket) do
+    {:noreply, assign(socket, :settings_notice, settings_error_notice(:invalid_settings_form))}
+  end
+
+  @impl true
+  def handle_event(
+        "rollback_settings",
+        %{"target_version" => target_version, "rollback" => params},
+        socket
+      ) do
+    notice =
+      case settings_editor().rollback(target_version, params) do
+        {:ok, result} -> settings_success_notice(result, :rollback)
+        {:error, reason} -> settings_error_notice(reason)
+      end
+
+    {:noreply,
+     socket
+     |> assign(DashboardSnapshot.load())
+     |> assign(:active_tab, "settings")
+     |> assign(:settings_notice, notice)}
+  end
+
+  def handle_event("rollback_settings", _params, socket) do
+    {:noreply,
+     assign(socket, :settings_notice, settings_error_notice(:invalid_settings_rollback))}
+  end
+
+  @impl true
   def handle_event("save_setup", %{"setup" => params}, socket) do
     notice =
       case setup_service().save(params) do
@@ -222,6 +266,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
               <DashboardComponents.planned_controls {assigns} />
               <DashboardComponents.agent_information {assigns} />
               <DashboardComponents.drafts {assigns} />
+              <DashboardComponents.settings {assigns} />
               <DashboardComponents.footer {assigns} />
             <% end %>
           </main>
@@ -234,6 +279,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_ms)
 
   defp active_tab(%{"tab" => "inbox"}), do: "inbox"
+  defp active_tab(%{"tab" => "settings"}), do: "settings"
 
   defp active_tab(%{"tab" => tab}) when tab in ["drafts", "simulated-posts", "image-drafts"],
     do: "drafts"
@@ -309,6 +355,9 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp setup_service,
     do: Application.get_env(:jido_delvetown, :setup_service, Setup)
 
+  defp settings_editor,
+    do: Application.get_env(:jido_delvetown, :dashboard_settings, DashboardSettings)
+
   defp connection_notice({:ok, identity}) do
     handle = map_value(identity, :handle, "configured account")
     did = map_value(identity, :did)
@@ -380,6 +429,83 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp draft_review_error(:not_reviewable), do: "This item is not ready for review."
   defp draft_review_error(:already_published), do: "This draft is already published."
   defp draft_review_error(_reason), do: "The local review decision could not be saved."
+
+  defp settings_success_notice(result, operation) do
+    changed = map_value(result, :changed, [])
+    activations = map_value(result, :activations, [])
+
+    title =
+      case operation do
+        :rollback -> "Settings rolled back"
+        :save when changed == [] -> "No settings changed"
+        :save -> "Settings saved"
+      end
+
+    text =
+      if changed == [] do
+        "The active settings already have these values."
+      else
+        activation_text =
+          activations
+          |> Enum.map(&map_value(&1, :label))
+          |> Enum.reject(&is_nil/1)
+          |> Enum.join(", ")
+
+        "Changed #{Enum.join(changed, ", ")}. Activation: #{activation_text}."
+      end
+
+    %{kind: "safe", title: title, text: text}
+  end
+
+  defp settings_error_notice({:settings_activation_failed, :worker_reconcile, _reason} = reason) do
+    %{kind: "attention", title: "Settings saved; activation failed", text: settings_error(reason)}
+  end
+
+  defp settings_error_notice(reason) do
+    %{kind: "attention", title: "Settings were not changed", text: settings_error(reason)}
+  end
+
+  defp settings_error({:invalid_form_value, key, :not_an_integer}),
+    do: "Enter a whole number for #{settings_field_label(key)}."
+
+  defp settings_error({:invalid_form_value, key, :blank}),
+    do: "Complete #{settings_field_label(key)}."
+
+  defp settings_error({:invalid_setting, key, :below_minimum}),
+    do: "#{settings_field_label(key)} is below the allowed minimum."
+
+  defp settings_error({:invalid_setting, key, :above_maximum}),
+    do: "#{settings_field_label(key)} is above the allowed maximum."
+
+  defp settings_error({:invalid_setting, key, _reason}),
+    do: "Enter a valid value for #{settings_field_label(key)}."
+
+  defp settings_error({:invalid_settings_combination, _reason}),
+    do: "The non-response limit cannot be greater than the conversation turn limit."
+
+  defp settings_error({:confirmation_required, :autonomy_mode, "autonomous"}),
+    do: "Confirm autonomous mode before you save it."
+
+  defp settings_error({:confirmation_required, :mark_notifications_seen, true}),
+    do: "Confirm remote notification writes before you save them."
+
+  defp settings_error({:stale_settings, _expected, _actual}),
+    do: "Settings changed in another window. Reload this page and try again."
+
+  defp settings_error({:settings_revision_not_found, _version}),
+    do: "The selected settings revision no longer exists."
+
+  defp settings_error({:settings_activation_failed, :worker_reconcile, _reason}),
+    do: "The values were saved, but the Oban schedules could not be activated. Check the logs."
+
+  defp settings_error(_reason),
+    do: "The local settings could not be changed. Check the values and the local logs."
+
+  defp settings_field_label(key) do
+    key
+    |> to_string()
+    |> String.replace("_", " ")
+  end
 
   defp map_value(map, key, default \\ nil)
 

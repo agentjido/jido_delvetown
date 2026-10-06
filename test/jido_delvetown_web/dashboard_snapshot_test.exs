@@ -120,6 +120,20 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     end
   end
 
+  defmodule HealthySettingsEditor do
+    def load do
+      {:ok,
+       %{
+         available?: true,
+         version: 4,
+         schema_version: 2,
+         sections: [%{key: "behavior", fields: []}],
+         history: [%{version: 4, current?: true}],
+         activation_guide: []
+       }}
+    end
+  end
+
   defmodule UnavailableDependency do
     def status, do: {:error, :agent_not_running}
     def recent_events(_limit), do: exit(:event_store_unavailable)
@@ -131,6 +145,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     def manual_publish_enabled?, do: raise("config unavailable")
     def dashboard, do: exit(:config_unavailable)
     def current, do: {:error, :settings_unavailable}
+    def load, do: {:error, :settings_editor_unavailable}
   end
 
   test "assembles the healthy dashboard display snapshot" do
@@ -144,6 +159,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         console_settings: HealthyConsoleSettings,
         limits_settings: HealthyLimitsSettings,
         setup_service: HealthySetup,
+        settings_editor: HealthySettingsEditor,
         now: ~U[2026-10-06 12:34:56.789Z]
       )
 
@@ -200,6 +216,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.setup.required?
     assert snapshot.setup.available?
     assert snapshot.setup.llm_key.configured?
+    assert snapshot.settings_editor.available?
+    assert snapshot.settings_editor.version == 4
     assert snapshot.manual_publish_enabled
     assert snapshot.port == 4041
     assert snapshot.refreshed_at == "2026-10-06T12:34:56Z"
@@ -217,6 +235,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         console_settings: UnavailableDependency,
         limits_settings: UnavailableDependency,
         setup_service: UnavailableDependency,
+        settings_editor: UnavailableDependency,
         now: ~U[2026-10-06 12:34:56Z]
       )
 
@@ -234,6 +253,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     refute snapshot.setup.available?
     refute snapshot.setup.required?
     assert snapshot.setup.error == ":agent_not_running"
+    refute snapshot.settings_editor.available?
+    assert snapshot.settings_editor.error == ":settings_editor_unavailable"
     assert snapshot.character.name == "AgentJido"
     assert snapshot.character.traits == []
     assert snapshot.disclosure == %{}
