@@ -7,6 +7,7 @@
   "blocks": [
     "jido_del-iy2.7"
   ],
+  "closed_at": "2026-10-06T15:26:10Z",
   "created": "2026-10-06T00:51:22Z",
   "description": "Publish the staged AgentJido self-portrait as one independent DelveTown post, not as a reply, quote, or thread child. Require action-time operator confirmation and the existing write guard. Reuse the tested blob-upload and record-publication path. Persist the draft ID, artifact digest, blob receipt, post URI, post CID, publication time, and idempotency key. Acceptance: one approved action creates one remote post; a retry returns the prior result and creates no duplicate; the saved record proves which local draft produced the remote post; the caption clearly says that the image is AgentJido self-portrait and does not present it as a human photograph.",
   "id": "jido_del-iy2.8",
@@ -19,7 +20,7 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Publish one AgentJido self-portrait as a top-level post",
   "type": "task",
   "updated_at": "2026-10-06T15:26:10Z"
