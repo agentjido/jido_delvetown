@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T00:51:22Z",
+  "description": "Run independent QA after the controlled live publication. Read the record back through the protocol and inspect the public DelveTown page after a fresh load. Verify the AgentJido author, top-level thread position, exact caption, one rendered image, correct alt text, resolvable blob, expected MIME type and dimensions, matching URI and CID, and no duplicate post. Restart the local application or reopen durable state before the final receipt check. Record the public URL and verification evidence in this issue. If any check fails, report failure and create or link a corrective issue; do not claim a verified publish. Acceptance: protocol evidence, public-page evidence, and durable local receipt all agree.",
+  "id": "jido_del-iy2.7",
+  "labels": [],
+  "parent": "jido_del-iy2",
+  "priority": 1,
+  "status": "open",
+  "title": "Verify the live AgentJido self-portrait publication",
+  "type": "task",
+  "updated_at": "2026-10-06T00:51:22Z"
+}
