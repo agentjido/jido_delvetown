@@ -4,6 +4,7 @@
   "blocks": [
     "jido_del-322.7"
   ],
+  "closed_at": "2026-10-06T16:05:28Z",
   "created": "2026-10-06T15:59:15Z",
   "description": "Manual proactive review creates proposed/pending like records, but the approval and manual publish flow only accepts simulated/completed records. Add a clear operator action that runs one normal proactive cycle in ongoing dry-run mode, stages the selected like as a simulated completed draft, and keeps scheduled review work proposal-only. Preserve durable idempotency. Update the durable like budget exactly once, create no protocol effect, and create no DelveTown write. Repeated execution or refresh must not duplicate the event, draft, budget update, or job effect. Show the staged item in the existing approval UI. Add focused tests for the transition and the manual control.",
   "id": "jido_del-322.11",
@@ -16,8 +17,8 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Stage manual proactive reviews as simulated drafts",
   "type": "bug",
-  "updated_at": "2026-10-06T16:05:24Z"
+  "updated_at": "2026-10-06T16:05:28Z"
 }
