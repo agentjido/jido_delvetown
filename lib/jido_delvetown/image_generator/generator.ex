@@ -41,7 +41,7 @@ defmodule JidoDelvetown.ImageGenerator do
   end
 
   defp ensure_adapter(generator) do
-    if function_exported?(generator, :generate, 2) do
+    if Code.ensure_loaded?(generator) and function_exported?(generator, :generate, 2) do
       :ok
     else
       {:error,

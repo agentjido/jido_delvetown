@@ -38,6 +38,7 @@ defmodule JidoDelvetown.MixProject do
        ref: "8652d217e7755a2865d3ec8275e8a5025f9d245f"},
       {:zoi, path: "../zoi", override: true},
       {:imp, "0.8.1"},
+      {:req_llm, "~> 1.26"},
       {:phoenix_playground, "~> 0.1.9"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, "~> 0.24.1"},

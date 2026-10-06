@@ -324,6 +324,12 @@ start a second call while that state remains. A completed request stores usage,
 safe response metadata, and a link to the exact staged image artifact. Reusing
 the same key and request returns that receipt without another generation.
 
+`JidoDelvetown.ImageGenerator.ReqLLMAdapter` is the OpenAI implementation. It
+reads `OPENAI_API_KEY` from the external environment, requests one byte-backed
+image through `ReqLLM.generate_image/3`, disables internal retries, and applies
+the request total timeout. It returns canonical image, usage, provenance, and
+redacted provider metadata. It does not write to SQLite or DelveTown.
+
 Use this stable API when a later ReqLLM flow returns generated image bytes:
 
 ```elixir

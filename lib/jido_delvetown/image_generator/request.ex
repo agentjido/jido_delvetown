@@ -60,6 +60,7 @@ defmodule JidoDelvetown.ImageGenerator.Request do
          {:ok, timeout_ms} <- normalize_timeout(value(attrs, :timeout_ms, @default_timeout_ms)),
          {:ok, provider_options} <-
            normalize_json_map(value(attrs, :provider_options, %{}), :provider_options),
+         :ok <- reject_provider_secrets(provider_options),
          {:ok, metadata} <- normalize_json_map(value(attrs, :metadata, %{}), :metadata) do
       {:ok,
        %__MODULE__{
@@ -199,6 +200,35 @@ defmodule JidoDelvetown.ImageGenerator.Request do
   end
 
   defp normalize_json_map(_value, key), do: invalid(key, "must be a map")
+
+  defp reject_provider_secrets(provider_options) do
+    case secret_key(provider_options) do
+      nil ->
+        :ok
+
+      key ->
+        invalid(
+          :provider_options,
+          "must not contain credentials; read #{key} from an external secret source"
+        )
+    end
+  end
+
+  defp secret_key(value) when is_map(value) do
+    Enum.find_value(value, fn {key, child} ->
+      name = key |> to_string() |> Macro.underscore() |> String.downcase()
+      if secret_name?(name), do: name, else: secret_key(child)
+    end)
+  end
+
+  defp secret_key(value) when is_list(value), do: Enum.find_value(value, &secret_key/1)
+  defp secret_key(_value), do: nil
+
+  defp secret_name?(name) do
+    name in ~w(authorization credential credentials password secret) or
+      String.ends_with?(name, ["_api_key", "_credential", "_password", "_secret", "_token"]) or
+      name in ~w(api_key access_token api_token)
+  end
 
   defp json_safe(nil), do: {:ok, nil}
 
