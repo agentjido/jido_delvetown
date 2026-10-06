@@ -99,7 +99,7 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
           {:ok, Map.put(cycle, :decision, CreativeFormats.finalize(decision, cycle))}
 
         {:error, reason} ->
-          failed_cycle(cycle, reason)
+          skipped_cycle(cycle, reason)
       end
     else
       {:error, reason} -> failed_cycle(cycle, reason)
@@ -197,6 +197,17 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
        status: "failed",
        stage: "decision",
        errors: cycle.errors ++ [error_text(reason)]
+     })}
+  end
+
+  defp skipped_cycle(cycle, reason) do
+    error = error_text(reason)
+
+    {:ok,
+     Map.merge(cycle, %{
+       decision: %{action: "skip", text: nil, topic: nil, reason: error},
+       stage: "decision",
+       errors: cycle.errors ++ [error]
      })}
   end
 end

@@ -329,6 +329,78 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:create_record, _collection, _record, _rkey}
   end
 
+  test "a decision failure safely finishes one reactive event and does not retry it" do
+    uri = "at://did:plc:decision-failure/town.delve.feed.post/reply"
+    root_uri = "at://did:plc:root/town.delve.feed.post/decision-failure"
+
+    configure_reads(%{
+      "town.delve.notification.listNotifications" =>
+        {:ok,
+         %{
+           "notifications" => [
+             %{
+               "uri" => uri,
+               "cid" => "reply-cid",
+               "reason" => "reply",
+               "isRead" => false,
+               "indexedAt" => "2026-10-06T12:00:00Z",
+               "author" => %{
+                 "did" => "did:plc:decision-failure",
+                 "handle" => "decision-failure.test"
+               },
+               "record" => %{
+                 "text" => "Can this decision fail safely?",
+                 "reply" => %{
+                   "root" => %{"uri" => root_uri, "cid" => "root-cid"}
+                 }
+               }
+             }
+           ]
+         }},
+      "town.delve.feed.getPostThread" =>
+        {:ok,
+         %{
+           "thread" => %{
+             "post" => %{
+               "uri" => uri,
+               "cid" => "reply-cid",
+               "record" => %{"text" => "Can this decision fail safely?"}
+             },
+             "replies" => []
+           }
+         }}
+    })
+
+    Application.put_env(:jido_delvetown, :decision_result, {:error, :decision_failed})
+
+    assert {:ok, first_state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert first_state.last_run.status == "skipped"
+    assert first_state.last_run.action == "skip"
+    assert first_state.last_run.errors == ["decision_failed"]
+    assert first_state.last_run.proposal.reason == "decision_failed"
+
+    event = Repo.get_by!(InteractionEvent, source_id: uri)
+    assert event.state == "ignored"
+    assert event.attempt_count == 1
+    assert event.failure == nil
+    assert event.payload["cycle_status"] == "skipped"
+    assert event.payload["model_reason"] == "decision_failed"
+    assert_received {:decision, "answer_direct_request", _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    assert {:ok, repeated_state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, %{
+               agent_state: first_state
+             })
+
+    assert repeated_state.last_run.status == "skipped"
+    assert Repo.get!(InteractionEvent, event.event_key).attempt_count == 1
+    refute_received {:decision, _intent, _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
   test "a reactive welcome discards image fields and reaches one terminal state" do
     RuntimeSettings.update!(dry_run_mark_actioned: true)
     follow_uri = "at://did:plc:new-follower/town.delve.graph.follow/one"
