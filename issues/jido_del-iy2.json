@@ -10,11 +10,15 @@
     {
       "text": "Scope update, 2026-10-05: Public DelveTown pages show rendered image posts, including an Image marker in the accessible representation. Keep jido_del-iy2.1 as the source of truth for the custom record contract. The live acceptance path now stages an AgentJido illustrated or generated self-portrait, publishes it once as an independent top-level post after explicit operator confirmation, and verifies the result through protocol readback, a fresh public-page load, and the durable local receipt. Image-generation flow integration remains outside this epic.",
       "timestamp": "2026-10-06T00:51:29Z"
+    },
+    {
+      "text": "ReqLLM image generation remains outside this plumbing epic. New epic jido_del-nki now owns controlled generation and reuses this epic's staging and publication boundary.",
+      "timestamp": "2026-10-06T01:50:19Z"
     }
   ],
   "priority": 1,
   "status": "in_progress",
   "title": "Support image post plumbing for DelveTown",
   "type": "epic",
-  "updated_at": "2026-10-06T00:51:29Z"
+  "updated_at": "2026-10-06T01:50:19Z"
 }
