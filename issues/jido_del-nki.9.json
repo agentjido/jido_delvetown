@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:49:52Z",
+  "description": "Run one operator-approved OpenAI image generation through ReqLLM, persist its request and usage receipt, stage the exact bytes, publish the approved draft through the existing idempotent path, verify the live DelveTown record, and prove retries create no second generation request or post.",
+  "id": "jido_del-nki.9",
+  "labels": [],
+  "parent": "jido_del-nki",
+  "priority": 1,
+  "status": "open",
+  "title": "Verify one ReqLLM image from generation through live publication",
+  "type": "task",
+  "updated_at": "2026-10-06T01:49:52Z"
+}
