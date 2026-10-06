@@ -4,6 +4,7 @@
   "blocks": [
     "jido_del-pic.2.5"
   ],
+  "closed_at": "2026-10-06T01:37:13Z",
   "created": "2026-10-06T00:56:47Z",
   "description": "Enable the existing Run reactive review button in the local admin panel. The button must enqueue one JidoDelvetown.Workers.ReactiveParticipationWorker job through Oban and must not change DELVETOWN_WRITE_ENABLED or any protocol-write setting. Disable the control while a matching job is active or already queued. Show clear queued, running, completed, skipped, and failed feedback. Refresh the dashboard after completion so newly collected interaction events and simulated replies are visible. Acceptance: one click enqueues at most one reactive review; repeated clicks cannot create duplicate concurrent jobs; the normal SQLite scan lease and event idempotency rules still apply; dry-run mode remains dry-run; automated cron behavior is unchanged; LiveView and worker integration tests cover success, duplicate-click, runtime-unavailable, and worker-failure cases.",
   "id": "jido_del-pa5",
@@ -15,8 +16,8 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Enable manual reactive review in the admin panel",
   "type": "task",
-  "updated_at": "2026-10-06T01:30:47Z"
+  "updated_at": "2026-10-06T01:37:13Z"
 }
