@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [
     "jido_del-pic.1.10",
     "jido_del-pic.1.5",
@@ -16,8 +16,8 @@
   "labels": [],
   "parent": "jido_del-pic.2",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Build the first-run setup experience",
   "type": "task",
-  "updated_at": "2026-10-06T13:04:51Z"
+  "updated_at": "2026-10-06T13:27:35Z"
 }
