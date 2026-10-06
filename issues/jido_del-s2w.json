@@ -2,6 +2,7 @@
   "assignee": "Mike Hostetler",
   "blocked_by": [],
   "blocks": [],
+  "closed_at": "2026-10-06T18:03:12Z",
   "created": "2026-10-06T17:49:32Z",
   "description": "Remove queued simulated welcome drafts without losing idempotency. Do not welcome new followers with a public post. Welcome a new member only from a safe introduction post with a clear BEAM/Jido topic. Use a one-sentence low-pressure format and reject ownership, support-offer, promotion, contribution-pressure, or call-to-action language. Add focused tests.",
   "id": "jido_del-s2w",
@@ -13,8 +14,8 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Make welcome drafts low-pressure and context-based",
   "type": "task",
-  "updated_at": "2026-10-06T18:03:10Z"
+  "updated_at": "2026-10-06T18:03:12Z"
 }
