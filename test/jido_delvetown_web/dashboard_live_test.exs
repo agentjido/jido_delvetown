@@ -12,12 +12,22 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     def reactive_review_status do
       Application.fetch_env!(:jido_delvetown, :reactive_review_test_status)
     end
+
+    def enqueue_proactive_review do
+      Application.fetch_env!(:jido_delvetown, :proactive_review_test_result)
+    end
+
+    def proactive_review_status do
+      Application.fetch_env!(:jido_delvetown, :proactive_review_test_status)
+    end
   end
 
   setup do
     old_controller = Application.get_env(:jido_delvetown, :reactive_review_controller)
     old_result = Application.get_env(:jido_delvetown, :reactive_review_test_result)
     old_status = Application.get_env(:jido_delvetown, :reactive_review_test_status)
+    old_proactive_result = Application.get_env(:jido_delvetown, :proactive_review_test_result)
+    old_proactive_status = Application.get_env(:jido_delvetown, :proactive_review_test_status)
 
     Application.put_env(:jido_delvetown, :reactive_review_controller, FakeReviewController)
 
@@ -33,10 +43,24 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       review_feedback(:idle)
     )
 
+    Application.put_env(
+      :jido_delvetown,
+      :proactive_review_test_result,
+      {:ok, review_feedback(:queued)}
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :proactive_review_test_status,
+      review_feedback(:idle)
+    )
+
     on_exit(fn ->
       restore_env(:reactive_review_controller, old_controller)
       restore_env(:reactive_review_test_result, old_result)
       restore_env(:reactive_review_test_status, old_status)
+      restore_env(:proactive_review_test_result, old_proactive_result)
+      restore_env(:proactive_review_test_status, old_proactive_status)
     end)
 
     :ok
@@ -76,6 +100,9 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "current dry-run settings"
     assert html =~ ~s(id="run-reactive-review")
     assert html =~ ~s(phx-click="run_reactive_review")
+    assert html =~ ~s(id="run-proactive-review")
+    assert html =~ ~s(phx-click="run_proactive_review")
+    assert html =~ ~s(id="proactive-review-feedback")
     assert html =~ "AgentJido profile"
     assert html =~ "Proposed thread"
     assert html =~ "Published reply"
@@ -107,6 +134,36 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       assert updated_socket.assigns.reactive_review.status == String.to_existing_atom(status)
 
       html = render_dashboard(updated_socket.assigns)
+      assert html =~ ~s(data-status="#{status}")
+      assert html =~ label
+    end
+  end
+
+  test "reports all manual proactive review states and keeps matching work disabled" do
+    cases = [
+      {{:ok, review_feedback(:queued)}, :queued, "Review queued", true},
+      {{:ok, review_feedback(:running)}, :running, "Review running", true},
+      {{:ok, review_feedback(:completed)}, :completed, "Review completed", false},
+      {{:ok, review_feedback(:skipped)}, :skipped, "Review already queued", true},
+      {{:error, :runtime_unavailable}, :failed, "Runtime unavailable", true},
+      {{:ok, review_feedback(:failed)}, :failed, "Review failed", true}
+    ]
+
+    for {result, status, label, disabled?} <- cases do
+      Application.put_env(:jido_delvetown, :proactive_review_test_result, result)
+
+      socket =
+        %Phoenix.LiveView.Socket{}
+        |> Phoenix.Component.assign(base_assigns())
+
+      assert {:noreply, updated_socket} =
+               DashboardLive.handle_event("run_proactive_review", %{}, socket)
+
+      assert updated_socket.assigns.proactive_review.status == status
+      assert updated_socket.assigns.proactive_review.disabled? == disabled?
+
+      html = render_dashboard(updated_socket.assigns)
+      assert html =~ ~s(id="proactive-review-feedback")
       assert html =~ ~s(data-status="#{status}")
       assert html =~ label
     end
@@ -467,6 +524,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       },
       inspection_error: nil,
       reactive_review: review_feedback(:idle),
+      proactive_review: review_feedback(:idle),
       manual_publish_enabled: false,
       publish_notice: nil,
       image_publish_notice: nil,
@@ -505,6 +563,26 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       label: "Review queued",
       detail: "The review will run through the normal scan lease.",
       disabled?: true,
+      job_id: 11
+    }
+  end
+
+  defp review_feedback(:running) do
+    %{
+      status: :running,
+      label: "Review running",
+      detail: "The worker is reviewing the timeline.",
+      disabled?: true,
+      job_id: 11
+    }
+  end
+
+  defp review_feedback(:completed) do
+    %{
+      status: :completed,
+      label: "Review completed",
+      detail: "The dashboard now includes saved proposals.",
+      disabled?: false,
       job_id: 11
     }
   end

@@ -246,9 +246,11 @@ with a link to the published post.
 The link bar opens the public AgentJido profile, the current proposal target,
 and the last published reply when a write receipt is available.
 
-The page includes disabled controls for reactive reviews, proactive reviews,
-and HITL post approval. These controls show the planned control surface, but
-they have no event handlers and cannot start work or approve a post.
+The page can queue one manual reactive review or one manual proactive review
+through Oban. It disables each control while a matching job is queued or
+running and reports the job state. A manual proactive review is always
+proposal-only, even when live writes are enabled. The HITL post approval
+control is still disabled and cannot approve a post.
 
 Set `DELVETOWN_DASHBOARD_ENABLED=false` to disable the dashboard. Set
 `DELVETOWN_DASHBOARD_PORT` to use another local port. The dashboard is disabled

@@ -75,7 +75,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
     feedback =
       case review_controller().enqueue_reactive_review() do
         {:ok, review} -> review
-        {:error, reason} -> review_error(reason)
+        {:error, reason} -> review_error(reason, :reactive)
       end
 
     {:noreply,
@@ -83,6 +83,21 @@ defmodule JidoDelvetownWeb.DashboardLive do
      |> assign(snapshot())
      |> assign(:active_tab, "overview")
      |> assign(:reactive_review, feedback)}
+  end
+
+  @impl true
+  def handle_event("run_proactive_review", _params, socket) do
+    feedback =
+      case review_controller().enqueue_proactive_review() do
+        {:ok, review} -> review
+        {:error, reason} -> review_error(reason, :proactive)
+      end
+
+    {:noreply,
+     socket
+     |> assign(snapshot())
+     |> assign(:active_tab, "overview")
+     |> assign(:proactive_review, feedback)}
   end
 
   @impl true
@@ -1468,6 +1483,15 @@ defmodule JidoDelvetownWeb.DashboardLive do
             <strong>{map_value(@reactive_review, :label)}</strong>
             <span>{map_value(@reactive_review, :detail)}</span>
           </div>
+          <div
+            id="proactive-review-feedback"
+            class="review-feedback"
+            data-status={map_value(@proactive_review, :status)}
+            aria-live="polite"
+          >
+            <strong>{map_value(@proactive_review, :label)}</strong>
+            <span>{map_value(@proactive_review, :detail)}</span>
+          </div>
           <div class="control-row">
             <button
               id="run-reactive-review"
@@ -1479,7 +1503,16 @@ defmodule JidoDelvetownWeb.DashboardLive do
             >
               Run reactive review
             </button>
-            <button type="button" disabled>Run proactive review</button>
+            <button
+              id="run-proactive-review"
+              type="button"
+              class="run-review-button"
+              phx-click="run_proactive_review"
+              phx-disable-with="Queuing review…"
+              disabled={map_value(@proactive_review, :disabled?, true)}
+            >
+              Run proactive review
+            </button>
             <button type="button" disabled>Approve human-in-the-loop post</button>
           </div>
         </div>
@@ -1769,6 +1802,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
       },
       disclosure: Personality.disclosure(),
       reactive_review: review_controller().reactive_review_status(),
+      proactive_review: review_controller().proactive_review_status(),
       manual_publish_enabled: JidoDelvetown.Config.manual_publish_enabled?(),
       port: JidoDelvetown.Config.dashboard_port(),
       refreshed_at: DateTime.to_iso8601(now),
@@ -1918,17 +1952,17 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp review_controller,
     do: Application.get_env(:jido_delvetown, :reactive_review_controller, Automation)
 
-  defp review_error(:runtime_unavailable) do
+  defp review_error(:runtime_unavailable, kind) do
     %{
       status: :failed,
       label: "Runtime unavailable",
-      detail: "Start the Agent and Oban runtimes before you run a reactive review.",
+      detail: "Start the Agent and Oban runtimes before you run a #{kind} review.",
       disabled?: true,
       job_id: nil
     }
   end
 
-  defp review_error({:enqueue_failed, _reason}) do
+  defp review_error({:enqueue_failed, _reason}, _kind) do
     %{
       status: :failed,
       label: "Review failed",
@@ -1938,8 +1972,8 @@ defmodule JidoDelvetownWeb.DashboardLive do
     }
   end
 
-  defp review_error(_reason),
-    do: review_error({:enqueue_failed, :unknown})
+  defp review_error(_reason, kind),
+    do: review_error({:enqueue_failed, :unknown}, kind)
 
   defp image_published?(draft), do: map_value(draft, :publication_state) == "published"
 

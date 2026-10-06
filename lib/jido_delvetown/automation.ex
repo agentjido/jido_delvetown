@@ -14,13 +14,24 @@ defmodule JidoDelvetown.Automation do
   def running?, do: is_pid(Oban.whereis(Oban))
 
   @doc "Queues one manual reactive review without changing protocol-write settings."
-  def enqueue_reactive_review do
+  def enqueue_reactive_review, do: enqueue_review(@reactive_worker, :reactive)
+
+  @doc "Queues one manual proposal-only proactive review without changing write settings."
+  def enqueue_proactive_review, do: enqueue_review(@proactive_review_worker, :proactive)
+
+  @doc "Returns the current or most recent manual reactive review state."
+  def reactive_review_status, do: review_status(@reactive_worker, :reactive)
+
+  @doc "Returns the current or most recent manual proactive review state."
+  def proactive_review_status, do: review_status(@proactive_review_worker, :proactive)
+
+  defp enqueue_review(worker, kind) do
     with :ok <- ensure_runtime_available(),
-         {:ok, job} <- Oban.insert(@reactive_worker.new(%{"source" => @manual_source})) do
+         {:ok, job} <- Oban.insert(worker.new(%{"source" => @manual_source})) do
       if job.conflict? do
-        {:ok, feedback(job, :skipped)}
+        {:ok, feedback(job, kind, :skipped)}
       else
-        {:ok, feedback(job)}
+        {:ok, feedback(job, kind)}
       end
     else
       {:error, :runtime_unavailable} = error -> error
@@ -32,20 +43,19 @@ defmodule JidoDelvetown.Automation do
     :exit, reason -> {:error, {:enqueue_failed, reason}}
   end
 
-  @doc "Returns the current or most recent manual reactive review state."
-  def reactive_review_status do
+  defp review_status(worker, kind) do
     case ensure_runtime_available() do
       :ok ->
-        case active_reactive_job() || latest_manual_reactive_job() do
-          nil -> idle_feedback()
-          job -> feedback(job)
+        case active_job(worker) || latest_manual_job(worker) do
+          nil -> idle_feedback(kind)
+          job -> feedback(job, kind)
         end
 
       {:error, :runtime_unavailable} ->
         %{
           status: :failed,
           label: "Runtime unavailable",
-          detail: "Start the Agent and Oban runtimes before you run a reactive review.",
+          detail: "Start the Agent and Oban runtimes before you run a #{kind} review.",
           disabled?: true,
           job_id: nil
         }
@@ -101,21 +111,21 @@ defmodule JidoDelvetown.Automation do
     end
   end
 
-  defp active_reactive_job do
+  defp active_job(worker) do
     Repo.one(
       from(job in Oban.Job,
-        where: job.worker == ^inspect(@reactive_worker) and job.state in ^@active_states,
+        where: job.worker == ^inspect(worker) and job.state in ^@active_states,
         order_by: [desc: job.inserted_at, desc: job.id],
         limit: 1
       )
     )
   end
 
-  defp latest_manual_reactive_job do
+  defp latest_manual_job(worker) do
     Repo.one(
       from(job in Oban.Job,
         where:
-          job.worker == ^inspect(@reactive_worker) and
+          job.worker == ^inspect(worker) and
             fragment("json_extract(?, '$.source')", job.args) == ^@manual_source,
         order_by: [desc: job.inserted_at, desc: job.id],
         limit: 1
@@ -123,39 +133,39 @@ defmodule JidoDelvetown.Automation do
     )
   end
 
-  defp feedback(job, override \\ nil)
+  defp feedback(job, kind, override \\ nil)
 
-  defp feedback(job, :skipped) do
+  defp feedback(job, kind, :skipped) do
     %{
       status: :skipped,
       label: "Review already queued",
-      detail: "A reactive review is already queued or running. No duplicate job was created.",
+      detail: "A #{kind} review is already queued or running. No duplicate job was created.",
       disabled?: true,
       job_id: job.id
     }
   end
 
-  defp feedback(%{state: state} = job, nil) when state in ["available", "scheduled"] do
+  defp feedback(%{state: state} = job, kind, nil) when state in ["available", "scheduled"] do
     %{
       status: :queued,
       label: "Review queued",
-      detail: queued_detail(job),
+      detail: queued_detail(job, kind),
       disabled?: true,
       job_id: job.id
     }
   end
 
-  defp feedback(%{state: "executing"} = job, nil) do
+  defp feedback(%{state: "executing"} = job, kind, nil) do
     %{
       status: :running,
       label: "Review running",
-      detail: "The reactive worker is collecting and reviewing events.",
+      detail: "The #{kind} worker is collecting and reviewing events.",
       disabled?: true,
       job_id: job.id
     }
   end
 
-  defp feedback(%{state: state} = job, nil) when state in ["retryable", "suspended"] do
+  defp feedback(%{state: state} = job, _kind, nil) when state in ["retryable", "suspended"] do
     %{
       status: :failed,
       label: "Review failed",
@@ -165,17 +175,17 @@ defmodule JidoDelvetown.Automation do
     }
   end
 
-  defp feedback(%{state: "completed"} = job, nil) do
+  defp feedback(%{state: "completed"} = job, kind, nil) do
     %{
       status: :completed,
       label: "Review completed",
-      detail: "The dashboard now includes events and simulated replies from this review.",
+      detail: completed_detail(kind),
       disabled?: false,
       job_id: job.id
     }
   end
 
-  defp feedback(%{state: state} = job, nil) when state in ["discarded", "cancelled"] do
+  defp feedback(%{state: state} = job, _kind, nil) when state in ["discarded", "cancelled"] do
     %{
       status: :failed,
       label: "Review failed",
@@ -185,21 +195,40 @@ defmodule JidoDelvetown.Automation do
     }
   end
 
-  defp feedback(job, nil) do
-    failed_feedback("The reactive review has an unknown Oban state: #{job.state}", job.id)
+  defp feedback(job, kind, nil) do
+    failed_feedback("The #{kind} review has an unknown Oban state: #{job.state}", job.id)
   end
 
-  defp queued_detail(%{args: %{"source" => @manual_source}}),
+  defp queued_detail(%{args: %{"source" => @manual_source}}, :reactive),
     do: "The manual review will run through the normal SQLite scan lease."
 
-  defp queued_detail(_job),
-    do: "A scheduled reactive review is already queued. Manual review is disabled until it ends."
+  defp queued_detail(%{args: %{"source" => @manual_source}}, :proactive),
+    do: "The manual review will use the timeline scan lease and save proposals only."
 
-  defp idle_feedback do
+  defp queued_detail(_job, kind),
+    do: "A scheduled #{kind} review is already queued. Manual review is disabled until it ends."
+
+  defp completed_detail(:reactive),
+    do: "The dashboard now includes events and simulated replies from this review."
+
+  defp completed_detail(:proactive),
+    do: "The dashboard now includes proposals from this timeline review."
+
+  defp idle_feedback(:reactive) do
     %{
       status: :idle,
       label: "Ready for review",
       detail: "Queue one reactive review. Current write and dry-run settings stay unchanged.",
+      disabled?: false,
+      job_id: nil
+    }
+  end
+
+  defp idle_feedback(:proactive) do
+    %{
+      status: :idle,
+      label: "Ready for proactive review",
+      detail: "Queue one timeline review. It can save proposals but cannot publish them.",
       disabled?: false,
       job_id: nil
     }

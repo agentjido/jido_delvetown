@@ -105,6 +105,66 @@ defmodule JidoDelvetown.WorkersTest do
     refute_receive {:cycle, :proactive}
   end
 
+  test "a manual proactive review runs through Oban without changing live-write settings" do
+    old_write_setting = System.get_env("DELVETOWN_WRITE_ENABLED")
+    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    on_exit(fn -> restore_system_env("DELVETOWN_WRITE_ENABLED", old_write_setting) end)
+
+    assert {:ok, %{status: :queued, disabled?: true, job_id: job_id}} =
+             Automation.enqueue_proactive_review()
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :delvetown)
+    assert_receive {:cycle, :proactive_review}
+    refute_receive {:cycle, :proactive}
+
+    assert %{status: :completed, disabled?: false, job_id: ^job_id} =
+             Automation.proactive_review_status()
+
+    assert Config.write_enabled?()
+  end
+
+  test "repeated manual proactive reviews do not create concurrent jobs" do
+    assert {:ok, %{status: :queued, job_id: job_id}} =
+             Automation.enqueue_proactive_review()
+
+    assert {:ok, %{status: :skipped, disabled?: true, job_id: ^job_id}} =
+             Automation.enqueue_proactive_review()
+
+    assert Repo.aggregate(proactive_review_jobs_query(), :count) == 1
+  end
+
+  test "manual proactive review reports an unavailable runtime without a job" do
+    Application.put_env(
+      :jido_delvetown,
+      :reactive_review_runtime,
+      UnavailableRuntime
+    )
+
+    assert {:error, :runtime_unavailable} = Automation.enqueue_proactive_review()
+
+    assert %{status: :failed, label: "Runtime unavailable", disabled?: true} =
+             Automation.proactive_review_status()
+
+    assert Repo.aggregate(proactive_review_jobs_query(), :count) == 0
+  end
+
+  test "a failed manual proactive review shows its pending Oban retry" do
+    Application.put_env(
+      :jido_delvetown,
+      :cycle_result,
+      {:ok, %{status: "failed", stage: "collect", errors: ["timeout"]}}
+    )
+
+    assert {:ok, %{status: :queued, job_id: job_id}} =
+             Automation.enqueue_proactive_review()
+
+    assert %{success: 0, failure: 1} = Oban.drain_queue(queue: :delvetown)
+    assert_receive {:cycle, :proactive_review}
+
+    assert %{status: :failed, disabled?: true, job_id: ^job_id} =
+             Automation.proactive_review_status()
+  end
+
   test "a manual reactive review runs through Oban and records completion" do
     writes_enabled? = Config.write_enabled?()
     dry_run_mark_actioned? = Config.dry_run_mark_actioned?()
@@ -208,6 +268,9 @@ defmodule JidoDelvetown.WorkersTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:jido_delvetown, key)
   defp restore_env(key, value), do: Application.put_env(:jido_delvetown, key, value)
+
+  defp restore_system_env(key, nil), do: System.delete_env(key)
+  defp restore_system_env(key, value), do: System.put_env(key, value)
 
   defp reactive_jobs_query do
     from(job in Oban.Job,
