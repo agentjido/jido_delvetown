@@ -4,11 +4,10 @@ defmodule JidoDelvetown.StoreAndTidTest do
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Config
   alias JidoDelvetown.Store
-  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, ScanState}
+  alias JidoDelvetown.Storage.{Effect, InteractionEvent, ScanState}
   alias JidoDelvetown.Tid
 
   setup do
-    Repo.delete_all(AuditEvent)
     Repo.delete_all(Effect)
     Repo.delete_all(InteractionEvent)
     Repo.delete_all(ScanState)
@@ -65,27 +64,6 @@ defmodule JidoDelvetown.StoreAndTidTest do
 
     assert JidoDelvetown.Jido.__jido_persistence__() ==
              {Jido.Persistence.Ecto, repo: JidoDelvetown.Repo}
-  end
-
-  test "event sequence continues after the Store restarts" do
-    name = JidoDelvetown.EventStoreTestServer
-
-    {:ok, first_store} = Store.start_link(name: name)
-    Process.unlink(first_store)
-    assert :ok = Store.add_event(:first, %{}, name)
-    GenServer.stop(first_store)
-
-    {:ok, second_store} = Store.start_link(name: name)
-    Process.unlink(second_store)
-    assert :ok = Store.add_event(:second, %{}, name)
-
-    assert [
-             %{type: :second, sequence: second_sequence},
-             %{type: :first, sequence: first_sequence}
-           ] = Store.recent_events(name, 2)
-
-    assert second_sequence == first_sequence + 1
-    GenServer.stop(second_store)
   end
 
   test "concurrent reservations keep one effect and one record key" do

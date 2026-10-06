@@ -2,6 +2,7 @@ defmodule JidoDelvetown.ProtocolTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.Actions.{CreatePost, LikePost}
+  alias JidoDelvetown.AuditLog
   alias JidoDelvetown.Protocol
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Store
@@ -66,7 +67,7 @@ defmodule JidoDelvetown.ProtocolTest do
     assert is_binary(rkey)
 
     assert [%{type: :create_record, data: %{record_uri: record_uri}} | _events] =
-             Store.recent_events(@test_store, 1)
+             AuditLog.recent(1)
 
     assert record_uri == "at://did:plc:bot/town.delve.feed.like/#{rkey}"
 

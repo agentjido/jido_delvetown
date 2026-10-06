@@ -3,6 +3,7 @@ defmodule JidoDelvetown.ManualPublisher do
 
   alias JidoDelvetown.{
     ActorMemory,
+    AuditLog,
     Candidate,
     Config,
     ConversationMemory,
@@ -27,7 +28,7 @@ defmodule JidoDelvetown.ManualPublisher do
          publication = event |> publication_details(result, effect_key),
          {:ok, _event} <- InteractionEvents.record_manual_publication(event_key, publication) do
       _result =
-        Store.add_event(:manual_publish, %{
+        AuditLog.record(:manual_publish, %{
           event_key: event_key,
           effect_key: effect_key,
           record_uri: publication.uri,

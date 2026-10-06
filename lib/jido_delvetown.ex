@@ -2,6 +2,7 @@ defmodule JidoDelvetown do
   @moduledoc "IEx operator interface for the Jido Delvetown tracer."
 
   alias JidoDelvetown.Agent
+  alias JidoDelvetown.AuditLog
   alias JidoDelvetown.Automation
   alias JidoDelvetown.Config
   alias JidoDelvetown.FriendList
@@ -99,7 +100,7 @@ defmodule JidoDelvetown do
   def recent_events(limit \\ 25) do
     with {:ok, agent_server} <- agent_server() do
       %{
-        workflow: Store.recent_events(Store, limit),
+        workflow: AuditLog.recent(limit),
         agent: Jido.AgentServer.recent_events(agent_server, limit: limit)
       }
     end

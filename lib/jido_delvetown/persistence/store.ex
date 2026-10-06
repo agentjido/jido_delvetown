@@ -6,7 +6,7 @@ defmodule JidoDelvetown.Store do
   import Ecto.Query
 
   alias JidoDelvetown.Repo
-  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent}
+  alias JidoDelvetown.Storage.{Effect, InteractionEvent}
 
   @seen_kinds ["seen", "legacy_seen"]
 
@@ -37,14 +37,6 @@ defmodule JidoDelvetown.Store do
 
   def fail_effect_permanently(key, failure, server \\ __MODULE__) do
     GenServer.call(server, {:fail_effect_permanently, key, failure})
-  end
-
-  def add_event(type, data, server \\ __MODULE__) do
-    GenServer.call(server, {:add_event, type, data})
-  end
-
-  def recent_events(server \\ __MODULE__, limit \\ 25) do
-    GenServer.call(server, {:recent_events, limit})
   end
 
   @impl true
@@ -158,32 +150,6 @@ defmodule JidoDelvetown.Store do
     {:reply, transaction_result(result), state}
   end
 
-  def handle_call({:add_event, type, data}, _from, state) do
-    result =
-      %AuditEvent{
-        type: to_string(type),
-        data: json_safe(data) || %{},
-        occurred_at: now()
-      }
-      |> state.repo.insert()
-
-    reply = if match?({:ok, _event}, result), do: :ok, else: result
-    {:reply, reply, state}
-  end
-
-  def handle_call({:recent_events, limit}, _from, state) do
-    events =
-      state.repo.all(
-        from(event in AuditEvent,
-          order_by: [desc: event.id],
-          limit: ^max(limit, 0)
-        )
-      )
-      |> Enum.map(&audit_event_map/1)
-
-    {:reply, events, state}
-  end
-
   def handle_call(:counts, _from, state) do
     effects =
       state.repo.all(
@@ -282,15 +248,6 @@ defmodule JidoDelvetown.Store do
     }
   end
 
-  defp audit_event_map(%AuditEvent{} = event) do
-    %{
-      sequence: event.id,
-      type: existing_atom(event.type),
-      at: iso8601(event.occurred_at),
-      data: existing_atom_keys(event.data)
-    }
-  end
-
   defp effect_status("reserved"), do: :reserved
   defp effect_status("uncertain"), do: :uncertain
   defp effect_status("completed"), do: :completed
@@ -320,22 +277,6 @@ defmodule JidoDelvetown.Store do
   end
 
   defp json_safe(value), do: inspect(value)
-
-  defp existing_atom_keys(value) when is_list(value), do: Enum.map(value, &existing_atom_keys/1)
-
-  defp existing_atom_keys(value) when is_map(value) do
-    Map.new(value, fn {key, item} -> {existing_atom(key), existing_atom_keys(item)} end)
-  end
-
-  defp existing_atom_keys(value), do: value
-
-  defp existing_atom(value) when is_binary(value) do
-    String.to_existing_atom(value)
-  rescue
-    ArgumentError -> value
-  end
-
-  defp existing_atom(value), do: value
 
   defp iso8601(nil), do: nil
   defp iso8601(%DateTime{} = value), do: DateTime.to_iso8601(value)

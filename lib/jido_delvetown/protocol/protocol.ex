@@ -1,6 +1,7 @@
 defmodule JidoDelvetown.Protocol do
   @moduledoc "Safe protocol operations used by the hard-coded Jido tools."
 
+  alias JidoDelvetown.AuditLog
   alias JidoDelvetown.Config
   alias JidoDelvetown.Session
   alias JidoDelvetown.Store
@@ -400,7 +401,7 @@ defmodule JidoDelvetown.Protocol do
   defp receipt_uri(_receipt), do: nil
 
   defp audit(type, data) do
-    _result = Store.add_event(type, data, store())
+    _result = AuditLog.record(type, data)
     :ok
   catch
     :exit, _reason -> :ok

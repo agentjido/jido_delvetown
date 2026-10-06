@@ -3,11 +3,10 @@ defmodule JidoDelvetown.Inspection do
 
   import Ecto.Query
 
-  alias JidoDelvetown.{Automation, Repo}
+  alias JidoDelvetown.{AuditLog, Automation, Repo}
 
   alias JidoDelvetown.Storage.{
     Actor,
-    AuditEvent,
     Conversation,
     Effect,
     ImageArtifact,
@@ -319,23 +318,9 @@ defmodule JidoDelvetown.Inspection do
       )
       |> Enum.map(&effect_summary/1)
 
-    reconciled =
-      repo.aggregate(
-        from(event in AuditEvent,
-          where:
-            event.type in ["create_record", "delete_record"] and
-              fragment(
-                "json_extract(?, '$.' || 'reconciled' || char(63)) = 1",
-                event.data
-              )
-        ),
-        :count,
-        :id
-      )
-
     %{
       counts: counts,
-      reconciled: reconciled,
+      reconciled: AuditLog.reconciled_effect_count(repo: repo),
       attention: attention,
       completed_receipts: receipts
     }

@@ -4,11 +4,11 @@ defmodule JidoDelvetown.CycleTest do
   alias JidoDelvetown.Agent
 
   alias JidoDelvetown.{
+    AuditLog,
     ProactiveParticipationCycle,
     ReactiveParticipationCycle,
     Repo,
-    ScanProgress,
-    Store
+    ScanProgress
   }
 
   alias JidoDelvetown.Storage.{Actor, Conversation, InteractionEvent, ScanState}
@@ -153,7 +153,7 @@ defmodule JidoDelvetown.CycleTest do
     assert_received {:decision, "answer_direct_request", payload}
     assert payload.candidate.thread.post.text == "How would you model this in OTP?"
 
-    decision_event = Enum.find(Store.recent_events(Store, 10), &(&1.type == :decision))
+    decision_event = Enum.find(AuditLog.recent(10), &(&1.type == :decision))
     assert decision_event.data.selection.reason == state.last_run.selection.reason
   end
 

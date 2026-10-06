@@ -6,12 +6,12 @@ defmodule JidoDelvetown.Actions.RecordCycle do
     schema: Zoi.object(%{cycle: Zoi.map()})
 
   alias JidoDelvetown.Actions.UpdateNotificationsSeen
+  alias JidoDelvetown.AuditLog
   alias JidoDelvetown.Config
   alias JidoDelvetown.CreativeFormats
   alias JidoDelvetown.CycleRecorder
   alias JidoDelvetown.InteractionEvents
   alias JidoDelvetown.ScanProgress
-  alias JidoDelvetown.Store
 
   @topic_limit 10
 
@@ -244,7 +244,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp receipt_uri(_receipt), do: nil
 
   defp record_decision(cycle, decision, completed_at) do
-    Store.add_event(:decision, %{
+    AuditLog.record(:decision, %{
       cycle_kind: cycle.kind,
       intent: cycle.intent,
       action: decision.action,
