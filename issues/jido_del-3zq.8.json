@@ -6,14 +6,16 @@
   "blocks": [
     "jido_del-3zq.9"
   ],
+  "closed_at": "2026-10-06T11:40:23Z",
+  "close_reason": "Moved audit writes, ordered reads, and reconciled counts into AuditLog with failure and ordering tests.",
   "created": "2026-10-06T01:07:20Z",
   "description": "Move audit-event insertion, recent-event reads, and audit counts into a focused durable audit-log context. Update protocol, cycle recording, manual publication, status, and review-task callers. Keep event type, data sanitization, ordering, and timestamp behavior unchanged. Leave effect lifecycle ownership in Store until its separate issue. Acceptance: audit callers use one clear API; recent-event and dashboard behavior stay unchanged; audit tests cover write failure and ordering.",
   "id": "jido_del-3zq.8",
   "labels": [],
   "parent": "jido_del-3zq",
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Extract the durable audit log from Store",
   "type": "task",
-  "updated_at": "2026-10-06T11:37:54Z"
+  "updated_at": "2026-10-06T11:40:23Z"
 }
