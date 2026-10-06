@@ -64,10 +64,11 @@ defmodule JidoDelvetown.Settings.ImageGeneration do
   def authorize(mode, opts \\ [])
 
   def authorize(mode, opts) when mode in @modes do
-    with {:ok, policy} <- current(opts),
+    with {:ok, require_budget?} <- require_budget(opts),
+         {:ok, policy} <- current(opts),
          :ok <- enabled(policy),
          :ok <- allowed_mode(policy, mode),
-         :ok <- available_budget(policy) do
+         :ok <- available_budget(policy, require_budget?) do
       {:ok, policy}
     end
   end
@@ -83,8 +84,19 @@ defmodule JidoDelvetown.Settings.ImageGeneration do
       else: {:error, {:image_generation_mode_not_allowed, mode}}
   end
 
-  defp available_budget(%{budget: %{remaining: remaining}}) when remaining > 0, do: :ok
-  defp available_budget(_policy), do: {:error, :image_generation_daily_limit_reached}
+  defp available_budget(_policy, false), do: :ok
+
+  defp available_budget(%{budget: %{remaining: remaining}}, true) when remaining > 0,
+    do: :ok
+
+  defp available_budget(_policy, true), do: {:error, :image_generation_daily_limit_reached}
+
+  defp require_budget(opts) do
+    case Keyword.get(opts, :require_budget, true) do
+      value when is_boolean(value) -> {:ok, value}
+      _value -> {:error, :invalid_image_generation_budget_requirement}
+    end
+  end
 
   defp budget(limit, usage) do
     Map.merge(usage, %{

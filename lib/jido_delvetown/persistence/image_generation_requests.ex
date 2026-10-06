@@ -25,6 +25,10 @@ defmodule JidoDelvetown.ImageGenerationRequests do
           resets_at: DateTime.t()
         }
 
+  @doc "Validates a stable image generation request key without writing it."
+  @spec validate_key(term()) :: :ok | {:error, :invalid_generation_request_key}
+  def validate_key(request_key), do: validate_request_key(request_key)
+
   @doc "Returns one durable generation request, or nil when it is not present."
   @spec get(String.t(), keyword()) :: map() | nil
   def get(request_key, opts \\ [])
@@ -52,7 +56,7 @@ defmodule JidoDelvetown.ImageGenerationRequests do
   @spec reserve(String.t(), Request.t() | map() | keyword(), keyword()) ::
           {:ok, reservation()} | {:error, term()}
   def reserve(request_key, request, opts \\ []) when is_list(opts) do
-    with :ok <- validate_request_key(request_key),
+    with :ok <- validate_key(request_key),
          {:ok, request} <- Request.new(request) do
       repo = repo(opts)
       reserved_at = now(opts)

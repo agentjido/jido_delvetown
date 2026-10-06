@@ -350,6 +350,25 @@ publication. Read the normalized policy and current UTC daily usage with
 the immediate SQLite transaction applies the daily limit before a provider
 call starts.
 
+Preview a manual generation before any request row or provider call is made:
+
+```sh
+mix delvetown.image.generate \
+  --key agentjido:workbench:v1 \
+  --prompt "AgentJido at a careful workbench" \
+  --caption "A new idea takes shape." \
+  --alt "A green robot works at a desk."
+```
+
+The preview shows the provider, model, size, quality, output format, timeout,
+daily budget, settings version, stable request fingerprint, and the number of
+provider calls that it expects. It does not print the prompt, caption, or alt
+text. Add `--confirm` to the same command to make the provider call and stage
+the saved draft. The command returns the draft ID, artifact digest, usage, and
+safe provenance. It never uploads the image and never publishes a post. A
+repeat with the same key and inputs reuses the completed request without a
+second provider call.
+
 Use the generation staging bridge after the durable request has started and a
 ReqLLM call returns a successful result:
 

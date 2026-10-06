@@ -26,6 +26,19 @@ defmodule JidoDelvetown.ImageDrafts do
           artifact_reused?: boolean()
         }
 
+  @doc "Validates a draft key, caption, and alt text before image bytes are available."
+  @spec validate_draft_input(String.t(), map()) :: :ok | {:error, term()}
+  def validate_draft_input(draft_key, attrs)
+      when is_binary(draft_key) and is_map(attrs) do
+    with :ok <- validate_draft_key(draft_key),
+         :ok <- validate_text(value(attrs, :caption), :caption),
+         :ok <- validate_text(value(attrs, :alt_text), :alt_text) do
+      :ok
+    end
+  end
+
+  def validate_draft_input(_draft_key, _attrs), do: {:error, :invalid_stage_request}
+
   @spec stage(String.t(), binary(), map()) :: {:ok, stage_result()} | {:error, term()}
   def stage(draft_key, bytes, attrs)
       when is_binary(draft_key) and is_binary(bytes) and is_map(attrs) do
@@ -156,12 +169,10 @@ defmodule JidoDelvetown.ImageDrafts do
     height = value(attrs, :height)
     source_metadata = value(attrs, :source_metadata, %{})
 
-    with :ok <- validate_draft_key(draft_key),
+    with :ok <- validate_draft_input(draft_key, attrs),
          :ok <- validate_bytes(bytes),
          :ok <- validate_mime_type(mime_type),
          :ok <- validate_dimensions(width, height),
-         :ok <- validate_text(caption, :caption),
-         :ok <- validate_text(alt_text, :alt_text),
          {:ok, source_metadata} <- normalize_metadata(source_metadata) do
       {:ok,
        %{
