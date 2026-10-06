@@ -7,14 +7,15 @@
     "jido_del-3zq.11",
     "jido_del-pic.2.1"
   ],
+  "closed_at": "2026-10-06T11:23:03Z",
   "created": "2026-10-06T01:07:19Z",
   "description": "Split DashboardLive rendering into stateless function components for operational state, runtime health, memory and effects, scan and database status, recent events, planned controls, agent information, and simulated actions. Keep one LiveView process and do not add component processes. Keep styles local without adding a new asset pipeline unless the current playground requires it. Acceptance: DashboardLive owns only lifecycle, events, assigns, and top-level composition; visual content, accessibility labels, publication confirmation, and refresh behavior stay unchanged; component and LiveView tests pass.",
   "id": "jido_del-3zq.3",
   "labels": [],
   "parent": "jido_del-3zq",
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Extract stateless dashboard components",
   "type": "task",
-  "updated_at": "2026-10-06T11:16:25Z"
+  "updated_at": "2026-10-06T11:23:03Z"
 }
