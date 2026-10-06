@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-nki.5"
+  ],
   "blocks": [],
   "created": "2026-10-06T01:49:52Z",
   "description": "Allow participation planning to propose an image-generation request when policy permits. The proposal must consume a separate generation budget and produce a reviewable draft. It must not generate or publish automatically unless the active autonomy policy explicitly permits each stage.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Add policy-gated generated-image proposals",
   "type": "task",
-  "updated_at": "2026-10-06T01:49:52Z"
+  "updated_at": "2026-10-06T01:50:18Z"
 }
