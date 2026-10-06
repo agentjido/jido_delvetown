@@ -9,6 +9,7 @@
     "jido_del-nki.7",
     "jido_del-pic.2.10"
   ],
+  "closed_at": "2026-10-06T14:14:25Z",
   "created": "2026-10-06T01:19:48Z",
   "description": "Show DelveTown-style previews for simulated replies, posts, likes, and image posts. Provide approve, reject, and publish controls with clear safety state.",
   "id": "jido_del-pic.2.6",
@@ -21,8 +22,8 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Build Drafts and Approvals",
   "type": "task",
-  "updated_at": "2026-10-06T14:04:46Z"
+  "updated_at": "2026-10-06T14:14:25Z"
 }
