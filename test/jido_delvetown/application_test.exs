@@ -4,7 +4,7 @@ defmodule JidoDelvetown.ApplicationTest do
   @source_root Path.expand("../../lib/jido_delvetown", __DIR__)
   @facade Path.expand("../../lib/jido_delvetown.ex", __DIR__)
   @root_files ~w(agent.ex application.ex config.ex)
-  @subsystems ~w(actions participation persistence protocol publishing runtime social workers)
+  @subsystems ~w(actions image_generator participation persistence protocol publishing runtime social workers)
 
   test "the source root contains only the application, agent, and config" do
     assert root_files(@source_root) == @root_files
