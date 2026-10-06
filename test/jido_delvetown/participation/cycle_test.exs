@@ -329,6 +329,77 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:create_record, _collection, _record, _rkey}
   end
 
+  test "a reactive welcome discards image fields and reaches one terminal state" do
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+    follow_uri = "at://did:plc:new-follower/town.delve.graph.follow/one"
+
+    configure_reads(%{
+      "town.delve.notification.listNotifications" =>
+        {:ok,
+         %{
+           "notifications" => [
+             %{
+               "uri" => follow_uri,
+               "cid" => "follow-cid",
+               "reason" => "follow",
+               "isRead" => false,
+               "indexedAt" => "2026-10-06T10:00:00Z",
+               "author" => %{
+                 "did" => "did:plc:new-follower",
+                 "handle" => "new-follower.test"
+               }
+             }
+           ]
+         }},
+      "town.delve.actor.getProfile" =>
+        {:ok,
+         %{
+           "did" => "did:plc:new-follower",
+           "handle" => "new-follower.test"
+         }}
+    })
+
+    Application.put_env(
+      :jido_delvetown,
+      :decision_result,
+      {:ok,
+       %{
+         action: "welcome",
+         text: "Welcome to DelveTown. I hope your first build goes well.",
+         topic: "welcome",
+         reason: "Welcome a new follower",
+         image_prompt: "An image field that is not valid for a welcome",
+         image_alt_text: "An image field that is not valid for a welcome"
+       }}
+    )
+
+    assert {:ok, state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.status == "simulated"
+    assert state.last_run.action == "welcome"
+    refute Map.has_key?(state.last_run.proposal, :image_prompt)
+    refute Map.has_key?(state.last_run.proposal, :image_alt_text)
+
+    event = Repo.get_by!(InteractionEvent, source_id: follow_uri)
+    assert event.state == "completed"
+    assert event.attempt_count == 1
+    assert event.payload["image_prompt"] == nil
+    assert event.payload["image_alt_text"] == nil
+    refute_received {:generate_participation_image, _cycle, _decision}
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    assert {:ok, repeated} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, %{
+               agent_state: state
+             })
+
+    assert repeated.last_run.status == "skipped"
+    assert Repo.get!(InteractionEvent, event.event_key).attempt_count == 1
+    refute_received {:generate_participation_image, _cycle, _decision}
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
   test "a quiet timeline selects one daily note and keeps the daily budget unchanged in review" do
     configure_reads(%{
       "town.delve.notification.listNotifications" => {:ok, %{"notifications" => []}},
@@ -457,6 +528,71 @@ defmodule JidoDelvetown.CycleTest do
 
     assert repeated.last_run.status == "skipped"
     assert repeated.last_run.proposal.reason == "no_eligible_work"
+    refute_received {:generate_participation_image, _cycle, _decision}
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
+  test "a proactive post discards an incomplete image proposal and keeps the text proposal" do
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+
+    configure_reads(%{
+      "town.delve.notification.listNotifications" => {:ok, %{"notifications" => []}},
+      "town.delve.feed.getTimeline" =>
+        {:ok,
+         %{
+           "feed" => [
+             %{
+               "post" => %{
+                 "uri" => "at://did:plc:author/town.delve.feed.post/quiet-image-fallback",
+                 "cid" => "quiet-image-fallback-cid",
+                 "author" => %{"did" => "did:plc:author", "handle" => "author.test"},
+                 "record" => %{"text" => "A calm note without a question"}
+               }
+             }
+           ]
+         }}
+    })
+
+    Application.put_env(
+      :jido_delvetown,
+      :decision_result,
+      {:ok,
+       %{
+         action: "post",
+         text: "A small process boundary gives one failure a clear owner.",
+         topic: "OTP boundaries",
+         reason: "A text field note",
+         image_prompt: "A diagram without the required alt text"
+       }}
+    )
+
+    assert {:ok, state} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert state.last_run.status == "simulated"
+    assert state.last_run.action == "post"
+
+    assert state.last_run.proposal.text ==
+             "A small process boundary gives one failure a clear owner."
+
+    refute Map.has_key?(state.last_run.proposal, :image_prompt)
+    refute Map.has_key?(state.last_run.proposal, :image_alt_text)
+    refute_received {:generate_participation_image, _cycle, _decision}
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    event = Repo.get_by!(InteractionEvent, source_id: "daily:#{state.budget.date}")
+    assert event.state == "completed"
+    assert event.attempt_count == 1
+    assert event.payload["image_prompt"] == nil
+    assert event.payload["image_alt_text"] == nil
+
+    assert {:ok, repeated} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, %{
+               agent_state: state
+             })
+
+    assert repeated.last_run.status == "skipped"
+    assert Repo.get!(InteractionEvent, event.event_key).attempt_count == 1
     refute_received {:generate_participation_image, _cycle, _decision}
     refute_received {:create_record, _collection, _record, _rkey}
   end

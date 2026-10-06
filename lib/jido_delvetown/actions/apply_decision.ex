@@ -21,6 +21,8 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
   def run(%{cycle: %{status: "failed"} = cycle}, _context), do: {:ok, cycle}
 
   def run(%{cycle: cycle}, _context) do
+    cycle = discard_invalid_image_proposal(cycle)
+
     with :ok <- validate(cycle),
          {:ok, cycle} <- prepare_welcome(cycle) do
       {:ok, apply(cycle)}
@@ -208,6 +210,14 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
        do: valid_bounded_text?(prompt, 4_000) and valid_bounded_text?(alt_text, 1_000)
 
   defp valid_image_proposal?(_decision), do: false
+
+  defp discard_invalid_image_proposal(%{decision: decision} = cycle) do
+    if image_proposal?(decision) and not valid_image_proposal?(decision) do
+      Map.put(cycle, :decision, Map.drop(decision, [:image_prompt, :image_alt_text]))
+    else
+      cycle
+    end
+  end
 
   defp valid_bounded_text?(text, limit),
     do: is_binary(text) and String.trim(text) != "" and String.length(text) <= limit
