@@ -90,13 +90,21 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ ~s(id="console-theme")
     assert html =~ ~s(phx-change="set_theme")
     assert html =~ "Safe: writes off"
-    assert html =~ "Simulated posts"
-    assert html =~ "Image drafts"
+    assert html =~ ~s(class="operator-layout")
+    assert html =~ ~s(id="operator-sidebar")
+    assert html =~ ~s(id="mobile-console-header")
+    assert html =~ ~s(id="operator-content")
+    assert html =~ "Inbox"
+    assert html =~ "Drafts &amp; approvals"
+    assert html =~ "People"
+    assert html =~ "Activity"
+    assert html =~ "Settings"
     assert html =~ ~s(id="overview-tab")
-    assert html =~ ~s(aria-selected="true")
+    assert html =~ ~s(aria-current="page")
+    assert html =~ ~s(aria-label="Global agent state")
     assert html =~ ~s(role="switch")
     assert html =~ ~s(aria-checked="false")
-    assert html =~ "WRITES OFF"
+    assert html =~ ">OFF</strong>"
     assert html =~ "Participation proposal"
     assert html =~ "answer_direct_request"
     assert html =~ "One reply proposed"
@@ -275,6 +283,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
   test "shows the simulated-post empty state" do
     html = render_dashboard(Map.put(base_assigns(), :active_tab, "simulated-posts"))
 
+    assert html =~ ~s(<h1 id="page-title">Participation inbox</h1>)
+    assert html =~ ~s(id="simulated-posts-tab" class="operator-nav-link active")
     assert html =~ "No simulated posts yet"
     assert html =~ "were not sent to DelveTown"
   end
@@ -394,6 +404,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
     html = render_dashboard(assigns)
 
+    assert html =~ ~s(<h1 id="page-title">Drafts &amp; approvals</h1>)
+    assert html =~ ~s(id="image-drafts-tab" class="operator-nav-link active")
     assert html =~ ~s(id="image-drafts-panel")
     assert html =~ "Staging and review are local"
     assert html =~ ~s(src="data:image/png;base64,iVBORw0KGgo=")
@@ -494,7 +506,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
     assert html =~ "Writes enabled"
     assert html =~ ~s(aria-checked="true")
-    assert html =~ "WRITES ON"
+    assert html =~ ">ON</strong>"
   end
 
   test "shows when dry-run actions advance local memory" do
@@ -513,7 +525,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "Dry run: actions simulated"
     assert html =~ "Selected actions advance local dry-run memory"
     assert html =~ "A simulated action is not published"
-    assert html =~ "WRITES OFF"
+    assert html =~ ">OFF</strong>"
   end
 
   test "links the latest published reply from the audit event" do

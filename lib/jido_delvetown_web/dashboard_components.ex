@@ -6,6 +6,14 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   @spec styles(map()) :: Phoenix.LiveView.Rendered.t()
   def styles(assigns), do: content(assign(assigns, :dashboard_section, :styles))
 
+  @spec sidebar_navigation(map()) :: Phoenix.LiveView.Rendered.t()
+  def sidebar_navigation(assigns),
+    do: content(assign(assigns, :dashboard_section, :sidebar_navigation))
+
+  @spec mobile_navigation(map()) :: Phoenix.LiveView.Rendered.t()
+  def mobile_navigation(assigns),
+    do: content(assign(assigns, :dashboard_section, :mobile_navigation))
+
   @spec operational_state(map()) :: Phoenix.LiveView.Rendered.t()
   def operational_state(assigns),
     do: content(assign(assigns, :dashboard_section, :operational_state))
@@ -54,80 +62,85 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         --radius-sm: 9px;
         --radius: 14px;
         --radius-lg: 18px;
-        --shadow-control: 0 2px 8px rgba(0, 0, 0, 0.22);
         --motion-fast: 160ms ease;
       }
 
       :root,
       .console-root[data-theme="light"] {
         color-scheme: light;
-        --canvas: #f4f7f5;
+        --canvas: #f7f7f5;
         --surface: #ffffff;
-        --surface-raised: #eaf1ed;
-        --line: #d3dfd8;
-        --line-strong: #a6bbb0;
-        --text: #17231e;
-        --muted: #52665d;
-        --quiet: #6c7d75;
-        --green: #176b45;
-        --green-deep: #dcefe4;
-        --cyan: #0b6f7d;
-        --cyan-deep: #dceff2;
+        --surface-raised: #f0f1ef;
+        --line: #e0e2de;
+        --line-strong: #c5c8c2;
+        --text: #191a18;
+        --muted: #5f645d;
+        --quiet: #7a7f77;
+        --green: #18733f;
+        --green-deep: #e4f3e9;
+        --cyan: #315ea8;
+        --cyan-deep: #e7edf8;
         --amber: #8a5a0a;
         --amber-deep: #f8ebca;
         --red: #aa3939;
         --red-deep: #f8e0df;
-        --preview-bg: #e4ece8;
-        --control-disabled: #e5ece8;
-        --control-disabled-text: #687a71;
+        --preview-bg: #eceeeb;
+        --control-disabled: #eceeeb;
+        --control-disabled-text: #6d716b;
+        --sidebar: #f1f2ef;
+        --sidebar-raised: #ffffff;
       }
 
       @media (prefers-color-scheme: dark) {
         :root {
           color-scheme: dark;
-          --canvas: #07110f;
-          --surface: #0d1916;
-          --surface-raised: #12211d;
-          --line: #263b35;
-          --line-strong: #3c5a51;
-          --text: #edf7f2;
-          --muted: #9bb0a8;
-          --quiet: #7f958d;
-          --green: #75e6a8;
-          --green-deep: #133c2a;
-          --cyan: #78d8e9;
-          --cyan-deep: #12343b;
+          --canvas: #0b0c0c;
+          --surface: #121313;
+          --surface-raised: #1a1c1b;
+          --line: #2a2d2b;
+          --line-strong: #414541;
+          --text: #f0f1ee;
+          --muted: #aaaea7;
+          --quiet: #81867f;
+          --green: #70d99b;
+          --green-deep: #153524;
+          --cyan: #8aa8e8;
+          --cyan-deep: #1d2a45;
           --amber: #ffcb6b;
           --amber-deep: #44331a;
           --red: #ff948f;
           --red-deep: #451f20;
-          --preview-bg: #050b09;
-          --control-disabled: #14231f;
-          --control-disabled-text: #8fa29b;
+          --preview-bg: #080909;
+          --control-disabled: #1b1d1c;
+          --control-disabled-text: #939891;
+          --sidebar: #0f1010;
+          --sidebar-raised: #171918;
         }
       }
 
       .console-root[data-theme="dark"] {
         color-scheme: dark;
-        --canvas: #07110f;
-        --surface: #0d1916;
-        --surface-raised: #12211d;
-        --line: #263b35;
-        --line-strong: #3c5a51;
-        --text: #edf7f2;
-        --muted: #9bb0a8;
-        --quiet: #7f958d;
-        --green: #75e6a8;
-        --green-deep: #133c2a;
-        --cyan: #78d8e9;
-        --cyan-deep: #12343b;
+        --canvas: #0b0c0c;
+        --surface: #121313;
+        --surface-raised: #1a1c1b;
+        --line: #2a2d2b;
+        --line-strong: #414541;
+        --text: #f0f1ee;
+        --muted: #aaaea7;
+        --quiet: #81867f;
+        --green: #70d99b;
+        --green-deep: #153524;
+        --cyan: #8aa8e8;
+        --cyan-deep: #1d2a45;
         --amber: #ffcb6b;
         --amber-deep: #44331a;
         --red: #ff948f;
         --red-deep: #451f20;
-        --preview-bg: #050b09;
-        --control-disabled: #14231f;
-        --control-disabled-text: #8fa29b;
+        --preview-bg: #080909;
+        --control-disabled: #1b1d1c;
+        --control-disabled-text: #939891;
+        --sidebar: #0f1010;
+        --sidebar-raised: #171918;
       }
 
       * { box-sizing: border-box; }
@@ -143,13 +156,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       .console-root {
         min-height: 100vh;
-        background:
-          radial-gradient(
-            circle at 88% 0%,
-            color-mix(in srgb, var(--green) 16%, transparent),
-            transparent 30rem
-          ),
-          var(--canvas);
+        background: var(--canvas);
         color: var(--text);
       }
 
@@ -162,10 +169,193 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         outline-offset: 3px;
       }
 
-      .dashboard-shell {
-        width: min(1180px, calc(100% - 32px));
+      .operator-layout {
+        display: grid;
+        grid-template-columns: 248px minmax(0, 1fr);
+        width: min(1480px, 100%);
+        min-height: 100vh;
         margin: 0 auto;
-        padding: 28px 0 44px;
+      }
+
+      .operator-workspace { min-width: 0; }
+
+      .operator-sidebar {
+        position: sticky;
+        top: 0;
+        display: flex;
+        height: 100vh;
+        flex-direction: column;
+        gap: var(--space-6);
+        overflow-y: auto;
+        padding: 24px 18px;
+        border-right: 1px solid var(--line);
+        background: var(--sidebar);
+      }
+
+      .operator-brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        color: var(--text);
+        text-decoration: none;
+      }
+
+      .operator-mark {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        flex: 0 0 36px;
+        place-items: center;
+        border: 1px solid var(--line-strong);
+        border-radius: 9px;
+        background: var(--text);
+        color: var(--canvas);
+        font-family: var(--font-mono);
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .operator-brand-copy { display: grid; gap: 1px; }
+      .operator-brand-copy strong { font-size: 14px; letter-spacing: -0.01em; }
+      .operator-brand-copy span { color: var(--muted); font-size: 11px; }
+
+      .operator-nav { display: grid; gap: 5px; }
+
+      .operator-nav-label {
+        margin: 0 9px 4px;
+        color: var(--quiet);
+        font-size: 10px;
+        font-weight: 760;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .operator-nav-link {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        min-height: 40px;
+        padding: 8px 10px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 680;
+        text-decoration: none;
+        transition: background var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+      }
+
+      .operator-nav-link:hover {
+        border-color: var(--line);
+        background: var(--sidebar-raised);
+        color: var(--text);
+      }
+
+      .operator-nav-link.active {
+        border-color: color-mix(in srgb, var(--cyan) 32%, var(--line));
+        background: var(--cyan-deep);
+        color: var(--cyan);
+      }
+
+      .operator-nav-link[aria-disabled="true"] {
+        color: var(--quiet);
+        cursor: default;
+        opacity: 0.58;
+      }
+
+      .operator-nav-link[aria-disabled="true"]:hover {
+        border-color: transparent;
+        background: transparent;
+      }
+
+      .nav-count {
+        min-width: 22px;
+        padding: 1px 6px;
+        border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+        border-radius: 99px;
+        font-size: 10px;
+        text-align: center;
+      }
+
+      .nav-soon {
+        color: var(--quiet);
+        font-size: 9px;
+        font-weight: 720;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .global-agent-state {
+        display: grid;
+        gap: 12px;
+        margin-top: auto;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--sidebar-raised);
+      }
+
+      .global-state-heading {
+        display: flex;
+        align-items: start;
+        gap: 10px;
+      }
+
+      .global-state-heading .state-dot { margin-top: 5px; }
+      .global-state-copy { display: grid; min-width: 0; gap: 1px; }
+      .global-state-copy span { color: var(--quiet); font-size: 10px; text-transform: uppercase; }
+      .global-state-copy strong { font-size: 13px; line-height: 1.3; }
+
+      .global-state-effect {
+        margin: 0;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .global-agent-state .technical-details {
+        margin: 0;
+        font-size: 11px;
+      }
+
+      .global-write-state {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 8px 9px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface-raised);
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 760;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .global-write-state strong { color: var(--text); font-size: 11px; }
+      .global-write-state.on strong { color: var(--amber); }
+
+      .sidebar-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        color: var(--quiet);
+        font-size: 10px;
+      }
+
+      .sidebar-meta a { color: var(--muted); text-decoration: none; }
+      .sidebar-meta a:hover { color: var(--text); }
+
+      .mobile-console-header { display: none; }
+
+      .dashboard-shell {
+        width: min(1180px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 30px 0 44px;
       }
 
       .page-header {
@@ -207,10 +397,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       .eyebrow,
       .panel-kicker,
-      .metric-label,
-      .switch-label {
+      .metric-label {
         margin: 0;
-        color: var(--green);
+        color: var(--cyan);
         font-size: 12px;
         font-weight: 760;
         letter-spacing: 0.12em;
@@ -248,47 +437,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       .refresh-note time { color: var(--text); }
 
-      .state-rail {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(270px, 360px);
-        align-items: stretch;
-        gap: 18px;
-        margin-bottom: 12px;
-        padding: 20px;
-        border: 1px solid var(--line-strong);
-        border-radius: calc(var(--radius) + 4px);
-        background: linear-gradient(
-          135deg,
-          color-mix(in srgb, var(--green) 8%, var(--surface)),
-          color-mix(in srgb, var(--surface) 96%, transparent) 55%
-        );
-      }
-
-      .state-rail.state-attention {
-        border-color: color-mix(in srgb, var(--red) 58%, transparent);
-        background: linear-gradient(
-          135deg,
-          color-mix(in srgb, var(--red) 11%, var(--surface)),
-          color-mix(in srgb, var(--surface) 96%, transparent) 55%
-        );
-      }
-
-      .state-rail.state-active {
-        border-color: color-mix(in srgb, var(--amber) 65%, transparent);
-        background: linear-gradient(
-          135deg,
-          color-mix(in srgb, var(--amber) 10%, var(--surface)),
-          color-mix(in srgb, var(--surface) 96%, transparent) 55%
-        );
-      }
-
-      .state-title-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 8px;
-      }
-
       .state-dot {
         width: 11px;
         height: 11px;
@@ -306,26 +454,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .state-active .state-dot {
         background: var(--amber);
         box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 12%, transparent);
-      }
-
-      .state-title {
-        margin: 0;
-        font-size: clamp(22px, 3.2vw, 30px);
-        line-height: 1.1;
-        letter-spacing: -0.03em;
-      }
-
-      .state-effect {
-        max-width: 65ch;
-        margin-bottom: 4px;
-        color: var(--text);
-        font-size: 15px;
-      }
-
-      .state-next {
-        margin-bottom: 0;
-        color: var(--muted);
-        font-size: 14px;
       }
 
       .technical-details {
@@ -348,64 +476,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         color: var(--red);
         font-size: 12px;
       }
-
-      .write-switch {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        width: 100%;
-        min-height: 108px;
-        padding: 18px;
-        border: 1px solid color-mix(in srgb, var(--green) 42%, transparent);
-        border-radius: var(--radius);
-        background: color-mix(in srgb, var(--surface) 72%, transparent);
-        color: var(--text);
-        text-align: left;
-        opacity: 1;
-      }
-
-      .write-switch.on {
-        border-color: color-mix(in srgb, var(--amber) 72%, transparent);
-        background: color-mix(in srgb, var(--amber-deep) 54%, var(--surface));
-      }
-
-      .switch-track {
-        position: relative;
-        display: inline-block;
-        width: 68px;
-        height: 38px;
-        flex: 0 0 68px;
-        border: 1px solid var(--line-strong);
-        border-radius: 99px;
-        background: var(--surface-raised);
-      }
-
-      .switch-thumb {
-        position: absolute;
-        top: 4px;
-        left: 4px;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: var(--muted);
-        box-shadow: var(--shadow-control);
-        transition: transform var(--motion-fast);
-      }
-
-      .write-switch.on .switch-track {
-        border-color: var(--amber);
-        background: var(--amber-deep);
-      }
-
-      .write-switch.on .switch-thumb {
-        background: var(--amber);
-        transform: translateX(30px);
-      }
-
-      .switch-copy { display: grid; gap: 1px; }
-      .switch-copy strong { font-size: 19px; letter-spacing: 0.02em; }
-      .switch-copy small { color: var(--muted); font-size: 12px; }
-      .write-switch.on .switch-label { color: var(--amber); }
 
       .status-strip {
         display: grid;
@@ -450,52 +520,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       }
 
       .delve-links a:hover { border-color: var(--cyan); }
-
-      .dashboard-tabs {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 7px;
-        margin-bottom: 16px;
-        padding: 5px;
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        background: var(--surface);
-      }
-
-      .dashboard-tab {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 40px;
-        padding: 8px 13px;
-        border: 1px solid transparent;
-        border-radius: 8px;
-        color: var(--muted);
-        font-size: 13px;
-        font-weight: 720;
-        text-decoration: none;
-      }
-
-      .dashboard-tab:hover {
-        border-color: var(--line-strong);
-        color: var(--text);
-      }
-
-      .dashboard-tab.active {
-        border-color: color-mix(in srgb, var(--green) 40%, transparent);
-        background: var(--green-deep);
-        color: var(--green);
-      }
-
-      .tab-count {
-        min-width: 22px;
-        padding: 1px 7px;
-        border-radius: 99px;
-        background: color-mix(in srgb, var(--canvas) 68%, transparent);
-        color: currentColor;
-        font-size: 11px;
-        text-align: center;
-      }
 
       .status-item {
         min-width: 0;
@@ -589,7 +613,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       .proposal-action {
         margin-bottom: 8px;
-        color: var(--green);
+        color: var(--cyan);
         font-size: 21px;
         font-weight: 760;
         overflow-wrap: anywhere;
@@ -604,9 +628,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .proposal-text {
         margin: 0;
         padding: 13px 14px;
-        border-left: 3px solid var(--green);
+        border-left: 3px solid var(--cyan);
         border-radius: 0 8px 8px 0;
-        background: color-mix(in srgb, var(--green) 6%, var(--surface));
+        background: color-mix(in srgb, var(--cyan) 6%, var(--surface));
         color: var(--text);
         font-size: 14px;
       }
@@ -847,16 +871,16 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         min-height: 38px;
         margin-left: auto;
         padding: 8px 13px;
-        border: 1px solid color-mix(in srgb, var(--green) 65%, transparent);
+        border: 1px solid color-mix(in srgb, var(--cyan) 65%, transparent);
         border-radius: 9px;
-        background: var(--green-deep);
+        background: var(--cyan-deep);
         color: var(--text);
         cursor: pointer;
         font-size: 13px;
         font-weight: 720;
       }
 
-      .publish-button:hover { border-color: var(--green); }
+      .publish-button:hover { border-color: var(--cyan); }
 
       .publish-button:disabled {
         border-color: var(--line);
@@ -1011,14 +1035,14 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .review-feedback[data-status="failed"] strong { color: var(--red); }
 
       .control-row .run-review-button:not(:disabled) {
-        border-color: color-mix(in srgb, var(--green) 62%, transparent);
-        background: var(--green-deep);
+        border-color: color-mix(in srgb, var(--cyan) 62%, transparent);
+        background: var(--cyan-deep);
         color: var(--text);
         cursor: pointer;
       }
 
       .control-row .run-review-button:not(:disabled):hover {
-        border-color: var(--green);
+        border-color: var(--cyan);
       }
 
       .about-panel {
@@ -1063,12 +1087,96 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         text-align: center;
       }
 
-      @media (max-width: 820px) {
-        .dashboard-shell { width: min(100% - 24px, 680px); padding-top: 20px; }
+      @media (max-width: 960px) {
+        .operator-layout { display: block; }
+        .operator-sidebar { display: none; }
+
+        .mobile-console-header {
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          display: block;
+          border-bottom: 1px solid var(--line);
+          background: color-mix(in srgb, var(--canvas) 94%, transparent);
+          backdrop-filter: blur(14px);
+        }
+
+        .mobile-console-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 14px;
+          min-height: 58px;
+          padding: 9px 14px 7px;
+        }
+
+        .mobile-console-top .operator-mark {
+          width: 32px;
+          height: 32px;
+          flex-basis: 32px;
+        }
+
+        .mobile-state {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 8px;
+          color: var(--muted);
+          font-size: 11px;
+        }
+
+        .mobile-state .state-dot {
+          width: 8px;
+          height: 8px;
+          box-shadow: none;
+        }
+
+        .mobile-state strong {
+          overflow: hidden;
+          color: var(--text);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .mobile-nav-scroll {
+          overflow-x: auto;
+          padding: 0 10px 9px;
+          scrollbar-width: none;
+        }
+
+        .mobile-nav-scroll::-webkit-scrollbar { display: none; }
+
+        .mobile-nav-links {
+          display: flex;
+          width: max-content;
+          gap: 4px;
+        }
+
+        .mobile-nav-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          min-height: 36px;
+          padding: 6px 10px;
+          border: 1px solid transparent;
+          border-radius: 8px;
+          color: var(--muted);
+          font-size: 12px;
+          font-weight: 680;
+          text-decoration: none;
+          white-space: nowrap;
+        }
+
+        .mobile-nav-link.active {
+          border-color: color-mix(in srgb, var(--cyan) 32%, var(--line));
+          background: var(--cyan-deep);
+          color: var(--cyan);
+        }
+
+        .dashboard-shell { width: min(100% - 32px, 760px); padding-top: 24px; }
         .page-header { align-items: start; flex-direction: column; gap: 8px; }
         .header-meta { align-items: center; justify-content: space-between; width: 100%; }
         .refresh-note { text-align: left; }
-        .state-rail { grid-template-columns: 1fr; }
         .status-strip, .primary-grid, .health-grid, .event-grid, .about-content { grid-template-columns: 1fr; }
         .status-item { border-right: 0; border-bottom: 1px solid var(--line); }
         .status-item:last-child { border-bottom: 0; }
@@ -1078,11 +1186,10 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       @media (max-width: 520px) {
         .dashboard-shell { width: min(100% - 20px, 480px); }
+        .operator-brand-copy span { display: none; }
+        .mobile-state > span:not(.state-dot) { display: none; }
         .header-meta { align-items: start; flex-direction: column; }
-        .state-rail, .panel { padding: 15px; }
-        .write-switch { min-height: 96px; padding: 14px; }
-        .switch-track { width: 60px; flex-basis: 60px; }
-        .write-switch.on .switch-thumb { transform: translateX(22px); }
+        .panel { padding: 15px; }
         .image-draft-grid { grid-template-columns: 1fr; }
         .image-preview { height: 220px; }
         .detail-grid { grid-template-columns: 1fr; gap: 9px; }
@@ -1097,10 +1204,160 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       }
     </style>
 
+    <aside
+      :if={@dashboard_section == :sidebar_navigation}
+      id="operator-sidebar"
+      class="operator-sidebar"
+      aria-label="Operator console"
+    >
+      <a class="operator-brand" href="/" aria-label="AgentJido operator console home">
+        <span class="operator-mark" aria-hidden="true">J</span>
+        <span class="operator-brand-copy">
+          <strong>AgentJido</strong>
+          <span>DelveTown operator</span>
+        </span>
+      </a>
+
+      <nav class="operator-nav" aria-label="Console views">
+        <p class="operator-nav-label">Workspace</p>
+        <a
+          id="overview-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "overview")}"}
+          href="/"
+          aria-current={if @active_tab == "overview", do: "page"}
+        >
+          <span>Overview</span>
+        </a>
+        <a
+          id="simulated-posts-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "simulated-posts")}"}
+          href="/?tab=simulated-posts"
+          aria-current={if @active_tab == "simulated-posts", do: "page"}
+        >
+          <span>Inbox</span>
+          <span class="nav-count">{review_item_count(@inspection)}</span>
+        </a>
+        <a
+          id="image-drafts-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "image-drafts")}"}
+          href="/?tab=image-drafts"
+          aria-current={if @active_tab == "image-drafts", do: "page"}
+        >
+          <span>Drafts &amp; approvals</span>
+          <span class="nav-count">{length(inspection_list(@inspection, [:image_drafts]))}</span>
+        </a>
+        <span class="operator-nav-link" aria-disabled="true">
+          <span>People</span><span class="nav-soon">Soon</span>
+        </span>
+        <span class="operator-nav-link" aria-disabled="true">
+          <span>Activity</span><span class="nav-soon">Soon</span>
+        </span>
+        <span class="operator-nav-link" aria-disabled="true">
+          <span>Settings</span><span class="nav-soon">Soon</span>
+        </span>
+      </nav>
+
+      <section
+        class={"global-agent-state state-#{@operational_state.key}"}
+        aria-label="Global agent state"
+        aria-live="polite"
+      >
+        <div class="global-state-heading">
+          <span class="state-dot" aria-hidden="true"></span>
+          <span class="global-state-copy">
+            <span>Agent state</span>
+            <strong>{@operational_state.label}</strong>
+          </span>
+        </div>
+        <p class="global-state-effect">{@operational_state.effect}</p>
+        <p :if={@operational_state.next} class="global-state-effect">
+          Next: {@operational_state.next}
+        </p>
+        <details :if={@status_error} class="technical-details">
+          <summary>Technical details</summary>
+          <pre>{@status_error}</pre>
+        </details>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={to_string(map_value(@status, :writes_enabled?, false))}
+          aria-label={write_switch_label(@status)}
+          class={"global-write-state #{write_switch_class(@status)}"}
+          disabled
+        >
+          <span>Protocol writes</span>
+          <strong>{if map_value(@status, :writes_enabled?, false), do: "ON", else: "OFF"}</strong>
+        </button>
+      </section>
+
+      <div class="sidebar-meta">
+        <span>Local · :{@port}</span>
+        <a
+          :if={profile_url(@status)}
+          href={profile_url(@status)}
+          target="_blank"
+          rel="noreferrer"
+        >
+          DelveTown ↗
+        </a>
+      </div>
+    </aside>
+
+    <header
+      :if={@dashboard_section == :mobile_navigation}
+      id="mobile-console-header"
+      class="mobile-console-header"
+    >
+      <div class="mobile-console-top">
+        <a class="operator-brand" href="/" aria-label="AgentJido operator console home">
+          <span class="operator-mark" aria-hidden="true">J</span>
+          <span class="operator-brand-copy">
+            <strong>AgentJido</strong>
+            <span>DelveTown operator</span>
+          </span>
+        </a>
+        <div
+          class={"mobile-state state-#{@operational_state.key}"}
+          aria-label={"Agent state: #{@operational_state.label}"}
+          aria-live="polite"
+        >
+          <span class="state-dot" aria-hidden="true"></span>
+          <strong>{@operational_state.label}</strong>
+          <span>· writes {if map_value(@status, :writes_enabled?, false), do: "on", else: "off"}</span>
+        </div>
+      </div>
+      <div class="mobile-nav-scroll">
+        <nav class="mobile-nav-links" aria-label="Console views">
+          <a
+            class={"mobile-nav-link #{tab_class(@active_tab, "overview")}"}
+            href="/"
+            aria-current={if @active_tab == "overview", do: "page"}
+          >
+            Overview
+          </a>
+          <a
+            class={"mobile-nav-link #{tab_class(@active_tab, "simulated-posts")}"}
+            href="/?tab=simulated-posts"
+            aria-current={if @active_tab == "simulated-posts", do: "page"}
+          >
+            Inbox <span class="nav-count">{review_item_count(@inspection)}</span>
+          </a>
+          <a
+            class={"mobile-nav-link #{tab_class(@active_tab, "image-drafts")}"}
+            href="/?tab=image-drafts"
+            aria-current={if @active_tab == "image-drafts", do: "page"}
+          >
+            Drafts
+            <span class="nav-count">{length(inspection_list(@inspection, [:image_drafts]))}</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
     <header :if={@dashboard_section == :operational_state} class="page-header">
       <div>
-        <p class="eyebrow">Local agent control</p>
-        <h1>AgentJido / DelveTown</h1>
+        <p class="eyebrow">Operator console</p>
+        <h1 id="page-title">{page_title(@active_tab)}</h1>
       </div>
       <div class="header-meta">
         <form class="theme-control" phx-change="set_theme">
@@ -1116,48 +1373,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         </p>
       </div>
     </header>
-
-    <section
-      :if={@dashboard_section == :operational_state}
-      class={"state-rail state-#{@operational_state.key}"}
-      aria-live="polite"
-    >
-      <div>
-        <p class="panel-kicker">Operational state</p>
-        <div class="state-title-row">
-          <span class="state-dot" aria-hidden="true"></span>
-          <h2 class="state-title">{@operational_state.label}</h2>
-        </div>
-        <p class="state-effect">{@operational_state.effect}</p>
-        <p :if={@operational_state.next} class="state-next">
-          Next: {@operational_state.next}
-        </p>
-        <details :if={@status_error} class="technical-details">
-          <summary>Technical details</summary>
-          <pre>{@status_error}</pre>
-        </details>
-      </div>
-
-      <button
-        type="button"
-        role="switch"
-        aria-checked={to_string(map_value(@status, :writes_enabled?, false))}
-        aria-label={write_switch_label(@status)}
-        class={"write-switch #{write_switch_class(@status)}"}
-        disabled
-      >
-        <span class="switch-track" aria-hidden="true">
-          <span class="switch-thumb"></span>
-        </span>
-        <span class="switch-copy">
-          <span class="switch-label">Protocol writes</span>
-          <strong>{if map_value(@status, :writes_enabled?, false),
-            do: "WRITES ON",
-            else: "WRITES OFF"}</strong>
-          <small>Status only · set in .env</small>
-        </span>
-      </button>
-    </section>
 
     <section
       :if={@dashboard_section == :runtime_health}
@@ -1222,45 +1437,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         rel="noreferrer"
       >
         Published reply ↗
-      </a>
-    </nav>
-
-    <nav
-      :if={@dashboard_section == :runtime_health}
-      class="dashboard-tabs"
-      role="tablist"
-      aria-label="Dashboard views"
-    >
-      <a
-        id="overview-tab"
-        class={"dashboard-tab #{tab_class(@active_tab, "overview")}"}
-        href="/"
-        role="tab"
-        aria-selected={to_string(@active_tab == "overview")}
-        aria-controls="overview-panel"
-      >
-        Overview
-      </a>
-      <a
-        id="simulated-posts-tab"
-        class={"dashboard-tab #{tab_class(@active_tab, "simulated-posts")}"}
-        href="/?tab=simulated-posts"
-        role="tab"
-        aria-selected={to_string(@active_tab == "simulated-posts")}
-        aria-controls="simulated-posts-panel"
-      >
-        Simulated posts <span class="tab-count">{review_item_count(@inspection)}</span>
-      </a>
-      <a
-        id="image-drafts-tab"
-        class={"dashboard-tab #{tab_class(@active_tab, "image-drafts")}"}
-        href="/?tab=image-drafts"
-        role="tab"
-        aria-selected={to_string(@active_tab == "image-drafts")}
-        aria-controls="image-drafts-panel"
-      >
-        Image drafts
-        <span class="tab-count">{length(inspection_list(@inspection, [:image_drafts]))}</span>
       </a>
     </nav>
 
@@ -1995,6 +2171,10 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp tab_class(active_tab, tab) when active_tab == tab, do: "active"
   defp tab_class(_active_tab, _tab), do: ""
+
+  defp page_title("simulated-posts"), do: "Participation inbox"
+  defp page_title("image-drafts"), do: "Drafts & approvals"
+  defp page_title(_active_tab), do: "Overview"
 
   defp simulated_text(post) do
     case map_value(post, :text) do

@@ -139,17 +139,23 @@ defmodule JidoDelvetownWeb.DashboardLive do
   def render(assigns) do
     ~H"""
     <div class="console-root" data-theme={@theme}>
-      <div class="dashboard-shell">
-        <DashboardComponents.styles {assigns} />
-        <DashboardComponents.operational_state {assigns} />
-        <DashboardComponents.runtime_health {assigns} />
-        <DashboardComponents.memory_and_effects {assigns} />
-        <DashboardComponents.scan_and_database_status {assigns} />
-        <DashboardComponents.recent_events {assigns} />
-        <DashboardComponents.planned_controls {assigns} />
-        <DashboardComponents.agent_information {assigns} />
-        <DashboardComponents.simulated_actions {assigns} />
-        <DashboardComponents.footer {assigns} />
+      <DashboardComponents.styles {assigns} />
+      <div class="operator-layout">
+        <DashboardComponents.sidebar_navigation {assigns} />
+        <div class="operator-workspace">
+          <DashboardComponents.mobile_navigation {assigns} />
+          <main id="operator-content" class="dashboard-shell">
+            <DashboardComponents.operational_state {assigns} />
+            <DashboardComponents.runtime_health {assigns} />
+            <DashboardComponents.memory_and_effects {assigns} />
+            <DashboardComponents.scan_and_database_status {assigns} />
+            <DashboardComponents.recent_events {assigns} />
+            <DashboardComponents.planned_controls {assigns} />
+            <DashboardComponents.agent_information {assigns} />
+            <DashboardComponents.simulated_actions {assigns} />
+            <DashboardComponents.footer {assigns} />
+          </main>
+        </div>
       </div>
     </div>
     """

@@ -10,6 +10,8 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
 
     components = [
       :styles,
+      :sidebar_navigation,
+      :mobile_navigation,
       :operational_state,
       :runtime_health,
       :memory_and_effects,
