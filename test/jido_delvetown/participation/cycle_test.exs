@@ -12,7 +12,7 @@ defmodule JidoDelvetown.CycleTest do
   }
 
   alias JidoDelvetown.Storage.{Actor, Conversation, InteractionEvent, ScanState}
-  alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
+  alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport, RuntimeSettings}
 
   setup do
     Enum.each([ScanState, InteractionEvent, Conversation, Actor], &Repo.delete_all/1)
@@ -27,9 +27,6 @@ defmodule JidoDelvetown.CycleTest do
     ]
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-    old_dry_run = System.get_env("DELVETOWN_DRY_RUN_MARK_ACTIONED")
-    old_seen = System.get_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN")
     old_reply_limit = System.get_env("DELVETOWN_DAILY_REPLY_LIMIT")
     old_like_limit = System.get_env("DELVETOWN_DAILY_LIKE_LIMIT")
     old_like_cooldown = System.get_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS")
@@ -39,9 +36,14 @@ defmodule JidoDelvetown.CycleTest do
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "false")
-    System.put_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", "false")
+
+    restore_settings =
+      RuntimeSettings.preserve!(%{
+        autonomy_mode: "observe",
+        dry_run_mark_actioned: false,
+        mark_notifications_seen: false
+      })
+
     System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "3")
     System.put_env("DELVETOWN_DAILY_LIKE_LIMIT", "5")
     System.put_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", "24")
@@ -53,9 +55,7 @@ defmodule JidoDelvetown.CycleTest do
         {key, value} -> Application.put_env(:jido_delvetown, key, value)
       end)
 
-      restore_env("DELVETOWN_WRITE_ENABLED", old_write)
-      restore_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", old_dry_run)
-      restore_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", old_seen)
+      restore_settings.()
       restore_env("DELVETOWN_DAILY_REPLY_LIMIT", old_reply_limit)
       restore_env("DELVETOWN_DAILY_LIKE_LIMIT", old_like_limit)
       restore_env("DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS", old_like_cooldown)
@@ -228,7 +228,7 @@ defmodule JidoDelvetown.CycleTest do
   end
 
   test "a dry-run action can advance local memory without a protocol write" do
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
     uri = "at://did:plc:simulated/town.delve.feed.post/reply"
     root_uri = "at://did:plc:root/town.delve.feed.post/simulated"
 
@@ -343,7 +343,7 @@ defmodule JidoDelvetown.CycleTest do
   end
 
   test "a proactive review cannot publish a selected like when writes are enabled" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
     uri = "at://did:plc:author/town.delve.feed.post/question"
     indexed_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
@@ -411,7 +411,7 @@ defmodule JidoDelvetown.CycleTest do
   end
 
   test "a simulated outgoing like consumes only the like budget and is not selected twice" do
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
     uri = "at://did:plc:author/town.delve.feed.post/like-once"
     indexed_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
@@ -523,7 +523,7 @@ defmodule JidoDelvetown.CycleTest do
   end
 
   test "a skipped follow becomes terminal before the notification batch is marked as seen" do
-    System.put_env("DELVETOWN_MARK_NOTIFICATIONS_SEEN", "true")
+    RuntimeSettings.update!(mark_notifications_seen: true)
 
     configure_reads(%{
       "town.delve.notification.listNotifications" =>

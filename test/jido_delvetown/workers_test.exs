@@ -4,8 +4,9 @@ defmodule JidoDelvetown.WorkersTest do
   import Ecto.Query
 
   alias JidoDelvetown.Automation
-  alias JidoDelvetown.Config
   alias JidoDelvetown.Repo
+  alias JidoDelvetown.Settings.Behavior
+  alias JidoDelvetown.Test.RuntimeSettings
   alias JidoDelvetown.Workers.FriendSyncWorker
   alias JidoDelvetown.Workers.MemberDiscoveryWorker
   alias JidoDelvetown.Workers.ProactiveReviewWorker
@@ -49,6 +50,9 @@ defmodule JidoDelvetown.WorkersTest do
     Application.delete_env(:jido_delvetown, :reactive_review_runtime)
     Repo.delete_all(Oban.Job)
 
+    restore_settings =
+      RuntimeSettings.preserve!(autonomy_mode: "observe", dry_run_mark_actioned: false)
+
     on_exit(fn ->
       restore_env(:cycle_runner, old_runner)
       restore_env(:test_owner, old_owner)
@@ -56,6 +60,7 @@ defmodule JidoDelvetown.WorkersTest do
       restore_env(:friend_syncer, old_syncer)
       restore_env(:friend_sync_result, old_sync_result)
       restore_env(:reactive_review_runtime, old_review_runtime)
+      restore_settings.()
       Repo.delete_all(Oban.Job)
     end)
 
@@ -106,9 +111,7 @@ defmodule JidoDelvetown.WorkersTest do
   end
 
   test "a manual proactive review runs through Oban without changing live-write settings" do
-    old_write_setting = System.get_env("DELVETOWN_WRITE_ENABLED")
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
-    on_exit(fn -> restore_system_env("DELVETOWN_WRITE_ENABLED", old_write_setting) end)
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
 
     assert {:ok, %{status: :queued, disabled?: true, job_id: job_id}} =
              Automation.enqueue_proactive_review()
@@ -120,7 +123,7 @@ defmodule JidoDelvetown.WorkersTest do
     assert %{status: :completed, disabled?: false, job_id: ^job_id} =
              Automation.proactive_review_status()
 
-    assert Config.write_enabled?()
+    assert Behavior.writes_enabled?()
   end
 
   test "repeated manual proactive reviews do not create concurrent jobs" do
@@ -166,8 +169,8 @@ defmodule JidoDelvetown.WorkersTest do
   end
 
   test "a manual reactive review runs through Oban and records completion" do
-    writes_enabled? = Config.write_enabled?()
-    dry_run_mark_actioned? = Config.dry_run_mark_actioned?()
+    writes_enabled? = Behavior.writes_enabled?()
+    dry_run_mark_actioned? = Behavior.dry_run_mark_actioned?()
 
     assert {:ok, %{status: :queued, disabled?: true, job_id: job_id}} =
              Automation.enqueue_reactive_review()
@@ -178,8 +181,8 @@ defmodule JidoDelvetown.WorkersTest do
     assert %{status: :completed, disabled?: false, job_id: ^job_id} =
              Automation.reactive_review_status()
 
-    assert Config.write_enabled?() == writes_enabled?
-    assert Config.dry_run_mark_actioned?() == dry_run_mark_actioned?
+    assert Behavior.writes_enabled?() == writes_enabled?
+    assert Behavior.dry_run_mark_actioned?() == dry_run_mark_actioned?
   end
 
   test "repeated manual review requests do not create concurrent jobs" do
@@ -268,9 +271,6 @@ defmodule JidoDelvetown.WorkersTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:jido_delvetown, key)
   defp restore_env(key, value), do: Application.put_env(:jido_delvetown, key, value)
-
-  defp restore_system_env(key, nil), do: System.delete_env(key)
-  defp restore_system_env(key, value), do: System.put_env(key, value)
 
   defp reactive_jobs_query do
     from(job in Oban.Job,

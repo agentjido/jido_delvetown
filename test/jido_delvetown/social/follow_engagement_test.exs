@@ -3,7 +3,7 @@ defmodule JidoDelvetown.FollowEngagementTest do
 
   alias JidoDelvetown.{Agent, Protocol, ReactiveParticipationCycle, Repo}
   alias JidoDelvetown.Storage.{Actor, ActorRelationship, Effect, InteractionEvent, ScanState}
-  alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
+  alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport, RuntimeSettings}
 
   setup do
     Enum.each([ScanState, InteractionEvent, Actor, Effect], &Repo.delete_all/1)
@@ -20,13 +20,16 @@ defmodule JidoDelvetown.FollowEngagementTest do
     ]
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+
+    restore_settings =
+      RuntimeSettings.preserve!(
+        autonomy_mode: "autonomous",
+        enabled_actions: ~w(reply like repost post follow welcome)
+      )
 
     on_exit(fn ->
       Enum.each(previous, fn
@@ -34,7 +37,7 @@ defmodule JidoDelvetown.FollowEngagementTest do
         {key, value} -> Application.put_env(:jido_delvetown, key, value)
       end)
 
-      restore_env("DELVETOWN_WRITE_ENABLED", old_write)
+      restore_settings.()
     end)
 
     :ok
@@ -199,7 +202,4 @@ defmodule JidoDelvetown.FollowEngagementTest do
        }}
     )
   end
-
-  defp restore_env(name, nil), do: System.delete_env(name)
-  defp restore_env(name, value), do: System.put_env(name, value)
 end

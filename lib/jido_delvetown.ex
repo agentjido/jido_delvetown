@@ -13,6 +13,7 @@ defmodule JidoDelvetown do
   alias JidoDelvetown.Participation.CycleRunner
   alias JidoDelvetown.Session
   alias JidoDelvetown.Settings.Connection
+  alias JidoDelvetown.Settings.Behavior
   alias JidoDelvetown.Transport.ProtoRune, as: Transport
 
   def connect, do: Session.connect()
@@ -34,8 +35,13 @@ defmodule JidoDelvetown do
   def suggest_proactive, do: review_proactive()
 
   def ask_operator(query) when is_binary(query) and query != "" do
-    with {:ok, agent_server} <- agent_server() do
-      Agent.ask_sync(agent_server, query, profile: :operator, timeout: 120_000)
+    with {:ok, agent_server} <- agent_server(),
+         {:ok, model} <- Behavior.decision_model_input() do
+      Agent.ask_sync(agent_server, query,
+        profile: :operator,
+        model: model,
+        timeout: 120_000
+      )
     end
   end
 
@@ -57,7 +63,7 @@ defmodule JidoDelvetown do
   def sync_friends, do: FriendSync.sync()
 
   def join(invite_code \\ nil) do
-    with true <- Config.write_enabled?() || {:error, :writes_disabled},
+    with true <- Behavior.writes_enabled?() || {:error, :writes_disabled},
          {:ok, session} <- Session.session(),
          {:ok, configured_code} <- configured_invite(invite_code) do
       Transport.join(session, configured_code, [])
@@ -67,7 +73,7 @@ defmodule JidoDelvetown do
   def label_bot, do: label_bot(profile_disclosure())
 
   def label_bot(description) when is_binary(description) do
-    with true <- Config.write_enabled?() || {:error, :writes_disabled},
+    with true <- Behavior.writes_enabled?() || {:error, :writes_disabled},
          :ok <- validate_description(description),
          {:ok, session} <- Session.session() do
       Transport.label_bot(session, description, [])
@@ -85,10 +91,11 @@ defmodule JidoDelvetown do
         cron: Automation.reactive_cron(),
         proactive_review_cron: Automation.proactive_review_cron(),
         friend_sync_cron: Automation.friend_sync_cron(),
-        writes_enabled?: Config.write_enabled?(),
-        manual_publish_enabled?: Config.manual_publish_enabled?(),
-        dry_run_mark_actioned?: Config.dry_run_mark_actioned?(),
-        mark_notifications_seen?: Config.mark_notifications_seen?(),
+        autonomy_mode: behavior_value(Behavior.autonomy_mode()),
+        writes_enabled?: Behavior.writes_enabled?(),
+        manual_publish_enabled?: Behavior.manual_publish_enabled?(),
+        dry_run_mark_actioned?: Behavior.dry_run_mark_actioned?(),
+        mark_notifications_seen?: Behavior.mark_notifications_seen?(),
         budget: agent.state.budget,
         decision: agent.state.decision,
         last_cycle: agent.state.last_cycle,
@@ -129,6 +136,9 @@ defmodule JidoDelvetown do
         :ok
     end
   end
+
+  defp behavior_value({:ok, value}), do: value
+  defp behavior_value({:error, _reason}), do: nil
 
   defp cycle_runner,
     do: Application.get_env(:jido_delvetown, :cycle_runner, CycleRunner)

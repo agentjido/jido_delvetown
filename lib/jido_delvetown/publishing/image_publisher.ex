@@ -10,6 +10,7 @@ defmodule JidoDelvetown.ImagePublisher do
   alias JidoDelvetown.ImagePostContract
   alias JidoDelvetown.ImageUploader
   alias JidoDelvetown.Protocol
+  alias JidoDelvetown.Settings.Behavior
 
   @collection "town.delve.feed.post"
   @default_langs ["en"]
@@ -99,8 +100,14 @@ defmodule JidoDelvetown.ImagePublisher do
     end
   end
 
-  defp ensure_permission(:scheduled), do: Protocol.ensure_writes_enabled()
-  defp ensure_permission(:manual), do: Protocol.ensure_manual_publish_enabled()
+  defp ensure_permission(mode) do
+    with true <- Behavior.action_enabled?("post") || {:error, :action_disabled} do
+      mode_permission(mode)
+    end
+  end
+
+  defp mode_permission(:scheduled), do: Protocol.ensure_writes_enabled()
+  defp mode_permission(:manual), do: Protocol.ensure_manual_publish_enabled()
 
   defp upload(digest, :scheduled), do: ImageUploader.upload(digest)
   defp upload(digest, :manual), do: ImageUploader.upload_manual(digest)

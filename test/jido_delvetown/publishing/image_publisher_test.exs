@@ -7,7 +7,7 @@ defmodule JidoDelvetown.ImagePublisherTest do
   alias JidoDelvetown.Protocol
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Storage.{AuditEvent, Effect, ImageArtifact, ImageDraft}
-  alias JidoDelvetown.Test.{FakeSession, FakeTransport}
+  alias JidoDelvetown.Test.{FakeSession, FakeTransport, RuntimeSettings}
 
   @bytes <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, "publish-fixture">>
   @cid "bafkreid2wtyqjcrjwqf7vqumwnnhjq73hlk2h335lxspj6ftcgw7net53a"
@@ -28,18 +28,20 @@ defmodule JidoDelvetown.ImagePublisherTest do
       get_result: Application.get_env(:jido_delvetown, :get_result)
     }
 
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-    old_manual = System.get_env("DELVETOWN_MANUAL_PUBLISH_ENABLED")
-
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+
+    restore_settings =
+      RuntimeSettings.preserve!(
+        autonomy_mode: "autonomous",
+        manual_publish_enabled: false,
+        enabled_actions: ~w(reply like repost post follow welcome)
+      )
 
     on_exit(fn ->
       restore_env(previous)
-      restore_system_env("DELVETOWN_WRITE_ENABLED", old_write)
-      restore_system_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", old_manual)
+      restore_settings.()
     end)
 
     :ok
@@ -183,8 +185,7 @@ defmodule JidoDelvetown.ImagePublisherTest do
   end
 
   test "manual publication uploads and posts while scheduled writes stay off" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
-    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "observe", manual_publish_enabled: true)
     stage_draft("image:manual", 640, 480)
     configure_upload()
 
@@ -198,8 +199,7 @@ defmodule JidoDelvetown.ImagePublisherTest do
   end
 
   test "manual publication makes no remote call when its permission is off" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
-    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "false")
+    RuntimeSettings.update!(autonomy_mode: "observe", manual_publish_enabled: false)
     stage_draft("image:manual-disabled", 640, 480)
     configure_upload()
 
@@ -207,6 +207,18 @@ defmodule JidoDelvetown.ImagePublisherTest do
              ImagePublisher.publish_manual("image:manual-disabled", created_at: @created_at)
 
     assert ImageDrafts.get("image:manual-disabled").artifact.state == "staged"
+    refute_received {:upload_blob, _bytes, _mime_type}
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
+  test "publication makes no remote call when post actions are disabled" do
+    RuntimeSettings.update!(enabled_actions: ["like"])
+    stage_draft("image:post-disabled", 640, 480)
+    configure_upload()
+
+    assert {:error, :action_disabled} =
+             ImagePublisher.publish("image:post-disabled", created_at: @created_at)
+
     refute_received {:upload_blob, _bytes, _mime_type}
     refute_received {:create_record, _collection, _record, _rkey}
   end
@@ -250,7 +262,4 @@ defmodule JidoDelvetown.ImagePublisherTest do
       {key, value} -> Application.put_env(:jido_delvetown, key, value)
     end)
   end
-
-  defp restore_system_env(name, nil), do: System.delete_env(name)
-  defp restore_system_env(name, value), do: System.put_env(name, value)
 end

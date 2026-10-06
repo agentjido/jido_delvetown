@@ -19,6 +19,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     Session
   }
 
+  alias JidoDelvetown.Settings.Behavior
+
   @direct_reasons ["mention", "reply"]
   @deferred_reasons ["follow"]
   @post_limit 1
@@ -368,7 +370,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
         false
 
       %{status: "proposed"} ->
-        not Config.write_enabled?() and not Config.dry_run_mark_actioned?()
+        not Behavior.writes_enabled?() and not Behavior.dry_run_mark_actioned?()
 
       _record ->
         true

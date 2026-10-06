@@ -19,7 +19,7 @@ defmodule JidoDelvetown.ImagePipelineTest do
     InteractionEvent
   }
 
-  alias JidoDelvetown.Test.{FakeSession, FakeTransport}
+  alias JidoDelvetown.Test.{FakeSession, FakeTransport, RuntimeSettings}
 
   @bytes <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, "pipeline-fixture">>
   @cid "bafkreid2wtyqjcrjwqf7vqumwnnhjq73hlk2h335lxspj6ftcgw7net53a"
@@ -37,14 +37,16 @@ defmodule JidoDelvetown.ImagePipelineTest do
       get_result: Application.get_env(:jido_delvetown, :get_result)
     }
 
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-    old_manual = System.get_env("DELVETOWN_MANUAL_PUBLISH_ENABLED")
-
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
-    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "true")
+
+    restore_settings =
+      RuntimeSettings.preserve!(
+        autonomy_mode: "observe",
+        manual_publish_enabled: true,
+        enabled_actions: ~w(reply like repost post follow welcome)
+      )
 
     path =
       Path.join(
@@ -57,8 +59,7 @@ defmodule JidoDelvetown.ImagePipelineTest do
     on_exit(fn ->
       clear_tables()
       restore_env(previous)
-      restore_system_env("DELVETOWN_WRITE_ENABLED", old_write)
-      restore_system_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", old_manual)
+      restore_settings.()
       File.rm(path)
     end)
 
@@ -177,7 +178,7 @@ defmodule JidoDelvetown.ImagePipelineTest do
   end
 
   test "review and invalid input paths make no remote writes", %{path: path} do
-    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "false")
+    RuntimeSettings.update!(manual_publish_enabled: false)
 
     assert {:ok, _staged} = ImageStager.stage_file("pipeline:review", path, valid_attrs())
     assert [_preview] = Inspection.snapshot(image_limit: 1).image_drafts
@@ -286,7 +287,4 @@ defmodule JidoDelvetown.ImagePipelineTest do
       {key, value} -> Application.put_env(:jido_delvetown, key, value)
     end)
   end
-
-  defp restore_system_env(name, nil), do: System.delete_env(name)
-  defp restore_system_env(name, value), do: System.put_env(name, value)
 end

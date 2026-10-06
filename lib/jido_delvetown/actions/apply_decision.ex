@@ -14,7 +14,8 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     WelcomeActor
   }
 
-  alias JidoDelvetown.{Config, OutgoingLikePolicy, WelcomePost}
+  alias JidoDelvetown.{OutgoingLikePolicy, WelcomePost}
+  alias JidoDelvetown.Settings.Behavior
 
   @impl true
   def run(%{cycle: %{status: "failed"} = cycle}, _context), do: {:ok, cycle}
@@ -44,7 +45,7 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     do: Map.merge(cycle, %{status: "proposed", effects: 0, receipt: nil})
 
   defp apply(%{mode: "normal"} = cycle) do
-    if Config.write_enabled?() do
+    if Behavior.writes_enabled?() do
       case execute(cycle.decision, cycle.candidate) do
         {:ok, receipt} ->
           Map.merge(cycle, %{
@@ -68,7 +69,7 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
   end
 
   defp dry_run(cycle) do
-    status = if Config.dry_run_mark_actioned?(), do: "simulated", else: "proposed"
+    status = if Behavior.dry_run_mark_actioned?(), do: "simulated", else: "proposed"
     Map.merge(cycle, %{status: status, effects: 0, receipt: nil})
   end
 
@@ -79,6 +80,9 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
     cond do
       action not in cycle.allowed_actions ->
         {:error, :action_not_allowed_for_intent}
+
+      not Behavior.action_enabled?(action) ->
+        {:error, :action_disabled}
 
       action in ["reply", "post"] and not valid_text?(cycle.decision.text) ->
         {:error, :invalid_post_text}

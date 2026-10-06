@@ -5,7 +5,6 @@ defmodule JidoDelvetown.ManualPublisher do
     ActorMemory,
     AuditLog,
     Candidate,
-    Config,
     ConversationMemory,
     EffectStore,
     InteractionEvents,
@@ -15,6 +14,7 @@ defmodule JidoDelvetown.ManualPublisher do
   }
 
   alias JidoDelvetown.Storage.InteractionEvent
+  alias JidoDelvetown.Settings.Behavior
 
   @post_collection "town.delve.feed.post"
   @like_collection "town.delve.feed.like"
@@ -45,7 +45,7 @@ defmodule JidoDelvetown.ManualPublisher do
   def publish(_event_key), do: {:error, :invalid_event_key}
 
   defp enabled do
-    if Config.manual_publish_enabled?(),
+    if Behavior.manual_publish_enabled?(),
       do: :ok,
       else: {:error, :manual_publish_disabled}
   end
@@ -59,6 +59,9 @@ defmodule JidoDelvetown.ManualPublisher do
 
       action not in @supported_actions ->
         {:error, :unsupported_action}
+
+      not Behavior.action_enabled?(action) ->
+        {:error, :action_disabled}
 
       action != "like" and not valid_text?(value(payload, :text)) ->
         {:error, :invalid_draft_text}

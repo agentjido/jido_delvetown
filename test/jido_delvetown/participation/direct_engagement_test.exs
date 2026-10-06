@@ -3,7 +3,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
 
   alias JidoDelvetown.{Agent, ProactiveParticipationCycle, ReactiveParticipationCycle, Repo}
   alias JidoDelvetown.Storage.{Actor, Conversation, Effect, InteractionEvent, ScanState}
-  alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
+  alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport, RuntimeSettings}
 
   setup do
     Enum.each([ScanState, InteractionEvent, Conversation, Actor, Effect], &Repo.delete_all/1)
@@ -18,16 +18,16 @@ defmodule JidoDelvetown.DirectEngagementTest do
     ]
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-    old_dry_run = System.get_env("DELVETOWN_DRY_RUN_MARK_ACTIONED")
     old_limit = System.get_env("DELVETOWN_DAILY_REPLY_LIMIT")
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "false")
+
+    restore_settings =
+      RuntimeSettings.preserve!(autonomy_mode: "observe", dry_run_mark_actioned: false)
+
     System.put_env("DELVETOWN_DAILY_REPLY_LIMIT", "3")
 
     on_exit(fn ->
@@ -36,8 +36,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
         {key, value} -> Application.put_env(:jido_delvetown, key, value)
       end)
 
-      restore_env("DELVETOWN_WRITE_ENABLED", old_write)
-      restore_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", old_dry_run)
+      restore_settings.()
       restore_env("DELVETOWN_DAILY_REPLY_LIMIT", old_limit)
     end)
 
@@ -74,7 +73,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
   end
 
   test "a simulated direct event is not selected again" do
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
     notification = notification("reply-repeat", "reply", "How should I retry this?")
     configure_reactive(notification)
     reply_decision()
@@ -99,7 +98,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert proposed_state.last_run.status == "proposed"
     assert Repo.get!(InteractionEvent, "notification:reply-transition").state == "pending"
 
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
 
     assert {:ok, simulated_state} = run_reactive(proposed_state)
     assert simulated_state.last_run.status == "simulated"
@@ -107,7 +106,7 @@ defmodule JidoDelvetown.DirectEngagementTest do
   end
 
   test "a later turn includes actor and conversation memory" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
     reply_decision()
 
     first = notification("turn-1", "reply", "Where should this process live?", "first")

@@ -7,8 +7,7 @@ defmodule JidoDelvetown.ProtocolTest do
   alias JidoDelvetown.Protocol
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Storage.{AuditEvent, Effect}
-  alias JidoDelvetown.Test.FakeSession
-  alias JidoDelvetown.Test.FakeTransport
+  alias JidoDelvetown.Test.{FakeSession, FakeTransport, RuntimeSettings}
 
   setup do
     Repo.delete_all(AuditEvent)
@@ -25,24 +24,23 @@ defmodule JidoDelvetown.ProtocolTest do
       delete_result: Application.get_env(:jido_delvetown, :delete_result)
     }
 
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :effect_store, EffectStore)
     Application.put_env(:jido_delvetown, :effect_store_opts, repo: Repo)
     Application.put_env(:jido_delvetown, :test_owner, self())
+    restore_settings = RuntimeSettings.preserve!(autonomy_mode: "observe")
 
     on_exit(fn ->
       restore_env(previous)
-      restore_system_env("DELVETOWN_WRITE_ENABLED", old_write)
+      restore_settings.()
     end)
 
     :ok
   end
 
   test "write Actions are disabled by default" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
+    RuntimeSettings.update!(autonomy_mode: "observe")
 
     assert {:error, :writes_disabled} =
              LikePost.run(%{uri: "at://did:plc:other/town.delve.feed.post/one", cid: "cid"}, %{})
@@ -51,7 +49,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "a completed effect reuses its saved receipt" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
     params = %{uri: "at://did:plc:other/town.delve.feed.post/one", cid: "cid"}
 
     assert {:ok, %{reused?: false}} = LikePost.run(params, %{})
@@ -69,7 +67,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "an uncertain create is reconciled with the fixed record key" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
     Application.put_env(:jido_delvetown, :create_result, {:error, :timeout})
 
     Application.put_env(
@@ -87,7 +85,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "a lost reply retries with the same record key" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
     Application.put_env(:jido_delvetown, :create_result, {:error, :timeout})
     Application.put_env(:jido_delvetown, :get_result, {:error, :not_found})
 
@@ -114,7 +112,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "an uncertain effect reconciles remote success before another write" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
     key = "reply:remote-success"
 
     assert {:ok, reserved} = EffectStore.reserve(key, "town.delve.feed.post")
@@ -139,7 +137,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "an original post uses its stable opportunity identifier" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
 
     assert {:ok, %{reused?: false}} =
              CreatePost.run(
@@ -164,7 +162,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "an owned deletion is durable and idempotent" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
     uri = "at://did:plc:bot/town.delve.feed.post/owned-record"
 
     assert {:ok, %{deleted?: true, reused?: false}} = Protocol.delete_own_record(uri)
@@ -180,7 +178,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "a permanent create failure is not retried" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
 
     Application.put_env(
       :jido_delvetown,
@@ -203,7 +201,7 @@ defmodule JidoDelvetown.ProtocolTest do
   end
 
   test "delete rejects a record owned by another account" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
+    RuntimeSettings.update!(autonomy_mode: "autonomous")
 
     assert {:error, :record_not_owned} =
              Protocol.delete_own_record("at://did:plc:other/town.delve.feed.like/record-key")
@@ -217,7 +215,4 @@ defmodule JidoDelvetown.ProtocolTest do
       {key, value} -> Application.put_env(:jido_delvetown, key, value)
     end)
   end
-
-  defp restore_system_env(name, nil), do: System.delete_env(name)
-  defp restore_system_env(name, value), do: System.put_env(name, value)
 end

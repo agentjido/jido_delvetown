@@ -1,7 +1,6 @@
 defmodule JidoDelvetown.Config do
   @moduledoc false
 
-  @default_model "openai:gpt-4o-mini"
   @default_data_dir Path.expand("../../tmp/jido_delvetown", __DIR__)
 
   def load_env(path \\ ".env") do
@@ -10,29 +9,6 @@ defmodule JidoDelvetown.Config do
     end
 
     :ok
-  end
-
-  def decision_model, do: System.get_env("DELVETOWN_MODEL", @default_model)
-
-  def decision_model_input(model \\ decision_model())
-
-  def decision_model_input("openai:" <> model) do
-    %{
-      id: model,
-      model: model,
-      provider: :openai,
-      base_url: "https://api.openai.com/v1",
-      deprecated: false,
-      retired: false,
-      catalog_only: false,
-      aliases: []
-    }
-  end
-
-  def decision_model_input(model), do: model
-
-  def decision_timeout do
-    env_integer("DELVETOWN_DECISION_TIMEOUT_MS", 45_000, 1_000, 180_000)
   end
 
   def notification_limit do
@@ -70,33 +46,6 @@ defmodule JidoDelvetown.Config do
   def member_max_age_hours do
     env_integer("DELVETOWN_MEMBER_MAX_AGE_HOURS", 24, 1, 24 * 30)
   end
-
-  def conversation_turn_limit do
-    env_integer("DELVETOWN_CONVERSATION_TURN_LIMIT", 4, 1, 100)
-  end
-
-  def conversation_max_age_hours do
-    env_integer("DELVETOWN_CONVERSATION_MAX_AGE_HOURS", 72, 1, 24 * 365)
-  end
-
-  def conversation_non_response_limit do
-    env_integer("DELVETOWN_CONVERSATION_NON_RESPONSE_LIMIT", 2, 1, 20)
-  end
-
-  def write_enabled? do
-    enabled?("DELVETOWN_WRITE_ENABLED")
-  end
-
-  def manual_publish_enabled? do
-    enabled?("DELVETOWN_MANUAL_PUBLISH_ENABLED")
-  end
-
-  def dry_run_mark_actioned? do
-    enabled?("DELVETOWN_DRY_RUN_MARK_ACTIONED")
-  end
-
-  def mark_notifications_seen?,
-    do: enabled?("DELVETOWN_MARK_NOTIFICATIONS_SEEN")
 
   def data_dir,
     do: System.get_env("DELVETOWN_DATA_DIR", @default_data_dir) |> Path.expand()
@@ -147,12 +96,6 @@ defmodule JidoDelvetown.Config do
       end
 
     value |> max(minimum) |> min(maximum)
-  end
-
-  defp enabled?(name) do
-    name
-    |> System.get_env("false")
-    |> enabled_value?()
   end
 
   defp enabled_value?(value), do: String.downcase(value) in ["1", "true", "yes"]

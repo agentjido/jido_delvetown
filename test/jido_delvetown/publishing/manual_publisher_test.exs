@@ -3,7 +3,7 @@ defmodule JidoDelvetown.ManualPublisherTest do
 
   alias JidoDelvetown.{InteractionLedger, ManualPublisher, Protocol, Repo}
   alias JidoDelvetown.Storage.{Actor, AuditEvent, Effect, InteractionEvent}
-  alias JidoDelvetown.Test.{FakeSession, FakeTransport}
+  alias JidoDelvetown.Test.{FakeSession, FakeTransport, RuntimeSettings}
 
   setup do
     Repo.delete_all(AuditEvent)
@@ -20,8 +20,6 @@ defmodule JidoDelvetown.ManualPublisherTest do
       get_result: Application.get_env(:jido_delvetown, :get_result)
     }
 
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-    old_manual = System.get_env("DELVETOWN_MANUAL_PUBLISH_ENABLED")
     old_like_limit = System.get_env("DELVETOWN_DAILY_LIKE_LIMIT")
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
@@ -30,14 +28,19 @@ defmodule JidoDelvetown.ManualPublisherTest do
     Application.put_env(:jido_delvetown, :query_results, %{})
     Application.delete_env(:jido_delvetown, :create_result)
     Application.delete_env(:jido_delvetown, :get_result)
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
-    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "true")
+
+    restore_settings =
+      RuntimeSettings.preserve!(
+        autonomy_mode: "observe",
+        manual_publish_enabled: true,
+        enabled_actions: ~w(reply like repost post follow welcome)
+      )
+
     System.put_env("DELVETOWN_DAILY_LIKE_LIMIT", "1")
 
     on_exit(fn ->
       restore_env(previous)
-      restore_system_env("DELVETOWN_WRITE_ENABLED", old_write)
-      restore_system_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", old_manual)
+      restore_settings.()
       restore_system_env("DELVETOWN_DAILY_LIKE_LIMIT", old_like_limit)
     end)
 
@@ -118,11 +121,20 @@ defmodule JidoDelvetown.ManualPublisherTest do
   end
 
   test "rejects a manual publication when its separate permission is off" do
-    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "false")
+    RuntimeSettings.update!(manual_publish_enabled: false)
     event = simulated_reply("event:disabled")
     Repo.insert!(event)
 
     assert {:error, :manual_publish_disabled} = ManualPublisher.publish(event.event_key)
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
+  test "rejects a saved draft when its action is disabled" do
+    RuntimeSettings.update!(enabled_actions: ["like"])
+    event = simulated_reply("event:action-disabled")
+    Repo.insert!(event)
+
+    assert {:error, :action_disabled} = ManualPublisher.publish(event.event_key)
     refute_received {:create_record, _collection, _record, _rkey}
   end
 

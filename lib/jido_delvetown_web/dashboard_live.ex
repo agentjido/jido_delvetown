@@ -149,7 +149,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp active_tab(_params), do: "overview"
 
   defp publish_error(:manual_publish_disabled),
-    do: "Manual publishing is off. Set DELVETOWN_MANUAL_PUBLISH_ENABLED=true and restart."
+    do: "Manual publishing is off. Enable manual_publish_enabled in runtime settings."
 
   defp publish_error(:not_found), do: "The saved simulated draft was not found."
   defp publish_error(:not_simulated), do: "This item is not a simulated draft."
@@ -158,7 +158,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp publish_error(_reason), do: "DelveTown did not accept the draft. Check the local logs."
 
   defp like_publish_error(:manual_publish_disabled),
-    do: "Manual publishing is off. Set DELVETOWN_MANUAL_PUBLISH_ENABLED=true and restart."
+    do: "Manual publishing is off. Enable manual_publish_enabled in runtime settings."
 
   defp like_publish_error(:not_found), do: "The saved simulated like was not found."
   defp like_publish_error(:not_simulated), do: "This item is not a simulated like."
@@ -179,7 +179,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
     do: "DelveTown did not accept the like. Check the local logs."
 
   defp image_publish_error(:manual_publish_disabled),
-    do: "Manual publishing is off. Set DELVETOWN_MANUAL_PUBLISH_ENABLED=true and restart."
+    do: "Manual publishing is off. Enable manual_publish_enabled in runtime settings."
 
   defp image_publish_error(:image_draft_not_found), do: "The saved image draft was not found."
   defp image_publish_error(:artifact_not_found), do: "The saved image file was not found."

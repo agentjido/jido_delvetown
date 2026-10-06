@@ -12,6 +12,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
 
   alias JidoDelvetown.Storage.{Actor, Effect, InteractionEvent, ScanState}
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
+  alias JidoDelvetown.Test.RuntimeSettings
 
   setup do
     Enum.each([ScanState, InteractionEvent, Actor, Effect], &Repo.delete_all/1)
@@ -26,17 +27,20 @@ defmodule JidoDelvetown.MemberEngagementTest do
     ]
 
     previous = Map.new(keys, &{&1, Application.get_env(:jido_delvetown, &1)})
-    old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
-    old_dry_run = System.get_env("DELVETOWN_DRY_RUN_MARK_ACTIONED")
     old_limit = System.get_env("DELVETOWN_DAILY_WELCOME_LIMIT")
     old_age = System.get_env("DELVETOWN_MEMBER_MAX_AGE_HOURS")
+
+    restore_settings =
+      RuntimeSettings.preserve!(%{
+        autonomy_mode: "autonomous",
+        dry_run_mark_actioned: false,
+        enabled_actions: ~w(reply like repost post follow welcome)
+      })
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
     Application.put_env(:jido_delvetown, :decision_module, FakeDecision)
     Application.put_env(:jido_delvetown, :test_owner, self())
-    System.put_env("DELVETOWN_WRITE_ENABLED", "true")
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "false")
     System.put_env("DELVETOWN_DAILY_WELCOME_LIMIT", "2")
     System.put_env("DELVETOWN_MEMBER_MAX_AGE_HOURS", "24")
 
@@ -46,8 +50,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
         {key, value} -> Application.put_env(:jido_delvetown, key, value)
       end)
 
-      restore_env("DELVETOWN_WRITE_ENABLED", old_write)
-      restore_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", old_dry_run)
+      restore_settings.()
       restore_env("DELVETOWN_DAILY_WELCOME_LIMIT", old_limit)
       restore_env("DELVETOWN_MEMBER_MAX_AGE_HOURS", old_age)
     end)
@@ -235,8 +238,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
   end
 
   test "stores a mention-aware simulated welcome without a protocol write" do
-    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
-    System.put_env("DELVETOWN_DRY_RUN_MARK_ACTIONED", "true")
+    RuntimeSettings.update!(autonomy_mode: "observe", dry_run_mark_actioned: true)
 
     did = "did:plc:dry-member"
     joined_at = recent_time(-10)

@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.PersonalityTest do
   use ExUnit.Case, async: true
 
-  alias JidoDelvetown.Personality
+  alias JidoDelvetown.{Personality, Settings.Behavior}
 
   test "the personality is a validated Jido Character" do
     character = Personality.character()
@@ -72,7 +72,8 @@ defmodule JidoDelvetown.PersonalityTest do
     assert disclosure.automated?
     assert disclosure.operator.name == "Mike Hostetler"
     assert disclosure.operator.contact == "https://mike-hostetler.com"
-    assert disclosure.model_service == JidoDelvetown.Config.decision_model()
+    assert {:ok, model} = Behavior.decision_model()
+    assert disclosure.model_service == model
     assert disclosure.human_review =~ "without individual human review"
     assert disclosure.local_memory =~ "local SQLite database"
     assert disclosure.local_memory =~ "public-action receipts"
@@ -92,7 +93,7 @@ defmodule JidoDelvetown.PersonalityTest do
              model: "gpt-4o-mini",
              provider: :openai,
              catalog_only: false
-           } = JidoDelvetown.Config.decision_model_input("openai:gpt-4o-mini")
+           } = Behavior.model_input("openai:gpt-4o-mini")
   end
 
   for {scenario, required_rule} <- [

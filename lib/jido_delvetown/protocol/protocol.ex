@@ -2,9 +2,9 @@ defmodule JidoDelvetown.Protocol do
   @moduledoc "Safe protocol operations used by the hard-coded Jido tools."
 
   alias JidoDelvetown.AuditLog
-  alias JidoDelvetown.Config
   alias JidoDelvetown.EffectStore
   alias JidoDelvetown.Session
+  alias JidoDelvetown.Settings.Behavior
   alias JidoDelvetown.Transport.ProtoRune, as: DefaultTransport
 
   @allowed_collections [
@@ -348,17 +348,17 @@ defmodule JidoDelvetown.Protocol do
   end
 
   defp writes_enabled do
-    if Config.write_enabled?(), do: :ok, else: {:error, :writes_disabled}
+    if Behavior.writes_enabled?(), do: :ok, else: {:error, :writes_disabled}
   end
 
   defp manual_publish_enabled do
-    if Config.manual_publish_enabled?(),
+    if Behavior.manual_publish_enabled?(),
       do: :ok,
       else: {:error, :manual_publish_disabled}
   end
 
   defp notification_updates_enabled do
-    if Config.mark_notifications_seen?(),
+    if Behavior.mark_notifications_seen?(),
       do: :ok,
       else: {:error, :notification_updates_disabled}
   end

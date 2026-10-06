@@ -201,7 +201,7 @@ defmodule JidoDelvetown.Personality do
         "Public profiles needed to understand the selected context",
         "Notifications delivered to the AgentJido account"
       ],
-      model_service: JidoDelvetown.Config.decision_model(),
+      model_service: decision_model(),
       processing:
         "Selected public context is sent to the configured model service. Processing locations and provider retention follow that service's terms.",
       local_memory:
@@ -217,6 +217,13 @@ defmodule JidoDelvetown.Personality do
   @spec profile_disclosure() :: String.t()
   def profile_disclosure do
     "Automated Jido project agent operated by #{@operator_name}. Posts and replies can publish without item review. Sends selected public DelveTown context to a model service and keeps bounded local state. Data or deletion: #{@operator_url}"
+  end
+
+  defp decision_model do
+    case JidoDelvetown.Settings.Behavior.decision_model() do
+      {:ok, model} -> model
+      {:error, _reason} -> "unavailable"
+    end
   end
 
   defp participation_prompt(contract) do

@@ -2,27 +2,17 @@ defmodule JidoDelvetown.ConversationPolicyTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.ConversationPolicy
+  alias JidoDelvetown.Test.RuntimeSettings
 
   setup do
-    names = [
-      "DELVETOWN_CONVERSATION_TURN_LIMIT",
-      "DELVETOWN_CONVERSATION_MAX_AGE_HOURS",
-      "DELVETOWN_CONVERSATION_NON_RESPONSE_LIMIT"
-    ]
+    restore =
+      RuntimeSettings.preserve!(%{
+        conversation_turn_limit: 4,
+        conversation_max_age_hours: 72,
+        conversation_non_response_limit: 2
+      })
 
-    previous = Map.new(names, &{&1, System.get_env(&1)})
-    System.put_env("DELVETOWN_CONVERSATION_TURN_LIMIT", "4")
-    System.put_env("DELVETOWN_CONVERSATION_MAX_AGE_HOURS", "72")
-    System.put_env("DELVETOWN_CONVERSATION_NON_RESPONSE_LIMIT", "2")
-
-    on_exit(fn ->
-      Enum.each(previous, fn
-        {name, nil} -> System.delete_env(name)
-        {name, value} -> System.put_env(name, value)
-      end)
-    end)
-
-    :ok
+    on_exit(restore)
   end
 
   test "continues a useful new turn" do

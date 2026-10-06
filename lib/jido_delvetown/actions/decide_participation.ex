@@ -6,10 +6,10 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
     schema: Zoi.object(%{cycle: Zoi.map()})
 
   alias JidoDelvetown.Actions.SelectIntent
-  alias JidoDelvetown.Config
   alias JidoDelvetown.CreativeFormats
   alias JidoDelvetown.FriendList
   alias JidoDelvetown.Personality
+  alias JidoDelvetown.Settings.Behavior
 
   @actions ~w(reply like repost post acknowledge follow welcome skip)
 
@@ -65,44 +65,46 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   end
 
   def run(%{cycle: cycle}, context) do
-    cycle = CreativeFormats.prepare(cycle)
+    with {:ok, allowed_actions} <- Behavior.filter_enabled_actions(cycle.allowed_actions) do
+      cycle = cycle |> Map.put(:allowed_actions, allowed_actions) |> CreativeFormats.prepare()
 
-    payload = %{
-      reason: cycle.reason,
-      allowed_actions: cycle.allowed_actions,
-      membership: cycle.membership,
-      candidate: cycle.candidate,
-      recent_posts: Enum.take(cycle.recent_posts, 3),
-      friends: FriendList.for_context(),
-      budget: cycle.state.budget,
-      recent_topics: cycle.state.proactive.recent_topics,
-      response_format: cycle.response_format
-    }
+      payload = %{
+        reason: cycle.reason,
+        allowed_actions: cycle.allowed_actions,
+        membership: cycle.membership,
+        candidate: cycle.candidate,
+        recent_posts: Enum.take(cycle.recent_posts, 3),
+        friends: FriendList.for_context(),
+        budget: cycle.state.budget,
+        recent_topics: cycle.state.proactive.recent_topics,
+        response_format: cycle.response_format
+      }
 
-    case decision_module().choose(cycle.intent, payload, context) do
-      {:ok, decision} ->
-        {:ok, Map.put(cycle, :decision, CreativeFormats.finalize(decision, cycle))}
+      case decision_module().choose(cycle.intent, payload, context) do
+        {:ok, decision} ->
+          {:ok, Map.put(cycle, :decision, CreativeFormats.finalize(decision, cycle))}
 
-      {:error, reason} ->
-        {:ok,
-         Map.merge(cycle, %{
-           status: "failed",
-           stage: "decision",
-           errors: cycle.errors ++ [error_text(reason)]
-         })}
+        {:error, reason} ->
+          failed_cycle(cycle, reason)
+      end
+    else
+      {:error, reason} -> failed_cycle(cycle, reason)
     end
   end
 
   def choose(intent, payload, _context) do
-    choose_with_lm(intent, payload, Imp.req_llm(Config.decision_model_input()))
+    with {:ok, model} <- Behavior.decision_model_input() do
+      choose_with_lm(intent, payload, Imp.req_llm(model))
+    end
   end
 
   @doc false
   def choose_with_lm(intent, payload, lm) do
     with {:ok, intent_actions} <- SelectIntent.allowed_actions(intent),
          {:ok, allowed_actions} <- allowed_actions(payload, intent_actions),
-         {:ok, context} <- Jason.encode(payload) do
-      Config.decision_timeout()
+         {:ok, context} <- Jason.encode(payload),
+         {:ok, timeout} <- Behavior.decision_timeout() do
+      timeout
       |> Imp.Deadline.with_deadline(fn ->
         lm
         |> program()
@@ -159,4 +161,13 @@ defmodule JidoDelvetown.Actions.DecideParticipation do
   defp error_text(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp error_text(reason) when is_binary(reason), do: reason
   defp error_text(_reason), do: "decision_failed"
+
+  defp failed_cycle(cycle, reason) do
+    {:ok,
+     Map.merge(cycle, %{
+       status: "failed",
+       stage: "decision",
+       errors: cycle.errors ++ [error_text(reason)]
+     })}
+  end
 end

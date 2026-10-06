@@ -41,10 +41,6 @@ Set the temporary account variables and the remaining process settings:
 export DELVETOWN_IDENTIFIER="bot-handle-or-email"
 export DELVETOWN_APP_PASSWORD="app-password"
 export OPENAI_API_KEY="provider-key"
-export DELVETOWN_WRITE_ENABLED="false"
-export DELVETOWN_MANUAL_PUBLISH_ENABLED="false"
-export DELVETOWN_DRY_RUN_MARK_ACTIONED="true"
-export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
 export DELVETOWN_DAILY_REPLY_LIMIT="3"
 export DELVETOWN_DAILY_LIKE_LIMIT="5"
 export DELVETOWN_LIKE_ACTOR_COOLDOWN_HOURS="24"
@@ -52,9 +48,6 @@ export DELVETOWN_LIKE_CANDIDATE_MAX_AGE_HOURS="48"
 export DELVETOWN_DAILY_WELCOME_LIMIT="2"
 export DELVETOWN_MEMBER_MAX_AGE_HOURS="24"
 export DELVETOWN_FRIEND_SYNC_LIMIT="1000"
-export DELVETOWN_CONVERSATION_TURN_LIMIT="4"
-export DELVETOWN_CONVERSATION_MAX_AGE_HOURS="72"
-export DELVETOWN_CONVERSATION_NON_RESPONSE_LIMIT="2"
 export DELVETOWN_DATA_DIR="./tmp/jido_delvetown"
 ```
 
@@ -79,23 +72,23 @@ jobs in the same SQLite database. The app password is encrypted before it
 enters SQLite. Its local encryption key is in an owner-only file next to the
 database. Live session data is not in SQLite.
 
-Notification bookkeeping has a separate permission. Set
-`DELVETOWN_MARK_NOTIFICATIONS_SEEN=true` only when the Agent can update the
+Notification bookkeeping has a separate permission. Set the runtime setting
+`mark_notifications_seen` to `true` only when the Agent can update the
 server-side notification cursor. This setting does not permit posts, replies,
 likes, reposts, follows, or deletes.
 
-`DELVETOWN_DRY_RUN_MARK_ACTIONED=true` enables an ongoing simulation when
-protocol writes are off. The Agent labels a selected action as `simulated`,
-keeps zero protocol effects, closes the event, and advances its local budget,
-actor contact, conversation, topic, and voice memory. This prevents the same
-event from running again. It does not create a post or effect receipt. Leave
-the setting false when a proposal must remain pending.
+The runtime setting `dry_run_mark_actioned: true` enables an ongoing simulation
+when `autonomy_mode` is `"observe"`. The Agent labels a selected action as
+`simulated`, keeps zero protocol effects, closes the event, and advances its
+local budget, actor contact, conversation, topic, and voice memory. This
+prevents the same event from running again. It does not create a post or effect
+receipt. Leave the setting false when a proposal must remain pending.
 
-`DELVETOWN_MANUAL_PUBLISH_ENABLED=true` adds a publish button to each saved
-simulated post and staged image. The button publishes only that exact draft.
-It uses a durable effect key, so a retry does not create a second post. This
-permission is separate from `DELVETOWN_WRITE_ENABLED`; scheduled Agent work
-stays in dry-run mode while manual publishing is on.
+The runtime setting `manual_publish_enabled: true` adds a publish button to
+each saved simulated post and staged image. The button publishes only that
+exact draft. It uses a durable effect key, so a retry does not create a second
+post. This permission is separate from `autonomy_mode`; scheduled Agent work
+stays in observe mode while manual publishing is on.
 
 Get dependencies and start IEx:
 
@@ -111,7 +104,17 @@ the app password. The default PDS URL and AppView DID are already present.
 JidoDelvetown.Settings.update(
   %{
     account_identifier: System.fetch_env!("DELVETOWN_IDENTIFIER"),
-    account_app_password: System.fetch_env!("DELVETOWN_APP_PASSWORD")
+    account_app_password: System.fetch_env!("DELVETOWN_APP_PASSWORD"),
+    autonomy_mode: "observe",
+    manual_publish_enabled: false,
+    dry_run_mark_actioned: true,
+    mark_notifications_seen: false,
+    decision_model: "openai:gpt-4o-mini",
+    decision_timeout_ms: 45_000,
+    enabled_actions: ~w(reply like repost post follow welcome),
+    conversation_turn_limit: 4,
+    conversation_max_age_hours: 72,
+    conversation_non_response_limit: 2
   },
   source: "initial_setup"
 )
@@ -168,13 +171,11 @@ post receipt make retries idempotent.
 ### Image boundary and limits
 
 Staging needs no DelveTown credentials and no write permission. To review an
-image without any remote write, use a separate local data directory and keep
-both write settings off:
+image without any remote write, use a separate local data directory. Its new
+SQLite settings start in observe mode with manual publication disabled:
 
 ```sh
 export DELVETOWN_DATA_DIR="./tmp/image-review"
-export DELVETOWN_WRITE_ENABLED="false"
-export DELVETOWN_MANUAL_PUBLISH_ENABLED="false"
 mix delvetown.image.stage \
   --key agentjido:self-portrait-v1 \
   --file ./self-portrait.png \
@@ -186,9 +187,9 @@ iex -S mix
 Open the Image drafts tab. This path reads the stored bytes for a local preview.
 It does not call the blob upload or record creation endpoints.
 
-To publish one reviewed draft, stop the application, set the account
-credentials and `DELVETOWN_MANUAL_PUBLISH_ENABLED=true`, restart it, and use the
-confirmed button. `DELVETOWN_WRITE_ENABLED` can stay false. Do not set the
+To publish one reviewed draft, save the account credentials, set
+`manual_publish_enabled: true` with `JidoDelvetown.Settings.update/2`, and use
+the confirmed button. `autonomy_mode` can stay `"observe"`. Do not set the
 manual permission during unattended review runs.
 
 The local image draft policy has these limits:
@@ -249,19 +250,19 @@ self-portrait by an AI agent. The alt text identifies AgentJido as a non-human
 green robot and describes the systems workbench. Review the complete post in
 the dashboard Image drafts tab before any manual publication.
 
-The large write switch near the top reports `DELVETOWN_WRITE_ENABLED`. It is a
+The large write switch near the top reports the stored `autonomy_mode`. It is a
 disabled status control. It cannot change the setting or create a protocol
-write. Change the environment value and restart the application when you need
-to change this state.
+write. Use `JidoDelvetown.Settings.update/2` to change this state. The next
+cycle uses the new value.
 
 The Simulated posts tab has one publish button for each unpublished draft when
-`DELVETOWN_MANUAL_PUBLISH_ENABLED=true`. Each click needs confirmation. A
+`manual_publish_enabled` is true. Each click needs confirmation. A
 successful publication stores its receipt in SQLite and replaces the button
 with a link to the published post. The same tab shows like proposals in a
 separate review list. Each like item includes bounded target text, author,
 selection score and reason, daily budget state, and proposal or terminal state.
 An eligible simulated like has a confirmed publish button when
-`DELVETOWN_MANUAL_PUBLISH_ENABLED=true`. The action reloads the live target,
+`manual_publish_enabled` is true. The action reloads the live target,
 rechecks its URI, CID, and eligibility, and uses the durable like effect before
 it sends one write. Scheduled writes remain off.
 
@@ -298,11 +299,17 @@ deletion. Provider processing locations and retention remain subject to the
 configured provider terms.
 
 `JidoDelvetown.label_bot/0` applies the short disclosure and the AT Protocol
-`bot` self-label. It needs writes to be enabled. Set
-`DELVETOWN_WRITE_ENABLED=true`, restart the application, run the function, and
-verify the public profile:
+`bot` self-label. It needs `autonomy_mode` to be `"autonomous"`. This is a
+protected setting, so the update must confirm the key. Set it, run the
+function, and verify the public profile:
 
 ```elixir
+JidoDelvetown.Settings.update(
+  %{autonomy_mode: "autonomous"},
+  confirmed: [:autonomy_mode],
+  source: "operator"
+)
+
 JidoDelvetown.label_bot()
 ```
 
@@ -323,13 +330,18 @@ create a second run of the same type. Scheduled proactive work always uses the
 review Signal. It can save a proposal, but it cannot publish a like or another
 protocol record.
 
-For an ongoing dry run, keep the application running with these settings:
+For an ongoing dry run, keep the application running and save these runtime
+settings:
 
-```sh
-export DELVETOWN_WRITE_ENABLED="false"
-export DELVETOWN_DRY_RUN_MARK_ACTIONED="true"
-export DELVETOWN_MARK_NOTIFICATIONS_SEEN="false"
-iex -S mix
+```elixir
+JidoDelvetown.Settings.update(
+  %{
+    autonomy_mode: "observe",
+    dry_run_mark_actioned: true,
+    mark_notifications_seen: false
+  },
+  source: "operator"
+)
 ```
 
 This mode reads current events and calls the model on the Oban schedule. It
@@ -353,12 +365,12 @@ mix delvetown.review --flow reactive
 mix help delvetown.review
 ```
 
-The task requires `DELVETOWN_WRITE_ENABLED=false` and
-`DELVETOWN_MARK_NOTIFICATIONS_SEEN=false`. It stops if either setting is true.
-It reads live Delvetown data and calls the configured model, but it does not
-apply posts, replies, reactions, deletes, or notification updates. After every
-run, it confirms that the cycle reported zero effects and that the local effect
-counts did not change.
+The task requires `autonomy_mode: "observe"` and
+`mark_notifications_seen: false`. It stops if either stored setting permits a
+write. It reads live Delvetown data and calls the configured model, but it does
+not apply posts, replies, reactions, deletes, or notification updates. After
+every run, it confirms that the cycle reported zero effects and that the local
+effect counts did not change.
 
 Review cycles update the local Agent checkpoint with proposals, but they do not
 advance budgets or mark a proposal as simulated. Remove the configured

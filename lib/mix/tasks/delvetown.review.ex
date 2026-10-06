@@ -15,7 +15,8 @@ defmodule Mix.Tasks.Delvetown.Review do
 
   use Mix.Task
 
-  alias JidoDelvetown.{Config, EffectStore}
+  alias JidoDelvetown.EffectStore
+  alias JidoDelvetown.Settings.Behavior
 
   @requirements ["app.start"]
   @switches [count: :integer, flow: :string, help: :boolean]
@@ -101,12 +102,12 @@ defmodule Mix.Tasks.Delvetown.Review do
   end
 
   defp ensure_safe! do
-    if Config.write_enabled?() do
-      Mix.raise("Set DELVETOWN_WRITE_ENABLED=false before you run a review")
+    if Behavior.writes_enabled?() do
+      Mix.raise("Set autonomy_mode to observe or review before you run a review")
     end
 
-    if Config.mark_notifications_seen?() do
-      Mix.raise("Set DELVETOWN_MARK_NOTIFICATIONS_SEEN=false before you run a review")
+    if Behavior.mark_notifications_seen?() do
+      Mix.raise("Set mark_notifications_seen to false before you run a review")
     end
   end
 end

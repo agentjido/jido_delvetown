@@ -7,11 +7,11 @@ defmodule JidoDelvetown.Actions.RecordCycle do
 
   alias JidoDelvetown.Actions.UpdateNotificationsSeen
   alias JidoDelvetown.AuditLog
-  alias JidoDelvetown.Config
   alias JidoDelvetown.CreativeFormats
   alias JidoDelvetown.CycleRecorder
   alias JidoDelvetown.InteractionEvents
   alias JidoDelvetown.ScanProgress
+  alias JidoDelvetown.Settings.Behavior
 
   @topic_limit 10
 
@@ -188,7 +188,7 @@ defmodule JidoDelvetown.Actions.RecordCycle do
   defp maybe_mark_notifications_seen(state, cycle, result, at) do
     cond do
       cycle.kind != "reactive" or cycle.mode != "normal" or
-          not Config.mark_notifications_seen?() ->
+          not Behavior.mark_notifications_seen?() ->
         {state, result}
 
       not all_notifications_terminal?(cycle.notifications) ->
