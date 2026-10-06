@@ -3,6 +3,7 @@ defmodule JidoDelvetown.InteractionLedgerTest do
 
   import Ecto.Query
 
+  alias JidoDelvetown.FriendList
   alias JidoDelvetown.InteractionLedger, as: Ledger
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Storage.{Actor, Conversation, Effect, InteractionEvent}
@@ -124,6 +125,34 @@ defmodule JidoDelvetown.InteractionLedgerTest do
              },
              "uri" => "at://did:plc:member/town.delve.feed.post/reply"
            }
+  end
+
+  test "a recorded response counts a friend reference once" do
+    assert {:ok, _friend} =
+             FriendList.add(%{did: "did:plc:friend", handle: "friend.delve.town"})
+
+    cycle = %{
+      kind: "reactive",
+      mode: "normal",
+      intent: "answer_direct_request",
+      status: "simulated",
+      errors: [],
+      defer?: false,
+      candidate: %{
+        id: "notification-friend-reference",
+        uri: "at://did:plc:member/town.delve.feed.post/reply",
+        cid: "reply-cid",
+        indexed_at: "2026-10-05T11:59:00Z",
+        author: %{did: "did:plc:member", handle: "member.test"},
+        root: %{uri: "at://did:plc:root/town.delve.feed.post/root", cid: "root-cid"}
+      }
+    }
+
+    decision = %{action: "reply", text: "Ask @friend.delve.town."}
+
+    assert :ok = Ledger.record_cycle(cycle, decision, "2026-10-05T12:00:00Z")
+    assert :ok = Ledger.record_cycle(cycle, decision, "2026-10-05T12:00:00Z")
+    assert FriendList.get("did:plc:friend").reference_count == 1
   end
 
   test "records a manual publication on a completed event" do

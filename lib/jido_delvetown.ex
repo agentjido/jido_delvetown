@@ -4,6 +4,7 @@ defmodule JidoDelvetown do
   alias JidoDelvetown.Agent
   alias JidoDelvetown.Automation
   alias JidoDelvetown.Config
+  alias JidoDelvetown.FriendList
   alias JidoDelvetown.Inspection
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Session
@@ -47,6 +48,12 @@ defmodule JidoDelvetown do
   def disclosure, do: Personality.disclosure()
   def profile_disclosure, do: Personality.profile_disclosure()
   def inspect_state(opts \\ []), do: Inspection.snapshot(opts)
+
+  def friends, do: FriendList.list()
+  def friend(did), do: FriendList.get(did)
+  def add_friend(actor, attrs \\ %{}), do: FriendList.add(actor, attrs)
+  def remove_friend(did), do: FriendList.remove(did)
+  def record_friend_reference(did), do: FriendList.record_reference(did)
 
   def join(invite_code \\ nil) do
     with true <- Config.write_enabled?() || {:error, :writes_disabled},

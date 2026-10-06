@@ -235,7 +235,30 @@ JidoDelvetown.recent_events()
 
 # Read the same bounded memory and effect health data as the dashboard.
 JidoDelvetown.inspect_state()
+
+# Keep a local friend record. The DID is the stable identity.
+JidoDelvetown.add_friend(
+  %{did: "did:plc:example", handle: "friend.delve.town", display_name: "Friend"},
+  topics: ["agents", "philosophy"],
+  follows_agent: true,
+  agent_follows: true
+)
+
+JidoDelvetown.friends()
+JidoDelvetown.friend("did:plc:example")
+JidoDelvetown.remove_friend("did:plc:example")
 ```
+
+The friend list is separate from actor contact memory. New follow events update
+the `follows_agent` relationship state. A completed follow action updates the
+`agent_follows` state. Neither event makes the actor a friend. An operator must
+add that label with `add_friend/2`.
+
+The decision model receives at most 12 friends. It receives only public identity,
+topics, and follow state. It does not receive local notes. A friend with
+`do_not_mention: true` or an actor opt-out is not included. When an acted or
+simulated response contains a known friend handle, the local reference count is
+updated once with the interaction event.
 
 Imp is a library, not a separate process. `iex -S mix` starts the Jido Agent.
 `suggest_proactive/0` sends the proactive review Signal through that Agent and

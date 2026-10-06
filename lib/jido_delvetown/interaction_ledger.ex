@@ -3,6 +3,7 @@ defmodule JidoDelvetown.InteractionLedger do
 
   import Ecto.Query
 
+  alias JidoDelvetown.FriendList
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Storage.{Actor, Conversation, InteractionEvent}
 
@@ -316,6 +317,7 @@ defmodule JidoDelvetown.InteractionLedger do
 
   defp remember_candidate(_result, candidate, cycle, decision, at) do
     with :ok <- remember_actor(candidate, cycle, decision, at),
+         :ok <- remember_relationship(candidate, cycle, decision, at),
          :ok <- remember_conversation(candidate, cycle, decision, at) do
       :ok
     end
@@ -432,6 +434,30 @@ defmodule JidoDelvetown.InteractionLedger do
   end
 
   defp remember_actor(_candidate, _cycle, _decision, _at), do: :ok
+
+  defp remember_relationship(candidate, cycle, decision, at) do
+    with :ok <- remember_follower(candidate, at),
+         :ok <- remember_friend_references(cycle, decision) do
+      :ok
+    end
+  end
+
+  defp remember_follower(%{reason: "follow", author: %{did: did}}, at)
+       when is_binary(did) do
+    case FriendList.record_follows_agent(did, at) do
+      {:ok, _relationship} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp remember_follower(_candidate, _at), do: :ok
+
+  defp remember_friend_references(%{status: status}, %{text: text})
+       when status in ["acted", "simulated"] and is_binary(text) do
+    FriendList.record_text_references(text)
+  end
+
+  defp remember_friend_references(_cycle, _decision), do: :ok
 
   defp welcome_status(%{status: "simulated"}, %{action: "welcome"}, true), do: "simulated"
   defp welcome_status(_cycle, %{action: "welcome"}, true), do: "completed"

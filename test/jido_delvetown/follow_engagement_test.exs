@@ -2,7 +2,7 @@ defmodule JidoDelvetown.FollowEngagementTest do
   use ExUnit.Case, async: false
 
   alias JidoDelvetown.{Agent, Protocol, ReactiveParticipationCycle, Repo}
-  alias JidoDelvetown.Storage.{Actor, Effect, InteractionEvent, ScanState}
+  alias JidoDelvetown.Storage.{Actor, ActorRelationship, Effect, InteractionEvent, ScanState}
   alias JidoDelvetown.Test.{FakeDecision, FakeSession, FakeTransport}
 
   setup do
@@ -59,6 +59,9 @@ defmodule JidoDelvetown.FollowEngagementTest do
     key = Protocol.effect_key("follow", ["did:plc:follower"])
     assert %Effect{status: "completed", actor_did: "did:plc:follower"} = Repo.get(Effect, key)
     assert %Actor{contact_count: 1} = Repo.get(Actor, "did:plc:follower")
+
+    assert %ActorRelationship{follows_agent: "yes", agent_follows: "yes"} =
+             Repo.get(ActorRelationship, "did:plc:follower")
   end
 
   test "a follow read in Delvetown remains eligible while its local event is pending" do
