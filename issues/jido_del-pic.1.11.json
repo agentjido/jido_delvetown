@@ -6,14 +6,16 @@
   "blocks": [
     "jido_del-pic.1.13"
   ],
+  "closed_at": "2026-10-06T12:57:11Z",
+  "close_reason": "Recorded immutable settings references on cycles, proposals, effects, and publications with inspection and retry coverage",
   "created": "2026-10-06T01:19:48Z",
   "description": "Record the active configuration version on participation cycles, proposals, effects, and publications so each decision can be explained later.",
   "id": "jido_del-pic.1.11",
   "labels": [],
   "parent": "jido_del-pic.1",
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Record configuration versions with actions",
   "type": "task",
-  "updated_at": "2026-10-06T12:48:55Z"
+  "updated_at": "2026-10-06T12:57:11Z"
 }
