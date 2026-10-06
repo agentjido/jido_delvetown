@@ -9,9 +9,15 @@
   "id": "jido_del-322.9",
   "labels": [],
   "parent": "jido_del-322",
+  "comments": [
+    {
+      "text": "Fixed in commit 49ffe29. Reactive scans now keep the current cursor until every observed event on the page is terminal. A regression drains two direct replies in two cycles, proves one attempt per event, advances only after both finish, and then permits a proactive like. Verification: mix compile --warnings-as-errors; 415 tests passed.",
+      "timestamp": "2026-10-06T15:44:07Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Drain observed notification events before advancing the scan cursor",
   "type": "bug",
-  "updated_at": "2026-10-06T15:41:58Z"
+  "updated_at": "2026-10-06T15:44:07Z"
 }
