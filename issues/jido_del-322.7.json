@@ -17,6 +17,10 @@
     {
       "text": "QA failed on 2026-10-06. Manual proactive job 42 completed once but chose skip with model_reason=direct_request_pending. SQLite contains seven reply events left pending from the page last completed at 2026-10-06T02:15:00Z. Manual reactive job 43 then failed on attempt 1 with cycle_failed invalid_participation_image_proposal while selecting a welcome. Protocol writes remained disabled; no like, reply, post, or follow was published. Corrective issues: created jido_del-322.8: Do not fail participation when an optional image proposal is invalid and created jido_del-322.9: Drain observed notification events before advancing the scan cursor. Both block this QA issue.",
       "timestamp": "2026-10-06T15:39:05Z"
+    },
+    {
+      "text": "Correction: the linked blockers are jido_del-322.8 and jido_del-322.9.",
+      "timestamp": "2026-10-06T15:39:14Z"
     }
   ],
   "priority": 1,
