@@ -7,14 +7,15 @@
   "blocks": [
     "jido_del-pic.2.10"
   ],
+  "closed_at": "2026-10-06T13:53:55Z",
   "created": "2026-10-06T01:19:48Z",
   "description": "Show autonomy mode, connection state, items that need attention, next scheduled work, daily budget use, and recent actions.",
   "id": "jido_del-pic.2.4",
   "labels": [],
   "parent": "jido_del-pic.2",
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Build the operator Overview",
   "type": "task",
-  "updated_at": "2026-10-06T13:44:32Z"
+  "updated_at": "2026-10-06T13:53:55Z"
 }
