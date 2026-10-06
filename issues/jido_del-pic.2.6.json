@@ -14,9 +14,15 @@
   "id": "jido_del-pic.2.6",
   "labels": [],
   "parent": "jido_del-pic.2",
+  "comments": [
+    {
+      "text": "The redesigned Drafts view is the UI host for controlled ReqLLM generation in jido_del-nki.7.",
+      "timestamp": "2026-10-06T01:50:19Z"
+    }
+  ],
   "priority": 1,
   "status": "open",
   "title": "Build Drafts and Approvals",
   "type": "task",
-  "updated_at": "2026-10-06T01:50:18Z"
+  "updated_at": "2026-10-06T01:50:19Z"
 }
