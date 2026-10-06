@@ -15,9 +15,15 @@
   "id": "jido_del-pic.1.7",
   "labels": [],
   "parent": "jido_del-pic.1",
+  "comments": [
+    {
+      "text": "Image-generation behavior settings are defined by jido_del-nki.5 and use the runtime settings service from this configuration epic.",
+      "timestamp": "2026-10-06T01:50:19Z"
+    }
+  ],
   "priority": 1,
   "status": "open",
   "title": "Move agent behavior settings to SQLite",
   "type": "task",
-  "updated_at": "2026-10-06T01:50:18Z"
+  "updated_at": "2026-10-06T01:50:19Z"
 }
