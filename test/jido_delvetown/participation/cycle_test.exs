@@ -401,7 +401,7 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:create_record, _collection, _record, _rkey}
   end
 
-  test "a reactive welcome discards image fields and reaches one terminal state" do
+  test "a reactive welcome is rejected and its image fields are discarded" do
     RuntimeSettings.update!(dry_run_mark_actioned: true)
     follow_uri = "at://did:plc:new-follower/town.delve.graph.follow/one"
 
@@ -437,7 +437,7 @@ defmodule JidoDelvetown.CycleTest do
       {:ok,
        %{
          action: "welcome",
-         text: "Welcome to DelveTown. I hope your first build goes well.",
+         text: "Welcome to DelveTown; your OTP note was clear.",
          topic: "welcome",
          reason: "Welcome a new follower",
          image_prompt: "An image field that is not valid for a welcome",
@@ -448,13 +448,14 @@ defmodule JidoDelvetown.CycleTest do
     assert {:ok, state} =
              Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
 
-    assert state.last_run.status == "simulated"
+    assert state.last_run.status == "failed"
     assert state.last_run.action == "welcome"
+    assert state.last_run.errors == ["action_not_allowed_for_intent"]
     refute Map.has_key?(state.last_run.proposal, :image_prompt)
     refute Map.has_key?(state.last_run.proposal, :image_alt_text)
 
     event = Repo.get_by!(InteractionEvent, source_id: follow_uri)
-    assert event.state == "completed"
+    assert event.state == "failed"
     assert event.attempt_count == 1
     assert event.payload["image_prompt"] == nil
     assert event.payload["image_alt_text"] == nil

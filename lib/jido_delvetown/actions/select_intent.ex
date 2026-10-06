@@ -15,7 +15,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     OptOut,
     OutgoingLikePolicy,
     Protocol,
-    Session
+    Session,
+    WelcomePost
   }
 
   alias JidoDelvetown.Settings.Behavior
@@ -25,7 +26,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
   @actions %{
     "answer_direct_request" => ["reply", "skip"],
     "continue_conversation" => ["reply", "skip"],
-    "respond_to_new_follow" => ["acknowledge", "follow", "welcome", "skip"],
+    "respond_to_new_follow" => ["acknowledge", "follow", "skip"],
     "welcome_new_member" => ["welcome", "skip"],
     "join_useful_discussion" => ["reply", "like", "repost", "skip"],
     "publish_daily_note" => ["post", "skip"],
@@ -199,7 +200,7 @@ defmodule JidoDelvetown.Actions.SelectIntent do
         {:ok, select(cycle, "skip", candidate, "welcome_budget_exhausted", true)}
 
       true ->
-        {:ok, select(cycle, "welcome_new_member", candidate)}
+        select_member_introduction(cycle, candidate)
     end
   end
 
@@ -316,11 +317,33 @@ defmodule JidoDelvetown.Actions.SelectIntent do
       "follow",
       Map.get(state.budget, :follows, 0) < limits.daily_follow_limit
     )
-    |> maybe_add_budgeted_action(
-      "welcome",
-      Map.get(state.budget, :welcomes, 0) < limits.daily_welcome_limit
-    )
     |> Kernel.++(["skip"])
+  end
+
+  defp select_member_introduction(cycle, candidate) do
+    case WelcomePost.attach_relevant_introduction(candidate) do
+      {:ok, candidate} ->
+        {:ok,
+         cycle
+         |> Map.update!(:reads, &(&1 + 1))
+         |> select("welcome_new_member", candidate)}
+
+      {:skip, reason} ->
+        {:ok,
+         cycle
+         |> Map.update!(:reads, &(&1 + 1))
+         |> select("skip", candidate, error_text(reason))}
+
+      {:error, reason} ->
+        {:ok,
+         cycle
+         |> Map.update!(:reads, &(&1 + 1))
+         |> Map.merge(%{
+           status: "failed",
+           stage: "introduction_read",
+           errors: [error_text(reason)]
+         })}
+    end
   end
 
   defp maybe_add_budgeted_action(actions, action, true), do: actions ++ [action]

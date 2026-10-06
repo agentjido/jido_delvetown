@@ -13,7 +13,7 @@ defmodule JidoDelvetown.PersonalityTest do
     assert character.voice.vocabulary == :technical
     assert Personality.base_prompt() =~ Personality.to_system_prompt(character)
     assert character.extensions.delvetown.mission =~ "BEAM agent engineering"
-    assert length(character.extensions.delvetown.response_patterns) == 6
+    assert length(character.extensions.delvetown.response_patterns) == 7
   end
 
   test "the shared identity names the project, tools, and creator" do
@@ -63,6 +63,7 @@ defmodule JidoDelvetown.PersonalityTest do
     assert base =~ "design discussion: Name the important seam"
     assert base =~ "correction: Name the error"
     assert base =~ "daily note: Share one real observation"
+    assert base =~ "new member welcome: Respond only to a relevant introduction post"
   end
 
   test "the operational disclosure is separate from the model prompt" do

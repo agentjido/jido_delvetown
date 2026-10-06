@@ -132,36 +132,20 @@ defmodule JidoDelvetown.FollowEngagementTest do
     assert %Effect{status: "completed", attempt_count: 1} = Repo.get(Effect, key)
   end
 
-  test "a welcome uses the actor DID as one stable public effect" do
+  test "a new follow cannot produce a public welcome" do
     configure_follow("follow-welcome")
-    decide("welcome", "Welcome. The OTP failure-boundary threads may be useful to you.")
+    decide("welcome", "Welcome to DelveTown.")
 
     assert {:ok, state} = run()
-    assert state.last_run.status == "acted"
-    assert state.budget.welcomes == 1
-    assert state.budget.posts == 0
-
-    assert_received {:create_record, "town.delve.feed.post", record, _rkey}
-    assert record.text =~ "@follower.test"
-    assert [facet] = record.facets
-
-    assert facet.features == [
-             %{"$type" => "town.delve.richtext.facet#mention", did: "did:plc:follower"}
-           ]
-
-    key = Protocol.effect_key("welcome", ["did:plc:follower"])
-
-    assert %Effect{
-             status: "completed",
-             kind: "welcome",
-             subject_key: "did:plc:follower",
-             actor_did: "did:plc:follower"
-           } = Repo.get(Effect, key)
-
-    assert Repo.get!(Actor, "did:plc:follower").welcome_status == "completed"
+    assert state.last_run.status == "failed"
+    assert state.last_run.errors == ["action_not_allowed_for_intent"]
+    assert_received {:decision, "respond_to_new_follow", payload}
+    assert payload.allowed_actions == ["acknowledge", "follow", "skip"]
+    refute_received {:create_record, "town.delve.feed.post", _record, _rkey}
+    assert Repo.get(Effect, Protocol.effect_key("welcome", ["did:plc:follower"])) == nil
   end
 
-  test "daily follow and welcome limits remove those actions from a new follow" do
+  test "the daily follow limit removes follow from a new follow" do
     RuntimeSettings.update!(daily_follow_limit: 0, daily_welcome_limit: 0)
     configure_follow("follow-limits")
     decide("acknowledge")

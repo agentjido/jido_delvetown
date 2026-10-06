@@ -134,6 +134,10 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
       action == "welcome" and not valid_welcome_actor?(cycle.candidate) ->
         {:error, :invalid_welcome_actor}
 
+      action == "welcome" and cycle.intent == "welcome_new_member" and
+          not WelcomePost.valid_introduction?(cycle.candidate) ->
+        {:error, :invalid_welcome_context}
+
       true ->
         :ok
     end

@@ -58,8 +58,9 @@ defmodule JidoDelvetown.MemberEngagementTest do
   test "discovers and welcomes a recent member who does not follow the agent" do
     RuntimeSettings.update!(member_discovery_limit: 7)
     joined_at = recent_time(-10)
-    configure_members([member("did:plc:new-member", joined_at)])
-    welcome_decision("A failure-boundary thread is a useful first stop in town.")
+    did = "did:plc:new-member"
+    configure_members([member(did, joined_at)], introduction_feed(did))
+    welcome_decision("Welcome to DelveTown; your OTP failure-boundary note was clear.")
 
     assert {:ok, state} = run()
     assert state.last_run.kind == "members"
@@ -88,7 +89,8 @@ defmodule JidoDelvetown.MemberEngagementTest do
              }
            ]
 
-    refute Map.has_key?(record, :reply)
+    assert record.reply.parent.uri ==
+             "at://did:plc:new-member/town.delve.feed.post/3mx6intro"
 
     event_key = InteractionLedger.event_key("new_member", ["did:plc:new-member"])
     assert %InteractionEvent{state: "completed"} = Repo.get(InteractionEvent, event_key)
@@ -102,15 +104,15 @@ defmodule JidoDelvetown.MemberEngagementTest do
   test "a repeated and overlapping discovery does not repeat a welcome after restart" do
     joined_at = recent_time(-10)
     actor = member("did:plc:overlap", joined_at)
-    configure_members([actor])
-    welcome_decision("Welcome. The supervision discussions may fit your profile.")
+    configure_members([actor], introduction_feed(actor["did"]))
+    welcome_decision("Welcome to DelveTown; your OTP supervision note was specific.")
 
     assert {:ok, _state} = run()
     assert_received {:decision, "welcome_new_member", _payload}
     assert_received {:create_record, "town.delve.feed.post", _record, _rkey}
 
     assert {:ok, _scan} = ScanProgress.put_cursor("members", nil)
-    configure_members([actor])
+    configure_members([actor], introduction_feed(actor["did"]))
 
     assert {:ok, state} = run(Agent.new!().state)
     assert state.last_run.status == "skipped"
@@ -126,14 +128,14 @@ defmodule JidoDelvetown.MemberEngagementTest do
     second_time = recent_time(-10)
     first = member("did:plc:first", first_time)
     second = member("did:plc:second", second_time)
-    welcome_decision("Welcome. Your profile points to a useful systems discussion.")
+    welcome_decision("Welcome to DelveTown; your OTP systems note was clear.")
 
-    configure_members([first])
+    configure_members([first], introduction_feed(first["did"]))
     assert {:ok, first_state} = run()
     assert_received {:decision, "welcome_new_member", first_payload}
     assert first_payload.candidate.id == "did:plc:first"
 
-    configure_members([second, first])
+    configure_members([second, first], introduction_feed(second["did"]))
     assert {:ok, _second_state} = run(first_state)
     assert_received {:decision, "welcome_new_member", second_payload}
     assert second_payload.candidate.id == "did:plc:second"
@@ -165,6 +167,35 @@ defmodule JidoDelvetown.MemberEngagementTest do
     refute_received {:decision, _intent, _payload}
   end
 
+  test "a member without a relevant introduction is not welcomed" do
+    did = "did:plc:no-introduction"
+    configure_members([member(did, recent_time(-10))])
+
+    assert {:ok, state} = run()
+    assert state.last_run.status == "skipped"
+    assert state.last_run.proposal.reason == "no_relevant_introduction"
+    refute_received {:decision, _intent, _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    event_key = InteractionLedger.event_key("new_member", [did])
+    assert Repo.get!(InteractionEvent, event_key).state == "ignored"
+  end
+
+  test "a generic introduction without a shared topic is not welcomed" do
+    did = "did:plc:generic-introduction"
+
+    configure_members(
+      [member(did, recent_time(-10))],
+      introduction_feed(did, "Hello DelveTown. This is my first post.")
+    )
+
+    assert {:ok, state} = run()
+    assert state.last_run.status == "skipped"
+    assert state.last_run.proposal.reason == "no_relevant_introduction"
+    refute_received {:decision, _intent, _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
   test "an old member is observed but not contacted" do
     configure_members([member("did:plc:old", recent_time(-48 * 60))])
 
@@ -193,7 +224,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
     did = "did:plc:intro-member"
     joined_at = recent_time(-10)
     configure_members([member(did, joined_at)], introduction_feed(did))
-    welcome_decision("The OTP discussions may be useful to you.")
+    welcome_decision("Welcome to DelveTown; your OTP supervision note was clear.")
 
     assert {:ok, state} = run()
     assert state.last_run.status == "acted"
@@ -219,12 +250,12 @@ defmodule JidoDelvetown.MemberEngagementTest do
     did = "did:plc:unresolved"
     joined_at = recent_time(-10)
 
-    configure_members([member(did, joined_at)], [], %{
+    configure_members([member(did, joined_at)], introduction_feed(did), %{
       "did" => "did:plc:different",
       "handle" => "unresolved.delve.town"
     })
 
-    welcome_decision("Welcome to the systems discussions.")
+    welcome_decision("Welcome to DelveTown; your OTP supervision note was clear.")
 
     assert {:ok, state} = run()
     assert state.last_run.status == "failed"
@@ -241,7 +272,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
     did = "did:plc:dry-member"
     joined_at = recent_time(-10)
     configure_members([member(did, joined_at)], introduction_feed(did))
-    welcome_decision("What are you building with OTP?")
+    welcome_decision("Welcome to DelveTown; your OTP supervision note was clear.")
 
     assert {:ok, state} = run()
     assert state.last_run.status == "simulated"
@@ -251,7 +282,9 @@ defmodule JidoDelvetown.MemberEngagementTest do
     event_key = InteractionLedger.event_key("new_member", [did])
     event = Repo.get!(InteractionEvent, event_key)
     assert event.state == "completed"
-    assert event.payload["text"] == "@dry-member.delve.town What are you building with OTP?"
+
+    assert event.payload["text"] ==
+             "@dry-member.delve.town Welcome to DelveTown; your OTP supervision note was clear."
 
     assert event.payload["publication_actor"] == %{
              "did" => did,
@@ -280,7 +313,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
     })
   end
 
-  defp introduction_feed(did) do
+  defp introduction_feed(did, text \\ "Hello DelveTown. I am learning OTP supervision.") do
     uri = "at://#{did}/town.delve.feed.post/3mx6intro"
 
     [
@@ -292,7 +325,7 @@ defmodule JidoDelvetown.MemberEngagementTest do
             "did" => did,
             "handle" => String.replace_prefix(did, "did:plc:", "") <> ".delve.town"
           },
-          "record" => %{"text" => "Hello DelveTown. This is my first post."}
+          "record" => %{"text" => text}
         }
       }
     ]

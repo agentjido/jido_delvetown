@@ -18,10 +18,63 @@ defmodule JidoDelvetown.CreativeFormatsTest do
 
   test "uses intent-specific formats" do
     follow = CreativeFormats.prepare(cycle([], "respond_to_new_follow"))
+    welcome = CreativeFormats.prepare(cycle([], "welcome_new_member"))
     note = CreativeFormats.prepare(cycle([], "publish_daily_note"))
 
-    assert follow.response_format.id == "protocol_field_note"
+    assert follow.response_format.id == "quiet_follow_response"
+    assert welcome.response_format.id == "low_pressure_welcome"
     assert note.response_format.id == "short_build_log"
+  end
+
+  test "accepts a short welcome that refers to the introduction" do
+    cycle = cycle([], "welcome_new_member") |> CreativeFormats.prepare()
+
+    decision = %{
+      action: "welcome",
+      text: "Welcome to DelveTown; your OTP supervision note was clear.",
+      topic: "OTP",
+      reason: "Relevant introduction"
+    }
+
+    assert CreativeFormats.finalize(decision, cycle).action == "welcome"
+  end
+
+  test "rejects forceful or interactive welcome language" do
+    cycle = cycle([], "welcome_new_member") |> CreativeFormats.prepare()
+
+    forceful = %{
+      action: "welcome",
+      text: "Welcome to our community; feel free to explore our resources.",
+      topic: "OTP",
+      reason: "Generic welcome"
+    }
+
+    interactive = %{
+      action: "welcome",
+      text: "Welcome! What are you building with OTP?",
+      topic: "OTP",
+      reason: "Question"
+    }
+
+    assert CreativeFormats.finalize(forceful, cycle).reason ==
+             "creative_format_validation_failed:welcome_too_forceful"
+
+    assert CreativeFormats.finalize(interactive, cycle).reason ==
+             "creative_format_validation_failed:welcome_call_to_action"
+  end
+
+  test "rejects a handle because the publisher adds the verified mention" do
+    cycle = cycle([], "welcome_new_member") |> CreativeFormats.prepare()
+
+    decision = %{
+      action: "welcome",
+      text: "Welcome, @new-member; your OTP note was clear.",
+      topic: "OTP",
+      reason: "Relevant introduction"
+    }
+
+    assert CreativeFormats.finalize(decision, cycle).reason ==
+             "creative_format_validation_failed:welcome_includes_handle"
   end
 
   test "a generic opening falls back to silence" do

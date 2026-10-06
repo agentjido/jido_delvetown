@@ -19,6 +19,24 @@ defmodule JidoDelvetown.WelcomePost do
     "introduce myself",
     "introduction"
   ]
+  @shared_topic_terms ["beam", "elixir", "erlang", "otp", "jido"]
+  @shared_topic_phrases ["ai agent", "agent architecture", "agent framework", "multi-agent"]
+
+  def attach_relevant_introduction(%{reason: "new_member", author: %{did: did}} = candidate)
+      when is_binary(did) do
+    case Protocol.query("town.delve.feed.getAuthorFeed", %{actor: did, limit: @feed_limit}) do
+      {:ok, response} ->
+        case response |> Candidate.posts() |> Enum.find(&eligible_introduction?(&1, did)) do
+          nil -> {:skip, :no_relevant_introduction}
+          introduction -> {:ok, put_introduction(candidate, introduction)}
+        end
+
+      {:error, _reason} ->
+        {:error, :introduction_read_failed}
+    end
+  end
+
+  def attach_relevant_introduction(_candidate), do: {:skip, :no_relevant_introduction}
 
   def prepare(%{author: author} = candidate, text) when is_map(author) do
     did = value(author, :did)
@@ -130,22 +148,17 @@ defmodule JidoDelvetown.WelcomePost do
 
   def valid_identity?(did, handle), do: validate_identity(did, handle) == :ok
 
+  def valid_introduction?(%{reason: "new_member", author: %{did: did}} = candidate)
+      when is_binary(did),
+      do: eligible_introduction?(candidate, did)
+
+  def valid_introduction?(_candidate), do: false
+
   def facet_type, do: @facet_type
   def mention_type, do: @mention_type
 
-  defp introduction_target(%{reason: "new_member"}, did) do
-    case Protocol.query("town.delve.feed.getAuthorFeed", %{actor: did, limit: @feed_limit}) do
-      {:ok, response} ->
-        target =
-          response
-          |> Candidate.posts()
-          |> Enum.find(&eligible_introduction?(&1, did))
-
-        {target, 1}
-
-      {:error, _reason} ->
-        {nil, 1}
-    end
+  defp introduction_target(%{reason: "new_member"} = candidate, did) do
+    if eligible_introduction?(candidate, did), do: {candidate, 0}, else: {nil, 0}
   end
 
   defp introduction_target(_candidate, _did), do: {nil, 0}
@@ -153,7 +166,8 @@ defmodule JidoDelvetown.WelcomePost do
   defp eligible_introduction?(post, did) do
     get_in(post, [:author, :did]) == did and
       match?({:ok, _target}, safe_reply_target(post, did)) and
-      introduction_text?(Map.get(post, :text))
+      introduction_text?(Map.get(post, :text)) and
+      shared_topic_text?(Map.get(post, :text))
   end
 
   defp introduction_text?(text) when is_binary(text) do
@@ -162,6 +176,25 @@ defmodule JidoDelvetown.WelcomePost do
   end
 
   defp introduction_text?(_text), do: false
+
+  defp shared_topic_text?(text) when is_binary(text) do
+    normalized = String.downcase(text)
+
+    Enum.any?(@shared_topic_terms, fn term ->
+      Regex.match?(~r/(?:^|[^a-z0-9])#{term}(?:[^a-z0-9]|$)/u, normalized)
+    end) or Enum.any?(@shared_topic_phrases, &String.contains?(normalized, &1))
+  end
+
+  defp shared_topic_text?(_text), do: false
+
+  defp put_introduction(candidate, introduction) do
+    candidate
+    |> Map.put(:uri, introduction.uri)
+    |> Map.put(:cid, introduction.cid)
+    |> Map.put(:root, introduction.root)
+    |> Map.put(:text, introduction.text)
+    |> Map.put(:welcome_context, %{kind: "introduction_post", topic_match?: true})
+  end
 
   defp put_target(candidate, nil),
     do: candidate |> Map.put(:uri, nil) |> Map.put(:cid, nil) |> Map.put(:root, nil)
