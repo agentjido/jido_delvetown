@@ -6,6 +6,7 @@
     "jido_del-pic.2.2"
   ],
   "blocks": [
+    "jido_del-nki.7",
     "jido_del-pic.2.10"
   ],
   "created": "2026-10-06T01:19:48Z",
@@ -17,5 +18,5 @@
   "status": "open",
   "title": "Build Drafts and Approvals",
   "type": "task",
-  "updated_at": "2026-10-06T01:20:12Z"
+  "updated_at": "2026-10-06T01:50:18Z"
 }
