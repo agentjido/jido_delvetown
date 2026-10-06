@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-pic.1.7"
+  ],
   "blocks": [],
   "created": "2026-10-06T01:19:48Z",
   "description": "Add observe, review, and autonomous modes. Define valid action behavior for each mode and require explicit confirmation before autonomous writes become active.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Add explicit autonomy modes",
   "type": "task",
-  "updated_at": "2026-10-06T01:19:48Z"
+  "updated_at": "2026-10-06T01:20:10Z"
 }
