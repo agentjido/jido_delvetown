@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-pic.2.2"
+  ],
   "blocks": [],
   "created": "2026-10-06T01:19:48Z",
   "description": "Show autonomy mode, connection state, items that need attention, next scheduled work, daily budget use, and recent actions.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Build the operator Overview",
   "type": "task",
-  "updated_at": "2026-10-06T01:19:48Z"
+  "updated_at": "2026-10-06T01:20:10Z"
 }
