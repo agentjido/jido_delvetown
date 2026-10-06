@@ -59,8 +59,8 @@ defmodule JidoDelvetown.ImageGenerator.Request do
          {:ok, output_format} <- normalize_output_format(value(attrs, :output_format, :png)),
          {:ok, timeout_ms} <- normalize_timeout(value(attrs, :timeout_ms, @default_timeout_ms)),
          {:ok, provider_options} <-
-           require_map(value(attrs, :provider_options, %{}), :provider_options),
-         {:ok, metadata} <- require_map(value(attrs, :metadata, %{}), :metadata) do
+           normalize_json_map(value(attrs, :provider_options, %{}), :provider_options),
+         {:ok, metadata} <- normalize_json_map(value(attrs, :metadata, %{}), :metadata) do
       {:ok,
        %__MODULE__{
          prompt: prompt,
@@ -191,8 +191,49 @@ defmodule JidoDelvetown.ImageGenerator.Request do
     invalid(:timeout_ms, "must be from #{@min_timeout_ms} through #{@max_timeout_ms}")
   end
 
-  defp require_map(value, _key) when is_map(value), do: {:ok, value}
-  defp require_map(_value, key), do: invalid(key, "must be a map")
+  defp normalize_json_map(value, key) when is_map(value) do
+    case json_safe(value) do
+      {:ok, normalized} -> {:ok, normalized}
+      :error -> invalid(key, "must contain JSON-safe values")
+    end
+  end
+
+  defp normalize_json_map(_value, key), do: invalid(key, "must be a map")
+
+  defp json_safe(nil), do: {:ok, nil}
+
+  defp json_safe(value) when is_binary(value) or is_number(value) or is_boolean(value),
+    do: {:ok, value}
+
+  defp json_safe(value) when is_atom(value), do: {:ok, Atom.to_string(value)}
+
+  defp json_safe(value) when is_tuple(value) do
+    value |> Tuple.to_list() |> json_safe()
+  end
+
+  defp json_safe(value) when is_list(value) do
+    Enum.reduce_while(value, {:ok, []}, fn item, {:ok, items} ->
+      case json_safe(item) do
+        {:ok, normalized} -> {:cont, {:ok, [normalized | items]}}
+        :error -> {:halt, :error}
+      end
+    end)
+    |> case do
+      {:ok, items} -> {:ok, Enum.reverse(items)}
+      :error -> :error
+    end
+  end
+
+  defp json_safe(value) when is_map(value) do
+    Enum.reduce_while(value, {:ok, %{}}, fn {key, item}, {:ok, items} ->
+      case json_safe(item) do
+        {:ok, normalized} -> {:cont, {:ok, Map.put(items, to_string(key), normalized)}}
+        :error -> {:halt, :error}
+      end
+    end)
+  end
+
+  defp json_safe(_value), do: :error
 
   defp value(attrs, key, default \\ nil) do
     case Map.fetch(attrs, key) do
