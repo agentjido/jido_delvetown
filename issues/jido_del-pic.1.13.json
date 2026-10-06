@@ -6,6 +6,7 @@
     "jido_del-pic.2.3"
   ],
   "blocks": [],
+  "closed_at": "2026-10-06T13:43:51Z",
   "created": "2026-10-06T01:19:48Z",
   "description": "Verify a fresh clone can install, start without a configuration file, complete browser setup, restart, and use the saved SQLite configuration.",
   "id": "jido_del-pic.1.13",
@@ -18,8 +19,8 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Verify clone-first startup and configuration persistence",
   "type": "task",
-  "updated_at": "2026-10-06T13:36:30Z"
+  "updated_at": "2026-10-06T13:43:51Z"
 }
