@@ -3,7 +3,9 @@
   "blocked_by": [
     "jido_del-nki.1"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-nki.4"
+  ],
   "created": "2026-10-06T01:49:52Z",
   "description": "Implement image generation through ReqLLM.generate_image/3 with injectable test adapters. Read the OpenAI key from the existing external secret source. Return canonical bytes and metadata without writing a DelveTown record.",
   "id": "jido_del-nki.3",
