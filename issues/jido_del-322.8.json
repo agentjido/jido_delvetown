@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T15:39:05Z",
+  "description": "A live reactive review selected a welcome action but failed the whole cycle with invalid_participation_image_proposal. Optional image-generation metadata must be discarded or converted to a text-only proposal when it is invalid. The event must reach one durable terminal state without a duplicate job or external effect. Add regression tests for reactive and proactive cycles.",
+  "id": "jido_del-322.8",
+  "labels": [],
+  "parent": "jido_del-322",
+  "priority": 1,
+  "status": "open",
+  "title": "Do not fail participation when an optional image proposal is invalid",
+  "type": "bug",
+  "updated_at": "2026-10-06T15:39:05Z"
+}
