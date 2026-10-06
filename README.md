@@ -35,7 +35,8 @@ Give Jido the account handle and the app password. Do not give Jido the main
 account password. The app password can be revoked without changing the main
 account password.
 
-Set the temporary account variables and the remaining process settings:
+Set the account variables for the one-time legacy import. Keep the model API
+key in the environment because the application does not save it in SQLite:
 
 ```sh
 export DELVETOWN_IDENTIFIER="bot-handle-or-email"
@@ -55,8 +56,17 @@ must call the Delvetown membership join operation.
 `DELVETOWN_DATA_DIR` is optional. It defaults to `tmp/jido_delvetown`. This one
 directory contains one SQLite database for all local durable state. Use one
 local BEAM instance for this directory. On the first SQLite start, the
-application imports the former DETS store and file checkpoint when they exist.
-It keeps those legacy files unchanged after the import.
+application imports eligible `DELVETOWN_*` runtime values, the former DETS
+store, and the file checkpoint when they exist. It saves a final import marker.
+Later environment changes do not overwrite SQLite settings. The import excludes
+`OPENAI_API_KEY`, bootstrap paths, and one-time setup inputs. It keeps the
+legacy DETS and checkpoint files unchanged.
+
+Preview the eligible environment settings without showing private values:
+
+```elixir
+JidoDelvetown.Settings.LegacyEnvImporter.preview()
+```
 
 SQLite keeps the Jido checkpoint, runtime settings, bounded decision state,
 daily budget, recent topics, processed record IDs, conversation summaries,
@@ -111,8 +121,10 @@ mix deps.get
 iex -S mix
 ```
 
-Save the temporary account values in runtime settings. This operation encrypts
-the app password. The default PDS URL and AppView DID are already present.
+The first start imports the temporary account values and encrypts the app
+password. For a new installation without legacy values, or for later changes,
+write settings directly. The default PDS URL and AppView DID are already
+present.
 
 ```elixir
 JidoDelvetown.Settings.update(

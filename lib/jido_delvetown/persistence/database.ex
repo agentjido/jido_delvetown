@@ -5,6 +5,7 @@ defmodule JidoDelvetown.Database do
 
   alias JidoDelvetown.{Config, InteractionEvents, LegacyImporter, Repo}
   alias JidoDelvetown.Settings.Bootstrap, as: SettingsBootstrap
+  alias JidoDelvetown.Settings.LegacyEnvImporter
   alias JidoDelvetown.Settings.SecretStore
 
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -26,9 +27,9 @@ defmodule JidoDelvetown.Database do
 
   defp import_legacy_state do
     if Config.legacy_import_enabled?() do
-      case LegacyImporter.run() do
-        {:ok, _result} -> :ok
-        {:error, reason} -> {:error, reason}
+      with {:ok, _settings_result} <- LegacyEnvImporter.run(),
+           {:ok, _state_result} <- LegacyImporter.run() do
+        :ok
       end
     else
       :ok
