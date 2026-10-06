@@ -5,7 +5,8 @@
   ],
   "blocks": [
     "jido_del-iy2.6",
-    "jido_del-iy2.9"
+    "jido_del-iy2.9",
+    "jido_del-pic.2.6"
   ],
   "created": "2026-10-06T00:40:42Z",
   "description": "Add an operator entry point that stages an existing local image with caption and alt text without publishing it. Show staged image drafts in the local dashboard with image preview, metadata, validation state, upload state, and publication state. Add a confirmed manual publish action under the existing manual-publish permission. Dry-run and review modes must not upload a blob or create a post. The interface must be suitable for a later ReqLLM image-generation flow to call without change.",
@@ -16,5 +17,5 @@
   "status": "in_progress",
   "title": "Add image dry-run preview and manual publication",
   "type": "task",
-  "updated_at": "2026-10-06T01:16:03Z"
+  "updated_at": "2026-10-06T01:20:11Z"
 }
