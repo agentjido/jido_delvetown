@@ -7,14 +7,15 @@
     "jido_del-pic.1.12",
     "jido_del-pic.2.9"
   ],
+  "closed_at": "2026-10-06T12:39:56Z",
   "created": "2026-10-06T01:19:48Z",
   "description": "Move reply, post, welcome, follow, like, discovery, friend-sync, and conversation limits to validated SQLite settings.",
   "id": "jido_del-pic.1.8",
   "labels": [],
   "parent": "jido_del-pic.1",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Move limits and budgets to SQLite",
   "type": "task",
-  "updated_at": "2026-10-06T12:30:13Z"
+  "updated_at": "2026-10-06T12:39:56Z"
 }
