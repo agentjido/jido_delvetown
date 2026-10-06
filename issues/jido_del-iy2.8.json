@@ -12,6 +12,12 @@
   "id": "jido_del-iy2.8",
   "labels": [],
   "parent": "jido_del-iy2",
+  "comments": [
+    {
+      "text": "Verified existing completed publication; no new write made. Draft agentjido:self-portrait:v1 is published from artifact sha256:be2f3ef355ac38b92e7edb18d11f67f7f747c70dca161c52a698c51b9fcbfd2c (image/png, 1753013 bytes, 1024x1024). Stable effect image_post:aSNqmy9UlgllJxAgDK-_yuGn6Od2kCkdCTPrCzceVw0 is completed with attempt_count 1. Receipt URI at://did:plc:clgojauynzgakkh7t7nivgsc/town.delve.feed.post/3mx6bszeitj26 and CID bafyreif3nrhkn3wtp7uclyegfrtgy4n6gxpgcez7vsz2lz5qmqrchw32e4 match protocol readback. Public URL: https://delve.town/profile/did:plc:clgojauynzgakkh7t7nivgsc/post/3mx6bszeitj26. Protocol listRecords returned exactly one record with the exact self-portrait caption. Record has no reply field and has one image. Existing completed draft/effect is the idempotent retry source.",
+      "timestamp": "2026-10-06T15:26:10Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Publish one AgentJido self-portrait as a top-level post",
