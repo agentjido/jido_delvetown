@@ -1,7 +1,11 @@
 defmodule JidoDelvetown.DatabaseTest do
   use ExUnit.Case, async: false
 
+  import Ecto.Query
+
   alias JidoDelvetown.{Config, Repo}
+  alias JidoDelvetown.Settings.{Bootstrap, Contract}
+  alias JidoDelvetown.Storage.{Settings, SettingsRevision}
 
   test "the application starts one migrated SQLite database" do
     assert Process.alive?(Process.whereis(Repo))
@@ -22,6 +26,30 @@ defmodule JidoDelvetown.DatabaseTest do
     assert "effects" in tables
     assert "audit_events" in tables
     assert "legacy_imports" in tables
+    assert "runtime_settings" in tables
+    assert "runtime_settings_revisions" in tables
+  end
+
+  test "startup seeds one safe observe configuration and its first revision" do
+    settings = Repo.get!(Settings, Bootstrap.active_scope())
+
+    assert settings.schema_version == Contract.schema_version()
+    assert settings.version == 1
+    assert settings.values["autonomy_mode"] == "observe"
+    refute settings.values["manual_publish_enabled"]
+    refute settings.values["mark_notifications_seen"]
+
+    assert [revision] =
+             Repo.all(
+               from(revision in SettingsRevision,
+                 where: revision.settings_scope == ^settings.scope
+               )
+             )
+
+    assert revision.version == settings.version
+    assert revision.schema_version == settings.schema_version
+    assert revision.values == settings.values
+    assert revision.source == "bootstrap"
   end
 
   test "SQLite enforces foreign keys and write-ahead logging" do
