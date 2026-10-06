@@ -2,6 +2,7 @@
   "assignee": "Mike Hostetler",
   "blocked_by": [
     "jido_del-322.1",
+    "jido_del-322.10",
     "jido_del-322.4",
     "jido_del-322.6",
     "jido_del-322.8",
@@ -27,5 +28,5 @@
   "status": "in_progress",
   "title": "Verify the controlled like workflow end to end",
   "type": "task",
-  "updated_at": "2026-10-06T15:44:17Z"
+  "updated_at": "2026-10-06T15:47:38Z"
 }
