@@ -245,7 +245,12 @@ defmodule JidoDelvetown.Automation do
   end
 
   defp runtime,
-    do: Application.get_env(:jido_delvetown, :reactive_review_runtime, JidoDelvetown)
+    do:
+      Application.get_env(
+        :jido_delvetown,
+        :reactive_review_runtime,
+        JidoDelvetown.Participation.CycleRunner
+      )
 
   defp proactive_job_health(nil) do
     %{

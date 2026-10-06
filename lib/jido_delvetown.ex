@@ -8,6 +8,7 @@ defmodule JidoDelvetown do
   alias JidoDelvetown.FriendSync
   alias JidoDelvetown.Inspection
   alias JidoDelvetown.Personality
+  alias JidoDelvetown.Participation.CycleRunner
   alias JidoDelvetown.Session
   alias JidoDelvetown.Store
   alias JidoDelvetown.Transport.ProtoRune, as: Transport
@@ -16,22 +17,18 @@ defmodule JidoDelvetown do
   def disconnect, do: Session.disconnect()
 
   def agent_server do
-    case JidoDelvetown.Jido.whereis_agent(Agent.id()) do
-      pid when is_pid(pid) -> {:ok, pid}
-      nil -> {:error, :agent_not_running}
-      {:error, _reason} = error -> error
-    end
+    cycle_runner().agent_server()
   end
 
   def run_now, do: run_reactive()
   def review, do: review_reactive()
 
-  def run_reactive, do: run_cycle("jido.delvetown.reactive")
-  def review_reactive, do: run_cycle("jido.delvetown.reactive.review")
-  def run_proactive, do: run_cycle("jido.delvetown.proactive")
-  def review_proactive, do: run_cycle("jido.delvetown.proactive.review")
-  def run_member_discovery, do: run_cycle("jido.delvetown.members")
-  def review_member_discovery, do: run_cycle("jido.delvetown.members.review")
+  def run_reactive, do: cycle_runner().run_reactive()
+  def review_reactive, do: cycle_runner().review_reactive()
+  def run_proactive, do: cycle_runner().run_proactive()
+  def review_proactive, do: cycle_runner().review_proactive()
+  def run_member_discovery, do: cycle_runner().run_member_discovery()
+  def review_member_discovery, do: cycle_runner().review_member_discovery()
   def suggest_proactive, do: review_proactive()
 
   def ask_operator(query) when is_binary(query) and query != "" do
@@ -131,11 +128,6 @@ defmodule JidoDelvetown do
     end
   end
 
-  defp run_cycle(type) do
-    with {:ok, agent_server} <- agent_server(),
-         signal = Jido.Signal.new!(type, %{}, source: "/jido_delvetown/operator"),
-         {:ok, agent} <- Jido.AgentServer.call(agent_server, signal, timeout: 120_000) do
-      {:ok, agent.state.last_run}
-    end
-  end
+  defp cycle_runner,
+    do: Application.get_env(:jido_delvetown, :cycle_runner, CycleRunner)
 end

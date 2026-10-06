@@ -23,5 +23,10 @@ defmodule JidoDelvetown.Workers.MemberDiscoveryWorker do
   defp normalize_result({:error, reason}), do: {:error, reason}
 
   defp cycle_runner,
-    do: Application.get_env(:jido_delvetown, :cycle_runner, JidoDelvetown)
+    do:
+      Application.get_env(
+        :jido_delvetown,
+        :cycle_runner,
+        JidoDelvetown.Participation.CycleRunner
+      )
 end
