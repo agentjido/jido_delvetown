@@ -45,6 +45,28 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     end
   end
 
+  defmodule FakeDraftReviews do
+    def decide(kind, source_key, decision) do
+      send(
+        Application.fetch_env!(:jido_delvetown, :test_owner),
+        {:draft_reviewed, kind, source_key, decision}
+      )
+
+      Application.fetch_env!(:jido_delvetown, :draft_review_test_result)
+    end
+
+    def approved?(_kind, _source_key) do
+      Application.get_env(:jido_delvetown, :draft_review_approved, false)
+    end
+  end
+
+  defmodule FakePublisher do
+    def publish(event_key) do
+      send(Application.fetch_env!(:jido_delvetown, :test_owner), {:draft_published, event_key})
+      Application.fetch_env!(:jido_delvetown, :manual_publisher_test_result)
+    end
+  end
+
   setup do
     old_controller = Application.get_env(:jido_delvetown, :reactive_review_controller)
     old_result = Application.get_env(:jido_delvetown, :reactive_review_test_result)
@@ -57,6 +79,14 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     old_setup_status = Application.get_env(:jido_delvetown, :setup_status_test_result)
     old_setup_save = Application.get_env(:jido_delvetown, :setup_save_test_result)
     old_setup_connection = Application.get_env(:jido_delvetown, :setup_connection_test_result)
+    old_draft_reviews = Application.get_env(:jido_delvetown, :draft_reviews)
+    old_draft_review_result = Application.get_env(:jido_delvetown, :draft_review_test_result)
+    old_draft_review_approved = Application.get_env(:jido_delvetown, :draft_review_approved)
+    old_manual_publisher = Application.get_env(:jido_delvetown, :manual_publisher)
+
+    old_manual_publisher_result =
+      Application.get_env(:jido_delvetown, :manual_publisher_test_result)
+
     old_test_owner = Application.get_env(:jido_delvetown, :test_owner)
 
     Application.put_env(:jido_delvetown, :reactive_review_controller, FakeReviewController)
@@ -73,6 +103,20 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     )
 
     Application.put_env(:jido_delvetown, :test_owner, self())
+    Application.put_env(:jido_delvetown, :draft_reviews, FakeDraftReviews)
+    Application.put_env(:jido_delvetown, :manual_publisher, FakePublisher)
+
+    Application.put_env(
+      :jido_delvetown,
+      :manual_publisher_test_result,
+      {:ok, %{uri: "at://did:plc:agent/town.delve.feed.post/published"}}
+    )
+
+    Application.put_env(
+      :jido_delvetown,
+      :draft_review_test_result,
+      {:ok, %{decision: "approved"}}
+    )
 
     Application.put_env(
       :jido_delvetown,
@@ -110,6 +154,11 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       restore_env(:setup_status_test_result, old_setup_status)
       restore_env(:setup_save_test_result, old_setup_save)
       restore_env(:setup_connection_test_result, old_setup_connection)
+      restore_env(:draft_reviews, old_draft_reviews)
+      restore_env(:draft_review_test_result, old_draft_review_result)
+      restore_env(:draft_review_approved, old_draft_review_approved)
+      restore_env(:manual_publisher, old_manual_publisher)
+      restore_env(:manual_publisher_test_result, old_manual_publisher_result)
       restore_env(:test_owner, old_test_owner)
     end)
 
@@ -152,7 +201,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ ~s(role="progressbar")
     assert html =~ "Recent actions"
     assert html =~ "Direct technical question"
-    assert html =~ "Approve human-in-the-loop post"
+    refute html =~ "Approve human-in-the-loop post"
     assert html =~ ~s(id="run-proactive-review")
     assert html =~ ~s(phx-click="run_proactive_review")
     assert html =~ ~s(id="proactive-review-feedback")
@@ -378,10 +427,63 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     end
   end
 
+  test "stores a local draft review decision and returns to the drafts view" do
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+
+    assert {:noreply, updated_socket} =
+             DashboardLive.handle_event(
+               "review_draft",
+               %{
+                 "kind" => "text",
+                 "source_key" => "event:simulated-reply",
+                 "decision" => "approved"
+               },
+               socket
+             )
+
+    assert_received {:draft_reviewed, "text", "event:simulated-reply", "approved"}
+    assert updated_socket.assigns.active_tab == "drafts"
+    assert updated_socket.assigns.draft_review_notice.kind == "safe"
+    assert updated_socket.assigns.draft_review_notice.text =~ "approved"
+  end
+
+  test "requires local approval before the publish handler runs" do
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+
+    refute Application.get_env(:jido_delvetown, :draft_review_approved, false)
+
+    assert {:noreply, blocked_socket} =
+             DashboardLive.handle_event(
+               "publish_simulated",
+               %{"event_key" => "event:simulated-reply"},
+               socket
+             )
+
+    refute_received {:draft_published, _event_key}
+    assert blocked_socket.assigns.publish_notice.kind == "attention"
+    assert blocked_socket.assigns.publish_notice.text =~ "Approve this draft"
+
+    Application.put_env(:jido_delvetown, :draft_review_approved, true)
+
+    assert {:noreply, published_socket} =
+             DashboardLive.handle_event(
+               "publish_simulated",
+               %{"event_key" => "event:simulated-reply"},
+               socket
+             )
+
+    assert_received {:draft_published, "event:simulated-reply"}
+    assert published_socket.assigns.publish_notice.kind == "safe"
+  end
+
   test "renders durable simulated drafts in the simulated posts tab" do
     assigns =
       base_assigns()
-      |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:active_tab, "drafts")
       |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :simulated_posts], [
         %{
@@ -393,14 +495,17 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           response_format: "state_machine_sketch",
           intent: "answer_direct_request",
           record_uri: "at://did:plc:member/town.delve.feed.post/source-post",
-          simulated_at: "2026-10-05T12:04:00Z"
+          simulated_at: "2026-10-05T12:04:00Z",
+          review: %{state: "approved"}
         }
       ])
+      |> put_in([:drafts, :approved_count], 1)
+      |> put_in([:drafts, :type_counts, :text], 1)
 
     html = render_dashboard(assigns)
 
-    assert html =~ ~s(id="simulated-posts-panel")
-    assert html =~ "SQLite dry-run history"
+    assert html =~ ~s(id="drafts-panel")
+    assert html =~ "Local review queue"
     assert html =~ "Manual publish ready"
     assert html =~ "Give &amp; keep each failure boundary &lt;small&gt;."
     assert html =~ "State machine sketch"
@@ -417,7 +522,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
   test "replaces the publish button with the saved publication link" do
     assigns =
       base_assigns()
-      |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:active_tab, "drafts")
       |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :simulated_posts], [
         %{
@@ -438,18 +543,19 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
   end
 
   test "shows the simulated-post empty state" do
-    html = render_dashboard(Map.put(base_assigns(), :active_tab, "simulated-posts"))
+    html = render_dashboard(Map.put(base_assigns(), :active_tab, "drafts"))
 
-    assert html =~ ~s(<h1 id="page-title">Simulated actions</h1>)
-    assert html =~ ~s(aria-label="Simulated actions")
-    assert html =~ "No simulated posts yet"
-    assert html =~ "were not sent to DelveTown"
+    assert html =~ ~s(<h1 id="page-title">Drafts &amp; approvals</h1>)
+    assert html =~ ~s(id="drafts-panel")
+    assert html =~ "No post or reply draft is waiting for review"
+    assert html =~ "Approval and rejection are local"
+    assert html =~ "SQLite decisions"
   end
 
   test "shows like proposals as bodyless review cards with clear terminal state" do
     assigns =
       base_assigns()
-      |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:active_tab, "drafts")
       |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :like_proposals], [
         %{
@@ -467,7 +573,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           selection_reason: "useful discussion scored 83",
           policy_score: 83,
           selected_at: "2026-10-05T11:00:00Z",
-          budget: %{date: "2026-10-05", likes: 1, limit: 5, remaining: 4}
+          budget: %{date: "2026-10-05", likes: 1, limit: 5, remaining: 4},
+          review: %{state: "approved"}
         },
         %{
           event_key: "like:failed",
@@ -480,9 +587,13 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           selection_reason: "policy evaluation failed",
           policy_score: nil,
           selected_at: "2026-10-05T10:00:00Z",
-          budget: %{}
+          budget: %{},
+          review: %{state: "pending"}
         }
       ])
+      |> put_in([:drafts, :approved_count], 1)
+      |> put_in([:drafts, :pending_count], 1)
+      |> put_in([:drafts, :type_counts, :like], 2)
 
     html = render_dashboard(assigns)
 
@@ -493,13 +604,13 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "useful discussion scored 83"
     assert html =~ "Policy score:</strong> 83"
     assert html =~ "1 of 5 used · 4 left"
-    assert html =~ "2026-10-05T11:00:00Z"
+    assert html =~ "Oct 05 · 11:00 UTC"
     assert html =~ "View target post"
     assert html =~ "/profile/did%3Aplc%3Aauthor/post/target-one"
     assert html =~ "Publish like to DelveTown"
     assert html =~ ~s(phx-click="publish_simulated_like")
     assert html =~ ~s(phx-value-event_key="like:simulated")
-    assert html =~ "Publish this exact like to DelveTown?"
+    assert html =~ "Publish this exact approved like to DelveTown?"
     assert html =~ "Failed"
     assert html =~ "Target post text was not stored for this older proposal."
     refute html =~ ~s(phx-value-event_key="like:failed")
@@ -508,7 +619,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
   test "shows a durable published like state without another publish button" do
     assigns =
       base_assigns()
-      |> Map.put(:active_tab, "simulated-posts")
+      |> Map.put(:active_tab, "drafts")
       |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :like_proposals], [
         %{
@@ -536,7 +647,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
   test "shows local image previews and a confirmed manual publish action" do
     assigns =
       base_assigns()
-      |> Map.put(:active_tab, "image-drafts")
+      |> Map.put(:active_tab, "drafts")
       |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :image_drafts], [
         %{
@@ -547,6 +658,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           publication_state: "staged",
           inserted_at: "2026-10-05T12:04:00Z",
           post_uri: nil,
+          review: %{state: "approved"},
           artifact: %{
             digest: "sha256:preview",
             preview_data_url: "data:image/png;base64,iVBORw0KGgo=",
@@ -558,13 +670,16 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           }
         }
       ])
+      |> put_in([:drafts, :approved_count], 1)
+      |> put_in([:drafts, :type_counts, :image], 1)
 
     html = render_dashboard(assigns)
 
     assert html =~ ~s(<h1 id="page-title">Drafts &amp; approvals</h1>)
-    assert html =~ ~s(id="image-drafts-tab" class="operator-nav-link active")
-    assert html =~ ~s(id="image-drafts-panel")
-    assert html =~ "Staging and review are local"
+    assert html =~ ~s(id="drafts-tab" class="operator-nav-link active")
+    assert html =~ ~s(id="drafts-panel")
+    assert html =~ "Approval and rejection are local"
+    assert html =~ "SQLite decisions"
     assert html =~ ~s(src="data:image/png;base64,iVBORw0KGgo=")
     assert html =~ ~s(alt="A green robot writing at a workbench.")
     assert html =~ "AgentJido at the workbench."
@@ -574,13 +689,13 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "1024×1024"
     assert html =~ ~s(phx-click="publish_image")
     assert html =~ ~s(phx-value-draft_key="agentjido:self-portrait")
-    assert html =~ "Upload this image and publish this exact draft"
+    assert html =~ "Upload and publish this exact approved image"
   end
 
   test "shows a published image link instead of the publish button" do
     assigns =
       base_assigns()
-      |> Map.put(:active_tab, "image-drafts")
+      |> Map.put(:active_tab, "drafts")
       |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :image_drafts], [
         %{
@@ -616,7 +731,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
     assigns =
       base_assigns()
-      |> Map.put(:active_tab, "image-drafts")
+      |> Map.put(:active_tab, "drafts")
+      |> Map.put(:manual_publish_enabled, true)
       |> put_in([:inspection, :image_drafts], [
         %{
           draft_key: definition.draft_key,
@@ -624,6 +740,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           alt_text: definition.alt_text,
           validation_state: "valid",
           publication_state: "staged",
+          review: %{state: "approved"},
           artifact: %{
             digest: definition.expected_digest,
             preview_data_url: preview_data_url,
@@ -635,6 +752,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           }
         }
       ])
+      |> put_in([:drafts, :approved_count], 1)
+      |> put_in([:drafts, :type_counts, :image], 1)
 
     html = render_dashboard(assigns)
 
@@ -644,7 +763,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ definition.expected_digest
     assert html =~ "1024×1024"
     assert html =~ "data:image/png;base64,"
-    assert html =~ "Top-level image"
+    assert html =~ "Image post"
     assert html =~ "Publish image to DelveTown"
   end
 
@@ -834,6 +953,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       publish_notice: nil,
       like_publish_notice: nil,
       image_publish_notice: nil,
+      draft_review_notice: nil,
       character: %{
         name: "AgentJido",
         mission: "Make BEAM agent engineering easier to understand.",
@@ -846,6 +966,14 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       refreshed_label: "12:00:00 UTC",
       overview: overview_assigns(),
       inbox: inbox_assigns(),
+      drafts: %{
+        total_count: 0,
+        pending_count: 0,
+        approved_count: 0,
+        rejected_count: 0,
+        published_count: 0,
+        type_counts: %{text: 0, like: 0, image: 0}
+      },
       operational_state: %{
         key: "safe",
         label: "Safe: writes off",

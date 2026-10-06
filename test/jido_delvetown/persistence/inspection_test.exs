@@ -1,7 +1,7 @@
 defmodule JidoDelvetown.InspectionTest do
   use ExUnit.Case, async: false
 
-  alias JidoDelvetown.{ImageDrafts, Inspection, InteractionLedger, Repo}
+  alias JidoDelvetown.{DraftReviews, ImageDrafts, Inspection, InteractionLedger, Repo}
   alias JidoDelvetown.Workers.ProactiveReviewWorker
 
   alias JidoDelvetown.Storage.{
@@ -10,6 +10,7 @@ defmodule JidoDelvetown.InspectionTest do
     Conversation,
     Effect,
     ImageArtifact,
+    DraftReview,
     ImageDraft,
     InteractionEvent,
     LegacyImport,
@@ -179,10 +180,14 @@ defmodule JidoDelvetown.InspectionTest do
                source_metadata: %{source: "local_file", filename: "portrait.png"}
              })
 
+    assert {:ok, _review} = DraftReviews.decide("image", "image:preview", "approved")
+
     assert [draft] = Inspection.snapshot(image_limit: 1).image_drafts
     assert draft.draft_key == "image:preview"
     assert draft.validation_state == "valid"
     assert draft.publication_state == "staged"
+    assert draft.review.state == "approved"
+    assert is_binary(draft.review.reviewed_at)
     assert draft.post_uri == nil
     assert draft.artifact.upload_state == "staged"
     assert draft.artifact.upload_attempt_count == 0
@@ -240,6 +245,9 @@ defmodule JidoDelvetown.InspectionTest do
       terminal_at: newer
     })
 
+    assert {:ok, _review} =
+             DraftReviews.decide("text", "event:simulated-welcome", "rejected")
+
     Repo.insert!(%InteractionEvent{
       event_key: "event:acted-post",
       kind: "timeline",
@@ -258,6 +266,8 @@ defmodule JidoDelvetown.InspectionTest do
     assert [welcome, reply] = snapshot.simulated_posts
     assert welcome.action == "welcome"
     assert welcome.text == "Welcome to DelveTown. What are you building?"
+    assert welcome.review.state == "rejected"
+    assert reply.review == %{state: "pending", reviewed_at: nil}
     assert reply.action == "reply"
     assert reply.topic == "OTP"
     assert reply.response_format == "state_machine_sketch"
@@ -277,6 +287,9 @@ defmodule JidoDelvetown.InspectionTest do
     insert_like_event("failed", "target-four", "failed", "failed", "10:50:00")
     insert_like_event("duplicate-simulated", "target-one", "simulated", "completed", "11:00:00")
 
+    assert {:ok, _review} =
+             DraftReviews.decide("like", "like:duplicate-simulated", "approved")
+
     snapshot = Inspection.snapshot(simulated_limit: 10)
     proposals = Map.new(snapshot.like_proposals, &{&1.target_uri, &1})
 
@@ -286,6 +299,7 @@ defmodule JidoDelvetown.InspectionTest do
     target_one = proposals["at://did:plc:author/town.delve.feed.post/target-one"]
     assert target_one.proposal_status == "simulated"
     assert target_one.publication_state == "simulated"
+    assert target_one.review.state == "approved"
     assert target_one.target_author.handle == "author.test"
     assert target_one.post_text == "Which OTP boundary should own this failure?"
     assert target_one.selection_reason == "useful discussion scored 83"
@@ -503,6 +517,7 @@ defmodule JidoDelvetown.InspectionTest do
   defp clear_inspection_tables do
     Enum.each(
       [
+        DraftReview,
         ImageDraft,
         ImageArtifact,
         AuditEvent,

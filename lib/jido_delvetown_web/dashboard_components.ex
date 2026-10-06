@@ -50,9 +50,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   def agent_information(assigns),
     do: content(assign(assigns, :dashboard_section, :agent_information))
 
-  @spec simulated_actions(map()) :: Phoenix.LiveView.Rendered.t()
-  def simulated_actions(assigns),
-    do: content(assign(assigns, :dashboard_section, :simulated_actions))
+  @spec drafts(map()) :: Phoenix.LiveView.Rendered.t()
+  def drafts(assigns), do: content(assign(assigns, :dashboard_section, :drafts))
 
   @spec footer(map()) :: Phoenix.LiveView.Rendered.t()
   def footer(assigns), do: content(assign(assigns, :dashboard_section, :footer))
@@ -1234,6 +1233,70 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       .simulated-panel { margin-bottom: 18px; }
 
+      .drafts-shell {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .drafts-summary { display: grid; gap: 2px; }
+
+      .draft-state-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .draft-state-grid > div {
+        display: grid;
+        gap: 1px;
+        padding: 11px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .draft-state-grid strong { color: var(--text); font-size: 19px; }
+      .draft-state-grid span { color: var(--muted); font-size: 11px; }
+
+      .draft-section { display: grid; gap: 12px; }
+      .draft-section .panel-header { margin-bottom: 0; }
+
+      .draft-card {
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--line) 45%, transparent);
+      }
+
+      .social-preview-author {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 11px;
+      }
+
+      .social-preview-author > span:last-child { display: grid; min-width: 0; }
+      .social-preview-author strong { color: var(--text); font-size: 13px; }
+      .social-preview-author small { color: var(--quiet); font-size: 11px; }
+
+      .social-avatar {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        flex: 0 0 32px;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--text);
+        color: var(--canvas);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .social-avatar.muted {
+        border: 1px solid var(--line-strong);
+        background: var(--surface);
+        color: var(--muted);
+      }
+
       .simulated-intro {
         max-width: 72ch;
         margin-bottom: 18px;
@@ -1324,6 +1387,35 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         flex-wrap: wrap;
         gap: 9px 14px;
       }
+
+      .draft-review-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-left: auto;
+      }
+
+      .review-button {
+        min-height: 38px;
+        padding: 8px 13px;
+        border: 1px solid var(--line-strong);
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 720;
+      }
+
+      .review-button.approve {
+        border-color: color-mix(in srgb, var(--green) 52%, var(--line));
+        color: var(--green);
+      }
+
+      .review-button.reject { color: var(--red); }
+      .review-button:hover { border-color: currentColor; }
+      .draft-review-actions .publish-button { margin-left: 0; }
 
       .source-link {
         color: var(--cyan);
@@ -1679,6 +1771,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .overview-schedule-list li { align-items: start; flex-direction: column; gap: 2px; }
         .inbox-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .inbox-event-card { grid-template-columns: 1fr; }
+        .draft-state-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .draft-review-actions { width: 100%; margin-left: 0; }
+        .draft-review-actions button { flex: 1 1 auto; }
         .control-row { display: grid; grid-template-columns: 1fr; }
         .control-row button { width: 100%; }
       }
@@ -1722,13 +1817,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
           <span class="nav-count">{inbox_nav_count(@inbox)}</span>
         </a>
         <a
-          id="image-drafts-tab"
-          class={"operator-nav-link #{tab_class(@active_tab, "image-drafts")}"}
-          href="/?tab=image-drafts"
-          aria-current={if @active_tab == "image-drafts", do: "page"}
+          id="drafts-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "drafts")}"}
+          href="/?tab=drafts"
+          aria-current={if @active_tab == "drafts", do: "page"}
         >
           <span>Drafts &amp; approvals</span>
-          <span class="nav-count">{length(inspection_list(@inspection, [:image_drafts]))}</span>
+          <span class="nav-count">{drafts_nav_count(@drafts)}</span>
         </a>
         <span class="operator-nav-link" aria-disabled="true">
           <span>People</span><span class="nav-soon">Soon</span>
@@ -1827,12 +1922,11 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             Inbox <span class="nav-count">{inbox_nav_count(@inbox)}</span>
           </a>
           <a
-            class={"mobile-nav-link #{tab_class(@active_tab, "image-drafts")}"}
-            href="/?tab=image-drafts"
-            aria-current={if @active_tab == "image-drafts", do: "page"}
+            class={"mobile-nav-link #{tab_class(@active_tab, "drafts")}"}
+            href="/?tab=drafts"
+            aria-current={if @active_tab == "drafts", do: "page"}
           >
-            Drafts
-            <span class="nav-count">{length(inspection_list(@inspection, [:image_drafts]))}</span>
+            Drafts <span class="nav-count">{drafts_nav_count(@drafts)}</span>
           </a>
         </nav>
       </div>
@@ -2629,7 +2723,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
           >
             Run proactive review
           </button>
-          <button type="button" disabled>Approve human-in-the-loop post</button>
         </div>
       </div>
     </section>
@@ -2670,49 +2763,167 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     </details>
 
     <section
-      :if={@dashboard_section == :simulated_actions and @active_tab == "simulated-posts"}
-      id="simulated-posts-panel"
-      class="panel simulated-panel"
+      :if={@dashboard_section == :drafts and @active_tab == "drafts"}
+      id="drafts-panel"
+      class="drafts-shell"
       role="tabpanel"
-      aria-label="Simulated actions"
+      aria-labelledby="drafts-tab"
     >
-      <div class="panel-header">
-        <div>
-          <p class="panel-kicker">SQLite dry-run history</p>
-          <h2>Simulated posts</h2>
-        </div>
-        <span class="badge safe">
-          {if @manual_publish_enabled, do: "Manual publish ready", else: "Local only"}
-        </span>
-      </div>
-
-      <p class="simulated-intro">
-        These items were selected by the agent during review or dry-run cycles. They were stored
-        locally and were not sent to DelveTown. Like proposals stay separate because they have no
-        generated text body. A confirmed publish button sends only the selected item. Scheduled
-        agent writes stay off. This list refreshes every 3 seconds.
-      </p>
-
-      <p
-        :if={@publish_notice}
-        class={"publish-notice #{map_value(@publish_notice, :kind)}"}
-        role="status"
-      >
-        {map_value(@publish_notice, :text)}
-        <a
-          :if={post_url(map_value(@publish_notice, :uri), session_actor(@status))}
-          href={post_url(map_value(@publish_notice, :uri), session_actor(@status))}
-          target="_blank"
-          rel="noreferrer"
-        >
-          View published post ↗
-        </a>
-      </p>
-
-      <section id="like-proposals" class="like-proposal-section" aria-labelledby="like-heading">
+      <article class="panel drafts-summary">
         <div class="panel-header">
-          <h3 id="like-heading">Like proposals</h3>
-          <span class="count">{length(inspection_list(@inspection, [:like_proposals]))}</span>
+          <div>
+            <p class="panel-kicker">Local review queue</p>
+            <h2>Drafts and approvals</h2>
+          </div>
+          <span class={"badge #{if @manual_publish_enabled, do: "safe", else: "idle"}"}>
+            {if @manual_publish_enabled, do: "Manual publish ready", else: "Publishing locked"}
+          </span>
+        </div>
+
+        <p class="simulated-intro">
+          Review text, like, and image proposals in one place. Approval and rejection are local
+          SQLite decisions. They do not publish, upload, or change DelveTown. Publication needs a
+          separate confirmed action and the manual publish permission.
+        </p>
+
+        <div class="draft-state-grid" aria-label="Draft review counts">
+          <div><strong>{draft_count(@drafts, :pending_count)}</strong><span>Pending</span></div>
+          <div><strong>{draft_count(@drafts, :approved_count)}</strong><span>Approved</span></div>
+          <div><strong>{draft_count(@drafts, :rejected_count)}</strong><span>Rejected</span></div>
+          <div><strong>{draft_count(@drafts, :published_count)}</strong><span>Published</span></div>
+        </div>
+
+        <p
+          :if={@draft_review_notice}
+          class={"publish-notice #{map_value(@draft_review_notice, :kind)}"}
+          role="status"
+        >
+          {map_value(@draft_review_notice, :text)}
+        </p>
+      </article>
+
+      <article class="panel draft-section" aria-labelledby="text-drafts-heading">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">DelveTown post preview</p>
+            <h2 id="text-drafts-heading">Posts and replies</h2>
+          </div>
+          <span class="count">{draft_type_count(@drafts, :text)}</span>
+        </div>
+
+        <p
+          :if={@publish_notice}
+          class={"publish-notice #{map_value(@publish_notice, :kind)}"}
+          role="status"
+        >
+          {map_value(@publish_notice, :text)}
+          <a
+            :if={post_url(map_value(@publish_notice, :uri), session_actor(@status))}
+            href={post_url(map_value(@publish_notice, :uri), session_actor(@status))}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View published post ↗
+          </a>
+        </p>
+
+        <p :if={inspection_list(@inspection, [:simulated_posts]) == []} class="empty">
+          No post or reply draft is waiting for review.
+        </p>
+
+        <ol :if={inspection_list(@inspection, [:simulated_posts]) != []} class="simulated-list">
+          <li
+            :for={post <- inspection_list(@inspection, [:simulated_posts])}
+            class="simulated-card draft-card"
+          >
+            <div class="simulated-card-header">
+              <span class={"badge #{draft_state_class(text_draft_state(post))}"}>
+                {state_label(text_draft_state(post))}
+              </span>
+              <time>{draft_time(post, :simulated_at)}</time>
+            </div>
+            <div class="social-preview-author">
+              <span class="social-avatar" aria-hidden="true">J</span>
+              <span><strong>AgentJido</strong><small>@{session_actor(@status) || "local draft"}</small></span>
+            </div>
+            <blockquote class="simulated-draft">{simulated_text(post)}</blockquote>
+            <div class="simulated-meta">
+              <span><strong>Type:</strong> {state_label(map_value(post, :action, "post"))}</span>
+              <span><strong>Intent:</strong> {display(map_value(post, :intent))}</span>
+              <span><strong>Topic:</strong> {display(map_value(post, :topic))}</span>
+              <span><strong>Format:</strong> {state_label(map_value(post, :response_format))}</span>
+              <span><strong>Reason:</strong> {display(map_value(post, :reason))}</span>
+            </div>
+            <div class="simulated-actions">
+              <a
+                :if={post_url(map_value(post, :record_uri))}
+                class="source-link"
+                href={post_url(map_value(post, :record_uri))}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View source context ↗
+              </a>
+              <a
+                :if={published_post_url(post, @status)}
+                class="source-link"
+                href={published_post_url(post, @status)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View published post ↗
+              </a>
+              <span :if={published?(post)} class="published-state">Published</span>
+              <div :if={not published?(post)} class="draft-review-actions">
+                <button
+                  :if={draft_review_state(post) != "approved"}
+                  type="button"
+                  class="review-button approve"
+                  phx-click="review_draft"
+                  phx-value-kind="text"
+                  phx-value-source_key={map_value(post, :event_key)}
+                  phx-value-decision="approved"
+                  phx-disable-with="Saving…"
+                >
+                  Approve
+                </button>
+                <button
+                  :if={draft_review_state(post) != "rejected"}
+                  type="button"
+                  class="review-button reject"
+                  phx-click="review_draft"
+                  phx-value-kind="text"
+                  phx-value-source_key={map_value(post, :event_key)}
+                  phx-value-decision="rejected"
+                  phx-disable-with="Saving…"
+                >
+                  Reject
+                </button>
+                <button
+                  :if={draft_review_state(post) == "approved"}
+                  type="button"
+                  class="publish-button"
+                  phx-click="publish_simulated"
+                  phx-value-event_key={map_value(post, :event_key)}
+                  phx-disable-with="Publishing…"
+                  data-confirm="Publish this exact approved draft to DelveTown?"
+                  disabled={not @manual_publish_enabled}
+                >
+                  Publish to DelveTown
+                </button>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </article>
+
+      <article id="like-proposals" class="panel draft-section" aria-labelledby="like-drafts-heading">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Target post preview</p>
+            <h2 id="like-drafts-heading">Like proposals</h2>
+          </div>
+          <span class="count">{draft_type_count(@drafts, :like)}</span>
         </div>
 
         <p
@@ -2732,36 +2943,30 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         </p>
 
         <p :if={inspection_list(@inspection, [:like_proposals]) == []} class="empty">
-          No like proposals yet. A selected timeline post will appear here after the next review.
+          No like proposal is waiting for review.
         </p>
 
-        <ol
-          :if={inspection_list(@inspection, [:like_proposals]) != []}
-          class="simulated-list"
-        >
+        <ol :if={inspection_list(@inspection, [:like_proposals]) != []} class="simulated-list">
           <li
             :for={proposal <- inspection_list(@inspection, [:like_proposals])}
-            class="simulated-card"
+            class="simulated-card draft-card"
           >
             <div class="simulated-card-header">
-              <span class={"badge #{like_state_class(map_value(proposal, :publication_state))}"}>
-                {state_label(map_value(proposal, :publication_state))}
+              <span class={"badge #{draft_state_class(like_draft_state(proposal))}"}>
+                {state_label(like_draft_state(proposal))}
               </span>
-              <time>{display(map_value(proposal, :selected_at))}</time>
+              <time>{draft_time(proposal, :selected_at)}</time>
             </div>
-            <p class="like-target-author">
-              <strong>{like_author_label(proposal)}</strong>
-            </p>
+            <div class="social-preview-author">
+              <span class="social-avatar muted" aria-hidden="true">@</span>
+              <span><strong>{like_author_label(proposal)}</strong><small>DelveTown post</small></span>
+            </div>
             <blockquote class="simulated-draft">{like_post_text(proposal)}</blockquote>
             <div class="simulated-meta">
-              <span>
-                <strong>Selection:</strong> {display(map_value(proposal, :selection_reason))}
-              </span>
+              <span><strong>Selection:</strong> {display(map_value(proposal, :selection_reason))}</span>
               <span><strong>Policy score:</strong> {display(map_value(proposal, :policy_score))}</span>
               <span><strong>Budget:</strong> {like_budget_label(proposal)}</span>
-              <span>
-                <strong>Event:</strong> {state_label(map_value(proposal, :event_state))}
-              </span>
+              <span><strong>Event:</strong> {state_label(map_value(proposal, :event_state))}</span>
             </div>
             <div class="simulated-actions">
               <a
@@ -2774,198 +2979,173 @@ defmodule JidoDelvetownWeb.DashboardComponents do
                 View target post ↗
               </a>
               <span :if={like_published?(proposal)} class="published-state">Published</span>
-              <button
-                :if={like_publishable?(proposal)}
-                type="button"
-                class="publish-button"
-                phx-click="publish_simulated_like"
-                phx-value-event_key={map_value(proposal, :event_key)}
-                phx-disable-with="Publishing…"
-                data-confirm="Publish this exact like to DelveTown?"
-                disabled={not @manual_publish_enabled}
-              >
-                Publish like to DelveTown
-              </button>
+              <div :if={like_reviewable?(proposal)} class="draft-review-actions">
+                <button
+                  :if={draft_review_state(proposal) != "approved"}
+                  type="button"
+                  class="review-button approve"
+                  phx-click="review_draft"
+                  phx-value-kind="like"
+                  phx-value-source_key={map_value(proposal, :event_key)}
+                  phx-value-decision="approved"
+                  phx-disable-with="Saving…"
+                >
+                  Approve
+                </button>
+                <button
+                  :if={draft_review_state(proposal) != "rejected"}
+                  type="button"
+                  class="review-button reject"
+                  phx-click="review_draft"
+                  phx-value-kind="like"
+                  phx-value-source_key={map_value(proposal, :event_key)}
+                  phx-value-decision="rejected"
+                  phx-disable-with="Saving…"
+                >
+                  Reject
+                </button>
+                <button
+                  :if={draft_review_state(proposal) == "approved"}
+                  type="button"
+                  class="publish-button"
+                  phx-click="publish_simulated_like"
+                  phx-value-event_key={map_value(proposal, :event_key)}
+                  phx-disable-with="Publishing…"
+                  data-confirm="Publish this exact approved like to DelveTown?"
+                  disabled={not @manual_publish_enabled}
+                >
+                  Publish like to DelveTown
+                </button>
+              </div>
             </div>
           </li>
         </ol>
-      </section>
+      </article>
 
-      <h3>Post and reply drafts</h3>
-
-      <p :if={inspection_list(@inspection, [:simulated_posts]) == []} class="empty">
-        No simulated posts yet. A selected reply, welcome, or original post will appear here.
-      </p>
-
-      <ol
-        :if={inspection_list(@inspection, [:simulated_posts]) != []}
-        class="simulated-list"
-      >
-        <li
-          :for={post <- inspection_list(@inspection, [:simulated_posts])}
-          class="simulated-card"
-        >
-          <div class="simulated-card-header">
-            <span class="badge idle">{state_label(map_value(post, :action, "post"))}</span>
-            <time>{display(map_value(post, :simulated_at))}</time>
+      <article class="panel draft-section" aria-labelledby="image-drafts-heading">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Image post preview</p>
+            <h2 id="image-drafts-heading">Image posts</h2>
           </div>
-          <blockquote class="simulated-draft">{simulated_text(post)}</blockquote>
-          <div class="simulated-meta">
-            <span><strong>Intent:</strong> {display(map_value(post, :intent))}</span>
-            <span><strong>Topic:</strong> {display(map_value(post, :topic))}</span>
-            <span><strong>Format:</strong> {state_label(map_value(post, :response_format))}</span>
-            <span><strong>Reason:</strong> {display(map_value(post, :reason))}</span>
-          </div>
-          <div class="simulated-actions">
-            <a
-              :if={post_url(map_value(post, :record_uri))}
-              class="source-link"
-              href={post_url(map_value(post, :record_uri))}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View source context ↗
-            </a>
-            <a
-              :if={published_post_url(post, @status)}
-              class="source-link"
-              href={published_post_url(post, @status)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View published post ↗
-            </a>
-            <span :if={published?(post)} class="published-state">Published</span>
-            <button
-              :if={not published?(post)}
-              type="button"
-              class="publish-button"
-              phx-click="publish_simulated"
-              phx-value-event_key={map_value(post, :event_key)}
-              phx-disable-with="Publishing…"
-              data-confirm="Publish this exact draft to DelveTown?"
-              disabled={not @manual_publish_enabled}
-            >
-              Publish to DelveTown
-            </button>
-          </div>
-        </li>
-      </ol>
-    </section>
-
-    <section
-      :if={@dashboard_section == :simulated_actions and @active_tab == "image-drafts"}
-      id="image-drafts-panel"
-      class="panel simulated-panel"
-      role="tabpanel"
-      aria-labelledby="image-drafts-tab"
-    >
-      <div class="panel-header">
-        <div>
-          <p class="panel-kicker">SQLite image review</p>
-          <h2>Image drafts</h2>
+          <span class="count">{draft_type_count(@drafts, :image)}</span>
         </div>
-        <span class="badge safe">
-          {if @manual_publish_enabled, do: "Manual publish ready", else: "Local only"}
-        </span>
-      </div>
 
-      <p class="simulated-intro">
-        Staging and review are local. They do not upload a blob or create a DelveTown post.
-        The confirmed publish button sends only the selected image draft under the manual publish
-        permission. Scheduled writes stay off.
-      </p>
-
-      <p
-        :if={@image_publish_notice}
-        class={"publish-notice #{map_value(@image_publish_notice, :kind)}"}
-        role="status"
-      >
-        {map_value(@image_publish_notice, :text)}
-        <a
-          :if={post_url(map_value(@image_publish_notice, :uri), session_actor(@status))}
-          href={post_url(map_value(@image_publish_notice, :uri), session_actor(@status))}
-          target="_blank"
-          rel="noreferrer"
+        <p
+          :if={@image_publish_notice}
+          class={"publish-notice #{map_value(@image_publish_notice, :kind)}"}
+          role="status"
         >
-          View published post ↗
-        </a>
-      </p>
+          {map_value(@image_publish_notice, :text)}
+          <a
+            :if={post_url(map_value(@image_publish_notice, :uri), session_actor(@status))}
+            href={post_url(map_value(@image_publish_notice, :uri), session_actor(@status))}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View published post ↗
+          </a>
+        </p>
 
-      <p :if={inspection_list(@inspection, [:image_drafts]) == []} class="empty">
-        No image drafts yet. Stage a local image to review it here.
-      </p>
+        <p :if={inspection_list(@inspection, [:image_drafts]) == []} class="empty">
+          No image post is waiting for review.
+        </p>
 
-      <ol
-        :if={inspection_list(@inspection, [:image_drafts]) != []}
-        class="image-draft-grid"
-      >
-        <li
-          :for={draft <- inspection_list(@inspection, [:image_drafts])}
-          class="image-draft-card"
-        >
-          <img
-            class="image-preview"
-            src={inspection_value(draft, [:artifact, :preview_data_url])}
-            alt={map_value(draft, :alt_text, "Image draft preview")}
-          />
-          <div class="image-draft-body">
-            <div class="simulated-card-header">
-              <span class="badge idle">Top-level image</span>
-              <time>{display(map_value(draft, :inserted_at))}</time>
-            </div>
-            <h3>{display(map_value(draft, :draft_key))}</h3>
-            <p class="image-caption">{display(map_value(draft, :caption))}</p>
-            <p class="image-alt">
-              <strong>Alt text:</strong> {display(map_value(draft, :alt_text))}
-            </p>
-
-            <div class="image-state-grid" aria-label="Image draft states">
-              <div class="image-state">
-                <span>Validation</span>
-                <strong>{state_label(map_value(draft, :validation_state))}</strong>
+        <ol :if={inspection_list(@inspection, [:image_drafts]) != []} class="image-draft-grid">
+          <li
+            :for={draft <- inspection_list(@inspection, [:image_drafts])}
+            class="image-draft-card draft-card"
+          >
+            <img
+              class="image-preview"
+              src={inspection_value(draft, [:artifact, :preview_data_url])}
+              alt={map_value(draft, :alt_text, "Image draft preview")}
+            />
+            <div class="image-draft-body">
+              <div class="simulated-card-header">
+                <span class={"badge #{draft_state_class(image_draft_state(draft))}"}>
+                  {state_label(image_draft_state(draft))}
+                </span>
+                <time>{draft_time(draft, :inserted_at)}</time>
               </div>
-              <div class="image-state">
-                <span>Upload</span>
-                <strong>{state_label(inspection_value(draft, [:artifact, :upload_state]))}</strong>
+              <div class="social-preview-author">
+                <span class="social-avatar" aria-hidden="true">J</span>
+                <span><strong>AgentJido</strong><small>Image post</small></span>
               </div>
-              <div class="image-state">
-                <span>Publication</span>
-                <strong>{state_label(map_value(draft, :publication_state))}</strong>
+              <p class="image-caption">{display(map_value(draft, :caption))}</p>
+              <p class="image-alt">
+                <strong>Alt text:</strong> {display(map_value(draft, :alt_text))}
+              </p>
+
+              <div class="image-state-grid" aria-label="Image draft states">
+                <div class="image-state">
+                  <span>Validation</span><strong>{state_label(map_value(draft, :validation_state))}</strong>
+                </div>
+                <div class="image-state">
+                  <span>Upload</span><strong>{state_label(
+                    inspection_value(draft, [:artifact, :upload_state])
+                  )}</strong>
+                </div>
+                <div class="image-state">
+                  <span>Publication</span><strong>{state_label(map_value(draft, :publication_state))}</strong>
+                </div>
+              </div>
+              <p class="image-file-meta">{image_file_detail(draft)}</p>
+
+              <div class="simulated-actions">
+                <a
+                  :if={image_post_url(draft, @status)}
+                  class="source-link"
+                  href={image_post_url(draft, @status)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View published post ↗
+                </a>
+                <span :if={image_published?(draft)} class="published-state">Published</span>
+                <div :if={not image_published?(draft)} class="draft-review-actions">
+                  <button
+                    :if={draft_review_state(draft) != "approved"}
+                    type="button"
+                    class="review-button approve"
+                    phx-click="review_draft"
+                    phx-value-kind="image"
+                    phx-value-source_key={map_value(draft, :draft_key)}
+                    phx-value-decision="approved"
+                    phx-disable-with="Saving…"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    :if={draft_review_state(draft) != "rejected"}
+                    type="button"
+                    class="review-button reject"
+                    phx-click="review_draft"
+                    phx-value-kind="image"
+                    phx-value-source_key={map_value(draft, :draft_key)}
+                    phx-value-decision="rejected"
+                    phx-disable-with="Saving…"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    :if={draft_review_state(draft) == "approved"}
+                    type="button"
+                    class="publish-button"
+                    phx-click="publish_image"
+                    phx-value-draft_key={map_value(draft, :draft_key)}
+                    phx-disable-with="Publishing…"
+                    data-confirm="Upload and publish this exact approved image to DelveTown?"
+                    disabled={not @manual_publish_enabled}
+                  >
+                    Publish image to DelveTown
+                  </button>
+                </div>
               </div>
             </div>
-
-            <p class="image-file-meta">
-              {image_file_detail(draft)}
-            </p>
-
-            <div class="simulated-actions">
-              <a
-                :if={image_post_url(draft, @status)}
-                class="source-link"
-                href={image_post_url(draft, @status)}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View published post ↗
-              </a>
-              <span :if={image_published?(draft)} class="published-state">Published</span>
-              <button
-                :if={not image_published?(draft)}
-                type="button"
-                class="publish-button"
-                phx-click="publish_image"
-                phx-value-draft_key={map_value(draft, :draft_key)}
-                phx-disable-with="Publishing…"
-                data-confirm="Upload this image and publish this exact draft to DelveTown?"
-                disabled={not @manual_publish_enabled}
-              >
-                Publish image to DelveTown
-              </button>
-            </div>
-          </div>
-        </li>
-      </ol>
+          </li>
+        </ol>
+      </article>
     </section>
 
     <p :if={@dashboard_section == :footer} class="footer-note">
@@ -3029,6 +3209,21 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp inbox_nav_count(inbox), do: inbox_actionable_count(inbox)
 
+  defp drafts_nav_count(drafts), do: draft_count(drafts, :pending_count)
+
+  defp draft_count(drafts, key) do
+    case map_value(drafts, key, 0) do
+      count when is_integer(count) and count >= 0 -> count
+      _count -> 0
+    end
+  end
+
+  defp draft_type_count(drafts, kind) do
+    drafts
+    |> map_value(:type_counts, %{})
+    |> draft_count(kind)
+  end
+
   defp inbox_proposal_label(inbox) do
     count =
       case map_value(inbox, :proposal_count, 0) do
@@ -3091,6 +3286,36 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp present_text?(value), do: is_binary(value) and String.trim(value) != ""
 
+  defp draft_review_state(item) do
+    item
+    |> map_value(:review, %{})
+    |> map_value(:state, "pending")
+  end
+
+  defp text_draft_state(post) do
+    if published?(post), do: "published", else: draft_review_state(post)
+  end
+
+  defp like_draft_state(proposal) do
+    case map_value(proposal, :publication_state) do
+      state when state in ["published", "failed", "ignored"] -> state
+      _state -> draft_review_state(proposal)
+    end
+  end
+
+  defp image_draft_state(draft) do
+    if image_published?(draft), do: "published", else: draft_review_state(draft)
+  end
+
+  defp draft_state_class("approved"), do: "safe"
+  defp draft_state_class("published"), do: "safe"
+  defp draft_state_class("rejected"), do: "attention"
+  defp draft_state_class("failed"), do: "attention"
+  defp draft_state_class("ignored"), do: "attention"
+  defp draft_state_class(_state), do: "active"
+
+  defp draft_time(item, key), do: inbox_time_label(map_value(item, key))
+
   defp action_status_class(status)
        when status in ["ok", :ok, "completed", "published", "acted"],
        do: "safe"
@@ -3108,8 +3333,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   defp tab_class(_active_tab, _tab), do: ""
 
   defp page_title("inbox"), do: "Participation inbox"
-  defp page_title("simulated-posts"), do: "Simulated actions"
-  defp page_title("image-drafts"), do: "Drafts & approvals"
+  defp page_title("drafts"), do: "Drafts & approvals"
   defp page_title(_active_tab), do: "Overview"
 
   defp autonomy_help("review"),
@@ -3154,15 +3378,10 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     end
   end
 
-  defp like_state_class(state) when state in ["failed", "ignored"], do: "attention"
-  defp like_state_class("proposed"), do: "active"
-  defp like_state_class("published"), do: "safe"
-  defp like_state_class(_state), do: "idle"
-
   defp like_published?(proposal),
     do: map_value(proposal, :publication_state) == "published"
 
-  defp like_publishable?(proposal) do
+  defp like_reviewable?(proposal) do
     map_value(proposal, :proposal_status) == "simulated" and
       map_value(proposal, :event_state) == "completed" and not like_published?(proposal)
   end

@@ -346,21 +346,21 @@ The command verifies the asset digest before it stages draft
 `agentjido:self-portrait:v1`. The caption identifies the image as an illustrated
 self-portrait by an AI agent. The alt text identifies AgentJido as a non-human
 green robot and describes the systems workbench. Review the complete post in
-the dashboard Image drafts tab before any manual publication.
+the dashboard Drafts and Approvals view before any manual publication.
 
 The large write switch near the top reports the stored `autonomy_mode`. It is a
 disabled status control. It cannot change the setting or create a protocol
 write. Use `JidoDelvetown.Settings.update/2` to change this state. The next
 cycle uses the new value.
 
-The Simulated posts tab has one publish button for each unpublished draft when
-`manual_publish_enabled` is true. Each click needs confirmation. A
-successful publication stores its receipt in SQLite and replaces the button
-with a link to the published post. The same tab shows like proposals in a
-separate review list. Each like item includes bounded target text, author,
-selection score and reason, daily budget state, and proposal or terminal state.
-An eligible simulated like has a confirmed publish button when
-`manual_publish_enabled` is true. The action reloads the live target,
+The Drafts and Approvals view shows simulated posts, replies, likes, and image
+posts. Approve and Reject write one idempotent decision to SQLite. These review
+actions do not create a DelveTown effect. An approved draft has a separate
+publish button when `manual_publish_enabled` is true. Each publication needs
+confirmation. A successful publication stores its receipt in SQLite and
+replaces the button with a link to the published post. Each like item includes
+bounded target text, author, selection score and reason, daily budget state,
+and proposal or terminal state. Publishing a like reloads the live target,
 rechecks its URI, CID, and eligibility, and uses the durable like effect before
 it sends one write. Scheduled writes remain off.
 
@@ -370,8 +370,8 @@ and the last published reply when a write receipt is available.
 The page can queue one manual reactive review or one manual proactive review
 through Oban. It disables each control while a matching job is queued or
 running and reports the job state. A manual proactive review is always
-proposal-only, even when live writes are enabled. The HITL post approval
-control is still disabled and cannot approve a post.
+proposal-only, even when live writes are enabled. The operator can approve or
+reject its saved proposal in the Drafts and Approvals view.
 
 Use runtime settings to disable the dashboard or change its local port. Restart
 the application after this change.

@@ -22,7 +22,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       :recent_events,
       :planned_controls,
       :agent_information,
-      :simulated_actions,
+      :drafts,
       :footer
     ]
 
@@ -100,10 +100,17 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
     assert html =~ "Direct question"
   end
 
-  test "simulated actions keep publish confirmation local to their component" do
+  test "drafts keep approval and publish controls local to their component" do
     html =
-      render_component(&DashboardComponents.simulated_actions/1, %{
-        active_tab: "simulated-posts",
+      render_component(&DashboardComponents.drafts/1, %{
+        active_tab: "drafts",
+        drafts: %{
+          pending_count: 0,
+          approved_count: 1,
+          rejected_count: 0,
+          published_count: 0,
+          type_counts: %{text: 1, like: 0, image: 0}
+        },
         inspection: %{
           like_proposals: [],
           simulated_posts: [
@@ -111,7 +118,8 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
               event_key: "event:test-reply",
               action: "reply",
               text: "A supervisor gives this failure boundary one owner.",
-              publication_state: "simulated"
+              publication_state: "simulated",
+              review: %{state: "approved"}
             }
           ],
           image_drafts: []
@@ -120,13 +128,52 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
         publish_notice: nil,
         like_publish_notice: nil,
         image_publish_notice: nil,
+        draft_review_notice: nil,
         status: %{}
       })
 
-    assert html =~ ~s(id="simulated-posts-panel")
+    assert html =~ ~s(id="drafts-panel")
+    assert html =~ ~s(phx-click="review_draft")
+    assert html =~ ~s(phx-value-decision="rejected")
     assert html =~ ~s(phx-click="publish_simulated")
     assert html =~ ~s(phx-value-event_key="event:test-reply")
-    assert html =~ ~s(data-confirm="Publish this exact draft to DelveTown?")
+    assert html =~ ~s(data-confirm="Publish this exact approved draft to DelveTown?")
     refute html =~ "Manual controls"
+  end
+
+  test "a pending draft cannot show a publish action" do
+    html =
+      render_component(&DashboardComponents.drafts/1, %{
+        active_tab: "drafts",
+        drafts: %{
+          pending_count: 1,
+          approved_count: 0,
+          rejected_count: 0,
+          published_count: 0,
+          type_counts: %{text: 1, like: 0, image: 0}
+        },
+        inspection: %{
+          like_proposals: [],
+          simulated_posts: [
+            %{
+              event_key: "event:pending-reply",
+              action: "reply",
+              text: "A local draft.",
+              review: %{state: "pending"}
+            }
+          ],
+          image_drafts: []
+        },
+        manual_publish_enabled: true,
+        publish_notice: nil,
+        like_publish_notice: nil,
+        image_publish_notice: nil,
+        draft_review_notice: nil,
+        status: %{}
+      })
+
+    assert html =~ ~s(phx-value-decision="approved")
+    assert html =~ ~s(phx-value-decision="rejected")
+    refute html =~ ~s(phx-click="publish_simulated")
   end
 end

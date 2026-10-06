@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Inspection do
 
   import Ecto.Query
 
-  alias JidoDelvetown.{AuditLog, Automation, Repo, Settings}
+  alias JidoDelvetown.{AuditLog, Automation, DraftReviews, Repo, Settings}
 
   alias JidoDelvetown.Storage.{
     Actor,
@@ -28,15 +28,24 @@ defmodule JidoDelvetown.Inspection do
     limit = opts |> Keyword.get(:limit, @default_limit) |> max(0)
     simulated_limit = opts |> Keyword.get(:simulated_limit, 25) |> max(0)
     image_limit = opts |> Keyword.get(:image_limit, 12) |> max(0)
+    simulated_posts = simulated_posts(repo, simulated_limit)
+    like_proposals = like_proposals(repo, simulated_limit)
+    image_drafts = image_drafts(repo, image_limit)
+
+    reviews =
+      DraftReviews.decisions(
+        repo: repo,
+        sources: review_sources(simulated_posts, like_proposals, image_drafts)
+      )
 
     %{
       events: %{
         counts: grouped_counts(repo, InteractionEvent, :state, @event_states),
         recent: recent_inbox_events(repo, limit)
       },
-      simulated_posts: simulated_posts(repo, simulated_limit),
-      like_proposals: like_proposals(repo, simulated_limit),
-      image_drafts: image_drafts(repo, image_limit),
+      simulated_posts: put_reviews(simulated_posts, reviews, "text"),
+      like_proposals: put_reviews(like_proposals, reviews, "like"),
+      image_drafts: put_reviews(image_drafts, reviews, "image"),
       actors: %{recent: recent_actors(repo, limit)},
       conversations: %{
         counts: grouped_counts(repo, Conversation, :status, ["active", "closed"]),
@@ -391,6 +400,20 @@ defmodule JidoDelvetown.Inspection do
     do: status
 
   defp like_publication_state(row), do: row.cycle_status || row.event_state
+
+  defp review_sources(simulated_posts, like_proposals, image_drafts) do
+    Enum.map(simulated_posts, &{"text", &1.event_key}) ++
+      Enum.map(like_proposals, &{"like", &1.event_key}) ++
+      Enum.map(image_drafts, &{"image", &1.draft_key})
+  end
+
+  defp put_reviews(items, reviews, kind) do
+    Enum.map(items, fn item ->
+      source_key = Map.get(item, :event_key) || Map.get(item, :draft_key)
+      review = Map.get(reviews, {kind, source_key}, %{state: "pending", reviewed_at: nil})
+      Map.put(item, :review, review)
+    end)
+  end
 
   defp recent_conversations(repo, limit) do
     repo.all(

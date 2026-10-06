@@ -3,7 +3,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   use Phoenix.LiveView
 
-  alias JidoDelvetown.{Automation, ImagePublisher, ManualPublisher}
+  alias JidoDelvetown.{Automation, DraftReviews, ImagePublisher, ManualPublisher}
   alias JidoDelvetown.Settings.{Console, Setup}
   alias JidoDelvetownWeb.{DashboardComponents, DashboardSnapshot}
 
@@ -23,6 +23,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
       |> Map.put(:publish_notice, nil)
       |> Map.put(:like_publish_notice, nil)
       |> Map.put(:image_publish_notice, nil)
+      |> Map.put(:draft_review_notice, nil)
 
     {:ok, assign(socket, assigns)}
   end
@@ -36,7 +37,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   @impl true
   def handle_event("publish_simulated", %{"event_key" => event_key}, socket) do
     notice =
-      case publisher().publish(event_key) do
+      case publish_reviewed("text", event_key, fn -> publisher().publish(event_key) end) do
         {:ok, publication} ->
           %{
             kind: "safe",
@@ -51,14 +52,14 @@ defmodule JidoDelvetownWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(DashboardSnapshot.load())
-     |> assign(:active_tab, "simulated-posts")
+     |> assign(:active_tab, "drafts")
      |> assign(:publish_notice, notice)}
   end
 
   @impl true
   def handle_event("publish_simulated_like", %{"event_key" => event_key}, socket) do
     notice =
-      case publisher().publish(event_key) do
+      case publish_reviewed("like", event_key, fn -> publisher().publish(event_key) end) do
         {:ok, publication} ->
           %{
             kind: "safe",
@@ -73,14 +74,16 @@ defmodule JidoDelvetownWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(DashboardSnapshot.load())
-     |> assign(:active_tab, "simulated-posts")
+     |> assign(:active_tab, "drafts")
      |> assign(:like_publish_notice, notice)}
   end
 
   @impl true
   def handle_event("publish_image", %{"draft_key" => draft_key}, socket) do
     notice =
-      case image_publisher().publish_manual(draft_key) do
+      case publish_reviewed("image", draft_key, fn ->
+             image_publisher().publish_manual(draft_key)
+           end) do
         {:ok, publication} ->
           %{
             kind: "safe",
@@ -95,8 +98,33 @@ defmodule JidoDelvetownWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(DashboardSnapshot.load())
-     |> assign(:active_tab, "image-drafts")
+     |> assign(:active_tab, "drafts")
      |> assign(:image_publish_notice, notice)}
+  end
+
+  @impl true
+  def handle_event(
+        "review_draft",
+        %{"kind" => kind, "source_key" => source_key, "decision" => decision},
+        socket
+      ) do
+    notice =
+      case draft_reviews().decide(kind, source_key, decision) do
+        {:ok, review} ->
+          %{
+            kind: "safe",
+            text: "The draft was #{map_value(review, :decision)} in local review memory."
+          }
+
+        {:error, reason} ->
+          %{kind: "attention", text: draft_review_error(reason)}
+      end
+
+    {:noreply,
+     socket
+     |> assign(DashboardSnapshot.load())
+     |> assign(:active_tab, "drafts")
+     |> assign(:draft_review_notice, notice)}
   end
 
   @impl true
@@ -193,7 +221,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
               <DashboardComponents.inbox {assigns} />
               <DashboardComponents.planned_controls {assigns} />
               <DashboardComponents.agent_information {assigns} />
-              <DashboardComponents.simulated_actions {assigns} />
+              <DashboardComponents.drafts {assigns} />
               <DashboardComponents.footer {assigns} />
             <% end %>
           </main>
@@ -205,10 +233,18 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_ms)
 
-  defp active_tab(%{"tab" => "simulated-posts"}), do: "simulated-posts"
   defp active_tab(%{"tab" => "inbox"}), do: "inbox"
-  defp active_tab(%{"tab" => "image-drafts"}), do: "image-drafts"
+
+  defp active_tab(%{"tab" => tab}) when tab in ["drafts", "simulated-posts", "image-drafts"],
+    do: "drafts"
+
   defp active_tab(_params), do: "overview"
+
+  defp publish_reviewed(kind, source_key, publish) do
+    if draft_reviews().approved?(kind, source_key),
+      do: publish.(),
+      else: {:error, :not_approved}
+  end
 
   defp publish_error(:manual_publish_disabled),
     do: "Manual publishing is off. Enable manual_publish_enabled in runtime settings."
@@ -217,6 +253,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp publish_error(:not_simulated), do: "This item is not a simulated draft."
   defp publish_error(:invalid_draft_text), do: "The saved draft text is not valid."
   defp publish_error(:missing_reply_target), do: "The reply target could not be loaded."
+  defp publish_error(:not_approved), do: "Approve this draft before you publish it."
   defp publish_error(_reason), do: "DelveTown did not accept the draft. Check the local logs."
 
   defp like_publish_error(:manual_publish_disabled),
@@ -224,6 +261,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp like_publish_error(:not_found), do: "The saved simulated like was not found."
   defp like_publish_error(:not_simulated), do: "This item is not a simulated like."
+  defp like_publish_error(:not_approved), do: "Approve this like before you publish it."
 
   defp like_publish_error(reason)
        when reason in [
@@ -245,6 +283,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp image_publish_error(:image_draft_not_found), do: "The saved image draft was not found."
   defp image_publish_error(:artifact_not_found), do: "The saved image file was not found."
+  defp image_publish_error(:not_approved), do: "Approve this image before you publish it."
 
   defp image_publish_error({:invalid_draft_state, state}),
     do: "The image draft cannot be published from state #{state}."
@@ -257,6 +296,9 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp image_publisher,
     do: Application.get_env(:jido_delvetown, :image_publisher, ImagePublisher)
+
+  defp draft_reviews,
+    do: Application.get_env(:jido_delvetown, :draft_reviews, DraftReviews)
 
   defp review_controller,
     do: Application.get_env(:jido_delvetown, :reactive_review_controller, Automation)
@@ -333,6 +375,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp review_error(_reason, kind),
     do: review_error({:enqueue_failed, :unknown}, kind)
+
+  defp draft_review_error(:not_found), do: "The saved draft was not found."
+  defp draft_review_error(:not_reviewable), do: "This item is not ready for review."
+  defp draft_review_error(:already_published), do: "This draft is already published."
+  defp draft_review_error(_reason), do: "The local review decision could not be saved."
 
   defp map_value(map, key, default \\ nil)
 

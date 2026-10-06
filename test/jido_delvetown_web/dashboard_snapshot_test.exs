@@ -194,6 +194,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert hd(snapshot.inbox.events).event_key == "reply:1"
     assert Enum.find(snapshot.inbox.categories, &(&1.key == "reply")).count == 1
     assert snapshot.inbox.actionable_count == 0
+    assert snapshot.drafts.total_count == 0
+    assert snapshot.drafts.pending_count == 0
     assert snapshot.theme == "dark"
     assert snapshot.setup.required?
     assert snapshot.setup.available?
@@ -242,6 +244,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.overview.autonomy.label == "Unavailable"
     assert Enum.any?(snapshot.overview.attention, &(&1.key == "runtime"))
     assert snapshot.inbox.events == []
+    assert snapshot.drafts.total_count == 0
     assert snapshot.theme == "system"
     refute snapshot.manual_publish_enabled
     assert snapshot.port == 4040
