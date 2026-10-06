@@ -6,14 +6,15 @@
   "blocks": [
     "jido_del-3zq.6"
   ],
+  "closed_at": "2026-10-06T11:30:48Z",
   "created": "2026-10-06T01:07:19Z",
   "description": "Move event identity, observation, claim, completion, stale-claim recovery, terminal checks, pending queries, manual-publication metadata, and pruning out of InteractionLedger into a focused memory event owner. Preserve current event keys, legal transitions, conflict behavior, timestamps, and retention rules. Keep a compatibility path only when it prevents a large mixed commit. Acceptance: duplicate observation, invalid transition, stale recovery, terminal checks, and publication metadata tests remain explicit and pass.",
   "id": "jido_del-3zq.5",
   "labels": [],
   "parent": "jido_del-3zq",
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Extract the interaction event state machine",
   "type": "task",
-  "updated_at": "2026-10-06T11:26:45Z"
+  "updated_at": "2026-10-06T11:30:48Z"
 }
