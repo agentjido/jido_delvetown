@@ -1,0 +1,14 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T00:59:20Z",
+  "description": "Give AgentJido a complete, safe, observable path for receiving and sending DelveTown likes. Recognize incoming likes without treating them as direct requests. Select outgoing likes under explicit eligibility rules and a separate budget. Support scheduled and manual proactive review, visible dry-run proposals, operator-approved publication, idempotent effects, and verified live QA. Keep protocol writes off by default and do not enable automatic live likes as part of this epic.",
+  "id": "jido_del-322",
+  "labels": [],
+  "priority": 1,
+  "status": "open",
+  "title": "Complete controlled like participation",
+  "type": "epic",
+  "updated_at": "2026-10-06T00:59:20Z"
+}
