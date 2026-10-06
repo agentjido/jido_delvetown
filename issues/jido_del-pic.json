@@ -1,0 +1,14 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:19:47Z",
+  "description": "Provide a clone-first AgentJido setup, store all operator configuration in SQLite, and replace the current dashboard with a clear operator console for autonomous participation.",
+  "id": "jido_del-pic",
+  "labels": [],
+  "priority": 1,
+  "status": "open",
+  "title": "Build AgentJido Operator Console v2",
+  "type": "epic",
+  "updated_at": "2026-10-06T01:19:47Z"
+}
