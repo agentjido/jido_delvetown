@@ -2,13 +2,14 @@
   "assignee": "Mike Hostetler",
   "blocked_by": [],
   "blocks": [],
+  "closed_at": "2026-10-06T15:27:00Z",
   "created": "2026-10-06T01:06:53Z",
   "description": "Reduce navigation cost and clarify ownership inside lib/jido_delvetown without changing product behavior. Group existing files by subsystem, split the large dashboard and memory modules, remove obsolete persistence paths, clarify the effect and audit boundaries, break the runtime dependency cycle, and isolate finite legacy migration code. Preserve public APIs and module names during mechanical moves. Use one focused commit per child issue and keep the package passing format, warnings-as-errors compilation, tests, and xref checks after every step.",
   "id": "jido_del-3zq",
   "labels": [],
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Reorganize Jido DelveTown by subsystem ownership",
   "type": "epic",
-  "updated_at": "2026-10-06T11:06:05Z"
+  "updated_at": "2026-10-06T15:27:00Z"
 }
