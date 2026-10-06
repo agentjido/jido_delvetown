@@ -1,8 +1,8 @@
 defmodule JidoDelvetownWeb.DashboardSnapshot do
   @moduledoc false
 
-  alias JidoDelvetown.{Automation, Config, Personality}
-  alias JidoDelvetown.Settings.{Console, Setup}
+  alias JidoDelvetown.{Automation, Personality}
+  alias JidoDelvetown.Settings.{Behavior, Connection, Console, Setup}
 
   @page_title "AgentJido / DelveTown"
 
@@ -11,7 +11,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     data_source = Keyword.get(opts, :data_source, JidoDelvetown)
     personality = Keyword.get(opts, :personality, Personality)
     review_controller = Keyword.get(opts, :review_controller, default_review_controller())
-    config = Keyword.get(opts, :config, Config)
+    behavior_settings = Keyword.get(opts, :behavior_settings, Behavior)
+    connection_settings = Keyword.get(opts, :connection_settings, Connection)
     console_settings = Keyword.get(opts, :console_settings, Console)
     setup_service = Keyword.get(opts, :setup_service, default_setup_service())
     now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now() end) |> DateTime.truncate(:second)
@@ -44,8 +45,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       proactive_review: review_status(review_controller, :proactive_review_status, :proactive),
       theme: setting_value(console_settings, :theme, "system"),
       setup: setup_status(setup_service),
-      manual_publish_enabled: config_value(config, :manual_publish_enabled?, false),
-      port: config_value(config, :dashboard_port, 4040),
+      manual_publish_enabled: direct_value(behavior_settings, :manual_publish_enabled?, false),
+      port: dashboard_port(connection_settings),
       refreshed_at: DateTime.to_iso8601(now),
       refreshed_label: Calendar.strftime(now, "%H:%M:%S UTC")
     }
@@ -83,10 +84,23 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     }
   end
 
-  defp config_value(config, function, default) do
-    case safe_read(fn -> apply(config, function, []) end) do
+  defp direct_value(service, function, default) do
+    case safe_read(fn -> apply(service, function, []) end) do
       {:ok, value} -> value
       _result -> default
+    end
+  end
+
+  defp dashboard_port(connection_settings) do
+    case safe_read(fn -> apply(connection_settings, :dashboard, []) end) do
+      {:ok, {:ok, dashboard}} when is_map(dashboard) ->
+        case map_value(dashboard, :port, 4040) do
+          port when is_integer(port) and port > 0 -> port
+          _port -> 4040
+        end
+
+      _result ->
+        4040
     end
   end
 

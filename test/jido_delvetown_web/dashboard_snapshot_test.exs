@@ -44,9 +44,12 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     def proactive_review_status, do: %{status: :queued, disabled?: true}
   end
 
-  defmodule HealthyConfig do
+  defmodule HealthyBehaviorSettings do
     def manual_publish_enabled?, do: true
-    def dashboard_port, do: 4041
+  end
+
+  defmodule HealthyConnectionSettings do
+    def dashboard, do: {:ok, %{enabled?: true, port: 4041}}
   end
 
   defmodule HealthyConsoleSettings do
@@ -79,7 +82,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     def reactive_review_status, do: exit(:reactive_unavailable)
     def proactive_review_status, do: raise("proactive unavailable")
     def manual_publish_enabled?, do: raise("config unavailable")
-    def dashboard_port, do: exit(:config_unavailable)
+    def dashboard, do: exit(:config_unavailable)
   end
 
   test "assembles the healthy dashboard display snapshot" do
@@ -88,7 +91,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         data_source: HealthyDataSource,
         personality: HealthyPersonality,
         review_controller: HealthyReviews,
-        config: HealthyConfig,
+        behavior_settings: HealthyBehaviorSettings,
+        connection_settings: HealthyConnectionSettings,
         console_settings: HealthyConsoleSettings,
         setup_service: HealthySetup,
         now: ~U[2026-10-06 12:34:56.789Z]
@@ -133,7 +137,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         data_source: UnavailableDependency,
         personality: UnavailableDependency,
         review_controller: UnavailableDependency,
-        config: UnavailableDependency,
+        behavior_settings: UnavailableDependency,
+        connection_settings: UnavailableDependency,
         console_settings: UnavailableDependency,
         setup_service: UnavailableDependency,
         now: ~U[2026-10-06 12:34:56Z]

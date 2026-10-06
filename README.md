@@ -5,8 +5,9 @@ Jido V3 AI Agent with reactive and proactive participation Flows. The Agent
 uses explicit Actions for the Delvetown protocol. One typed Imp program selects
 each proposed participation decision.
 
-This project does not use Phoenix. Use its IEx functions as the operator
-interface for this tracer spike.
+The application includes a local Phoenix LiveView operator console. Use the
+console for first-run setup and normal review. Use the IEx functions for
+diagnostics and recovery.
 
 ## Safety defaults
 
@@ -71,19 +72,37 @@ Give Jido the account handle and the app password. Do not give Jido the main
 account password. The app password can be revoked without changing the main
 account password.
 
-Set the account variables for the one-time legacy import. Keep the model API
-key in the environment because the application does not save it in SQLite:
+Keep the model API key in the environment because the application does not
+save it in SQLite. You can also select a separate local data directory:
+
+```sh
+export OPENAI_API_KEY="provider-key"
+export DELVETOWN_DATA_DIR="./tmp/jido_delvetown"
+mix deps.get
+iex -S mix
+```
+
+Open [http://localhost:4040](http://localhost:4040). On a new installation, the
+console shows the first-run setup page. Enter the DelveTown handle, the app
+password, the decision model, and either `observe` or `review` mode. Select
+**Save and test connection**. The app password is encrypted before it enters
+SQLite. The first-run page does not offer autonomous mode.
+
+Stop the application and start it again with the same `DELVETOWN_DATA_DIR`.
+The console uses the saved SQLite settings and does not show first-run setup
+again. No project configuration file is required.
+
+For local work, you can put `OPENAI_API_KEY` and `DELVETOWN_DATA_DIR` in `.env`.
+The application loads `.env` at startup. Existing shell variables take
+priority. `.env` is ignored by Git.
+
+For a one-time import from an older release, set the old account variables
+before the first SQLite start:
 
 ```sh
 export DELVETOWN_IDENTIFIER="bot-handle-or-email"
 export DELVETOWN_APP_PASSWORD="app-password"
-export OPENAI_API_KEY="provider-key"
-export DELVETOWN_DATA_DIR="./tmp/jido_delvetown"
 ```
-
-For local work, you can put these values in `.env` instead. The application
-loads `.env` at startup. Existing shell variables take priority over values in
-the file. `.env` is ignored by Git.
 
 If the web setup already used the invite code, do not set
 `DELVETOWN_INVITE_CODE`. It is only needed when an existing AT Protocol account
@@ -159,17 +178,9 @@ exact draft. It uses a durable effect key, so a retry does not create a second
 post. This permission is separate from `autonomy_mode`; scheduled Agent work
 stays in observe mode while manual publishing is on.
 
-Get dependencies and start IEx:
-
-```sh
-mix deps.get
-iex -S mix
-```
-
-The first start imports the temporary account values and encrypts the app
-password. For a new installation without legacy values, or for later changes,
-write settings directly. The default PDS URL and AppView DID are already
-present.
+The first start imports temporary legacy account values when they are present.
+For command-line recovery or later bulk changes, write settings directly. The
+default PDS URL and AppView DID are already present.
 
 ```elixir
 JidoDelvetown.Settings.update(
