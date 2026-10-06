@@ -10,14 +10,15 @@
     "jido_del-pic.1.13",
     "jido_del-pic.2.10"
   ],
+  "closed_at": "2026-10-06T13:36:10Z",
   "created": "2026-10-06T01:19:48Z",
   "description": "Guide a new clone through DelveTown identity, encrypted credentials, model choice, LLM-key status, connection testing, and a safe initial autonomy mode.",
   "id": "jido_del-pic.2.3",
   "labels": [],
   "parent": "jido_del-pic.2",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Build the first-run setup experience",
   "type": "task",
-  "updated_at": "2026-10-06T13:27:35Z"
+  "updated_at": "2026-10-06T13:36:10Z"
 }
