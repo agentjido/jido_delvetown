@@ -9,9 +9,15 @@
   "id": "jido_del-322.8",
   "labels": [],
   "parent": "jido_del-322",
+  "comments": [
+    {
+      "text": "Fixed in commit dbb76ba. Invalid or action-incompatible optional image fields are removed before decision validation. Reactive welcome and proactive post regressions prove a normal text action reaches one durable terminal state, calls no image generator, creates no protocol effect, and is not selected twice. Verification: mix compile --warnings-as-errors; 414 tests passed.",
+      "timestamp": "2026-10-06T15:41:52Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Do not fail participation when an optional image proposal is invalid",
   "type": "bug",
-  "updated_at": "2026-10-06T15:39:14Z"
+  "updated_at": "2026-10-06T15:41:52Z"
 }
