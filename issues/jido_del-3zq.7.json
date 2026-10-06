@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:07:20Z",
+  "description": "Delete Store cursor, put_cursor, seen?, and mark_seen functions and handlers after confirming that no production caller remains. Keep ScanProgress as the only owner of scan cursors and leases. Remove tests that exist only for the obsolete compatibility API and retain coverage of the active scan contract. Acceptance: no production reference remains; scan behavior and legacy import verification are unchanged; mix precommit passes.",
+  "id": "jido_del-3zq.7",
+  "labels": [],
+  "parent": "jido_del-3zq",
+  "priority": 2,
+  "status": "open",
+  "title": "Remove obsolete Store cursor and seen APIs",
+  "type": "task",
+  "updated_at": "2026-10-06T01:07:20Z"
+}
