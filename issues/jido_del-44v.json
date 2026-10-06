@@ -1,0 +1,14 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:36:11Z",
+  "description": "New-member welcomes currently publish a plain display name in a top-level post, so the member is not notified. Use the candidate handle and DID to render an @handle mention with a valid protocol mention facet. Prefer a reply to an eligible introduction post when a safe URI/CID target is available. Otherwise publish the mention-aware top-level welcome. Do not publish a targeted welcome when the handle or DID cannot be resolved safely. Preserve idempotent effect keys and add record-shape, byte-index, dry-run, manual-publication, and live-protocol contract tests.",
+  "id": "jido_del-44v",
+  "labels": [],
+  "priority": 1,
+  "status": "open",
+  "title": "Tag new members in top-level welcome posts",
+  "type": "bug",
+  "updated_at": "2026-10-06T01:36:11Z"
+}
