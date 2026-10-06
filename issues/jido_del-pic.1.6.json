@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [
     "jido_del-pic.1.4"
   ],
@@ -13,8 +13,8 @@
   "labels": [],
   "parent": "jido_del-pic.1",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Move connection and identity settings to SQLite",
   "type": "task",
-  "updated_at": "2026-10-06T01:20:11Z"
+  "updated_at": "2026-10-06T12:15:38Z"
 }
