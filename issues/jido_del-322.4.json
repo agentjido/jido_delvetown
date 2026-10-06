@@ -11,6 +11,12 @@
   "id": "jido_del-322.4",
   "labels": [],
   "parent": "jido_del-322",
+  "comments": [
+    {
+      "text": "The existing jido_del-pa5 issue enables the reactive-review button. Reuse its operator feedback and duplicate-job behavior where practical, but keep this proactive-review task independently deliverable.",
+      "timestamp": "2026-10-06T00:59:54Z"
+    }
+  ],
   "priority": 1,
   "status": "open",
   "title": "Enable manual proactive review in the admin panel",
