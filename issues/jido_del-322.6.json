@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-322.5"
+  ],
   "blocks": [],
   "created": "2026-10-06T00:59:44Z",
   "description": "Add an operator-approved Publish Like action for an eligible simulated like. Require action-time confirmation and the existing manual-publication permission. Revalidate the target URI and CID, current eligibility, existing remote or local effect, and write guard before publication. Use the existing deterministic like effect key and persist the receipt. Acceptance: one approval creates at most one DelveTown like; retries reuse the saved or reconciled receipt; stale or changed targets fail safely; success replaces the button with a durable published state and target link; scheduled jobs cannot call this manual path.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Publish one approved simulated like idempotently",
   "type": "task",
-  "updated_at": "2026-10-06T00:59:44Z"
+  "updated_at": "2026-10-06T00:59:53Z"
 }

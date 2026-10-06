@@ -3,7 +3,9 @@
   "blocked_by": [
     "jido_del-322.2"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-322.6"
+  ],
   "created": "2026-10-06T00:59:44Z",
   "description": "Add outgoing like proposals to the local review surface. Show the target author, bounded post text, public source link, selection reason, policy score, selected time, budget state, and publication state. Keep like proposals distinct from text posts because they have no generated body. Do not expose credentials, hidden prompts, or private model context. Acceptance: proposed and simulated likes appear after refresh; duplicate proposals collapse to one target; terminal ignored or failed events have clear status; existing simulated post and reply cards remain unchanged.",
   "id": "jido_del-322.5",
