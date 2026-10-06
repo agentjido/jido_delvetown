@@ -17,10 +17,11 @@ defmodule JidoDelvetown.Settings.Contract do
 
   """
 
-  @schema_version 1
+  @schema_version 2
 
   @action_values ~w(reply like repost post follow welcome)
   @autonomy_values ~w(observe review autonomous)
+  @console_theme_values ~w(system light dark)
   @default_data_dir Path.expand("../../../../tmp/jido_delvetown", __DIR__)
 
   @standard_safety %{
@@ -121,6 +122,18 @@ defmodule JidoDelvetown.Settings.Contract do
       safety: @standard_safety,
       activation: :application_restart,
       legacy_env: "DELVETOWN_DASHBOARD_PORT"
+    },
+    %{
+      key: :console_theme,
+      section: :console,
+      type: :enum,
+      default: "system",
+      validation: %{values: @console_theme_values},
+      storage: :database,
+      revision: :record,
+      safety: @standard_safety,
+      activation: :immediate,
+      legacy_env: nil
     },
     %{
       key: :decision_model,

@@ -22,14 +22,27 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     end
   end
 
+  defmodule FakeConsoleSettings do
+    def select_theme(theme) do
+      send(Application.fetch_env!(:jido_delvetown, :test_owner), {:theme_selected, theme})
+      Application.fetch_env!(:jido_delvetown, :console_theme_test_result)
+    end
+  end
+
   setup do
     old_controller = Application.get_env(:jido_delvetown, :reactive_review_controller)
     old_result = Application.get_env(:jido_delvetown, :reactive_review_test_result)
     old_status = Application.get_env(:jido_delvetown, :reactive_review_test_status)
     old_proactive_result = Application.get_env(:jido_delvetown, :proactive_review_test_result)
     old_proactive_status = Application.get_env(:jido_delvetown, :proactive_review_test_status)
+    old_console_settings = Application.get_env(:jido_delvetown, :console_settings)
+    old_theme_result = Application.get_env(:jido_delvetown, :console_theme_test_result)
+    old_test_owner = Application.get_env(:jido_delvetown, :test_owner)
 
     Application.put_env(:jido_delvetown, :reactive_review_controller, FakeReviewController)
+    Application.put_env(:jido_delvetown, :console_settings, FakeConsoleSettings)
+    Application.put_env(:jido_delvetown, :console_theme_test_result, {:ok, %{}})
+    Application.put_env(:jido_delvetown, :test_owner, self())
 
     Application.put_env(
       :jido_delvetown,
@@ -61,6 +74,9 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       restore_env(:reactive_review_test_status, old_status)
       restore_env(:proactive_review_test_result, old_proactive_result)
       restore_env(:proactive_review_test_status, old_proactive_status)
+      restore_env(:console_settings, old_console_settings)
+      restore_env(:console_theme_test_result, old_theme_result)
+      restore_env(:test_owner, old_test_owner)
     end)
 
     :ok
@@ -70,6 +86,9 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     html = render_dashboard()
 
     assert html =~ "AgentJido"
+    assert html =~ ~s(data-theme="system")
+    assert html =~ ~s(id="console-theme")
+    assert html =~ ~s(phx-change="set_theme")
     assert html =~ "Safe: writes off"
     assert html =~ "Simulated posts"
     assert html =~ "Image drafts"
@@ -111,6 +130,31 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "published-reply"
     assert html =~ "disabled"
     assert function_exported?(DashboardLive, :handle_event, 3)
+  end
+
+  test "changes the console theme and keeps an invalid selection unchanged" do
+    socket =
+      %Phoenix.LiveView.Socket{}
+      |> Phoenix.Component.assign(base_assigns())
+
+    assert {:noreply, updated_socket} =
+             DashboardLive.handle_event("set_theme", %{"theme" => "dark"}, socket)
+
+    assert_received {:theme_selected, "dark"}
+    assert updated_socket.assigns.theme == "dark"
+    assert render_dashboard(updated_socket.assigns) =~ ~s(data-theme="dark")
+
+    Application.put_env(
+      :jido_delvetown,
+      :console_theme_test_result,
+      {:error, {:invalid_setting, :console_theme, :not_allowed}}
+    )
+
+    assert {:noreply, unchanged_socket} =
+             DashboardLive.handle_event("set_theme", %{"theme" => "sepia"}, updated_socket)
+
+    assert_received {:theme_selected, "sepia"}
+    assert unchanged_socket.assigns.theme == "dark"
   end
 
   test "reports queued, duplicate, unavailable, and worker-failure review results" do
@@ -502,6 +546,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
   defp base_assigns do
     %{
       active_tab: "overview",
+      theme: "system",
       status: %{
         writes_enabled?: false,
         schedule_enabled?: true,

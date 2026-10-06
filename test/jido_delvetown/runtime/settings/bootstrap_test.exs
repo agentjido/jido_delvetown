@@ -21,6 +21,7 @@ defmodule JidoDelvetown.Settings.BootstrapTest do
     assert second == %{first | created?: false}
 
     settings = Repo.get!(Settings, scope)
+    assert settings.values["console_theme"] == "system"
     assert settings.values["autonomy_mode"] == "observe"
     refute settings.values["manual_publish_enabled"]
     refute settings.values["mark_notifications_seen"]

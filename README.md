@@ -176,6 +176,7 @@ JidoDelvetown.Settings.update(
   %{
     account_identifier: System.fetch_env!("DELVETOWN_IDENTIFIER"),
     account_app_password: System.fetch_env!("DELVETOWN_APP_PASSWORD"),
+    console_theme: "system",
     autonomy_mode: "observe",
     manual_publish_enabled: false,
     dry_run_mark_actioned: true,

@@ -49,6 +49,10 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     def dashboard_port, do: 4041
   end
 
+  defmodule HealthyConsoleSettings do
+    def theme, do: {:ok, "dark"}
+  end
+
   defmodule UnavailableDependency do
     def status, do: {:error, :agent_not_running}
     def recent_events(_limit), do: exit(:event_store_unavailable)
@@ -68,6 +72,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         personality: HealthyPersonality,
         review_controller: HealthyReviews,
         config: HealthyConfig,
+        console_settings: HealthyConsoleSettings,
         now: ~U[2026-10-06 12:34:56.789Z]
       )
 
@@ -94,6 +99,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.disclosure == %{processing: "Automated processing is disclosed."}
     assert snapshot.reactive_review == %{status: :idle, disabled?: false}
     assert snapshot.proactive_review == %{status: :queued, disabled?: true}
+    assert snapshot.theme == "dark"
     assert snapshot.manual_publish_enabled
     assert snapshot.port == 4041
     assert snapshot.refreshed_at == "2026-10-06T12:34:56Z"
@@ -107,6 +113,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
         personality: UnavailableDependency,
         review_controller: UnavailableDependency,
         config: UnavailableDependency,
+        console_settings: UnavailableDependency,
         now: ~U[2026-10-06 12:34:56Z]
       )
 
@@ -128,6 +135,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.reactive_review.disabled?
     assert snapshot.proactive_review.status == :failed
     assert snapshot.proactive_review.disabled?
+    assert snapshot.theme == "system"
     refute snapshot.manual_publish_enabled
     assert snapshot.port == 4040
   end

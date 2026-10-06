@@ -4,6 +4,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   use Phoenix.LiveView
 
   alias JidoDelvetown.{Automation, ImagePublisher, ManualPublisher}
+  alias JidoDelvetown.Settings.Console, as: ConsoleSettings
   alias JidoDelvetownWeb.{DashboardComponents, DashboardSnapshot}
 
   @refresh_ms 3_000
@@ -125,19 +126,31 @@ defmodule JidoDelvetownWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("set_theme", %{"theme" => theme}, socket) do
+    case console_settings().select_theme(theme) do
+      {:ok, _settings} -> {:noreply, assign(socket, :theme, theme)}
+      {:error, _reason} -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("set_theme", _params, socket), do: {:noreply, socket}
+
+  @impl true
   def render(assigns) do
     ~H"""
-    <div class="dashboard-shell">
-      <DashboardComponents.styles {assigns} />
-      <DashboardComponents.operational_state {assigns} />
-      <DashboardComponents.runtime_health {assigns} />
-      <DashboardComponents.memory_and_effects {assigns} />
-      <DashboardComponents.scan_and_database_status {assigns} />
-      <DashboardComponents.recent_events {assigns} />
-      <DashboardComponents.planned_controls {assigns} />
-      <DashboardComponents.agent_information {assigns} />
-      <DashboardComponents.simulated_actions {assigns} />
-      <DashboardComponents.footer {assigns} />
+    <div class="console-root" data-theme={@theme}>
+      <div class="dashboard-shell">
+        <DashboardComponents.styles {assigns} />
+        <DashboardComponents.operational_state {assigns} />
+        <DashboardComponents.runtime_health {assigns} />
+        <DashboardComponents.memory_and_effects {assigns} />
+        <DashboardComponents.scan_and_database_status {assigns} />
+        <DashboardComponents.recent_events {assigns} />
+        <DashboardComponents.planned_controls {assigns} />
+        <DashboardComponents.agent_information {assigns} />
+        <DashboardComponents.simulated_actions {assigns} />
+        <DashboardComponents.footer {assigns} />
+      </div>
     </div>
     """
   end
@@ -198,6 +211,9 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   defp review_controller,
     do: Application.get_env(:jido_delvetown, :reactive_review_controller, Automation)
+
+  defp console_settings,
+    do: Application.get_env(:jido_delvetown, :console_settings, ConsoleSettings)
 
   defp review_error(:runtime_unavailable, kind) do
     %{

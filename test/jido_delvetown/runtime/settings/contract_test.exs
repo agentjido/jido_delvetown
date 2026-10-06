@@ -60,6 +60,7 @@ defmodule JidoDelvetown.Settings.ContractTest do
   test "safe database defaults start in observe mode without remote writes" do
     defaults = Contract.defaults()
 
+    assert defaults.console_theme == "system"
     assert defaults.autonomy_mode == "observe"
     refute defaults.manual_publish_enabled
     refute defaults.mark_notifications_seen
@@ -112,6 +113,10 @@ defmodule JidoDelvetown.Settings.ContractTest do
 
     assert :ok = Contract.validate(:appview_did, "did:web:api.delve.town")
     assert :ok = Contract.validate(:friend_sync_cron, "17 * * * *")
+    assert :ok = Contract.validate(:console_theme, "light")
+
+    assert {:error, {:invalid_setting, :console_theme, :not_allowed}} =
+             Contract.validate(:console_theme, "sepia")
 
     assert {:error, {:invalid_setting, :friend_sync_cron, :invalid_cron}} =
              Contract.validate(:friend_sync_cron, "not a cron")

@@ -2,6 +2,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
   @moduledoc false
 
   alias JidoDelvetown.{Automation, Config, Personality}
+  alias JidoDelvetown.Settings.Console, as: ConsoleSettings
 
   @page_title "AgentJido / DelveTown"
 
@@ -11,6 +12,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
     personality = Keyword.get(opts, :personality, Personality)
     review_controller = Keyword.get(opts, :review_controller, default_review_controller())
     config = Keyword.get(opts, :config, Config)
+    console_settings = Keyword.get(opts, :console_settings, ConsoleSettings)
     now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now() end) |> DateTime.truncate(:second)
 
     status_result = safe_read(fn -> data_source.status() end)
@@ -39,6 +41,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       disclosure: value_or(disclosure_result, %{}),
       reactive_review: review_status(review_controller, :reactive_review_status, :reactive),
       proactive_review: review_status(review_controller, :proactive_review_status, :proactive),
+      theme: setting_value(console_settings, :theme, "system"),
       manual_publish_enabled: config_value(config, :manual_publish_enabled?, false),
       port: config_value(config, :dashboard_port, 4040),
       refreshed_at: DateTime.to_iso8601(now),
@@ -81,6 +84,13 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
   defp config_value(config, function, default) do
     case safe_read(fn -> apply(config, function, []) end) do
       {:ok, value} -> value
+      _result -> default
+    end
+  end
+
+  defp setting_value(settings, function, default) do
+    case safe_read(fn -> apply(settings, function, []) end) do
+      {:ok, {:ok, value}} -> value
       _result -> default
     end
   end

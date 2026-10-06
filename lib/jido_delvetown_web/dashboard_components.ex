@@ -43,6 +43,71 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     ~H"""
     <style :if={@dashboard_section == :styles}>
       :root {
+        --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+        --space-5: 20px;
+        --space-6: 24px;
+        --radius-sm: 9px;
+        --radius: 14px;
+        --radius-lg: 18px;
+        --shadow-control: 0 2px 8px rgba(0, 0, 0, 0.22);
+        --motion-fast: 160ms ease;
+      }
+
+      :root,
+      .console-root[data-theme="light"] {
+        color-scheme: light;
+        --canvas: #f4f7f5;
+        --surface: #ffffff;
+        --surface-raised: #eaf1ed;
+        --line: #d3dfd8;
+        --line-strong: #a6bbb0;
+        --text: #17231e;
+        --muted: #52665d;
+        --quiet: #6c7d75;
+        --green: #176b45;
+        --green-deep: #dcefe4;
+        --cyan: #0b6f7d;
+        --cyan-deep: #dceff2;
+        --amber: #8a5a0a;
+        --amber-deep: #f8ebca;
+        --red: #aa3939;
+        --red-deep: #f8e0df;
+        --preview-bg: #e4ece8;
+        --control-disabled: #e5ece8;
+        --control-disabled-text: #687a71;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --canvas: #07110f;
+          --surface: #0d1916;
+          --surface-raised: #12211d;
+          --line: #263b35;
+          --line-strong: #3c5a51;
+          --text: #edf7f2;
+          --muted: #9bb0a8;
+          --quiet: #7f958d;
+          --green: #75e6a8;
+          --green-deep: #133c2a;
+          --cyan: #78d8e9;
+          --cyan-deep: #12343b;
+          --amber: #ffcb6b;
+          --amber-deep: #44331a;
+          --red: #ff948f;
+          --red-deep: #451f20;
+          --preview-bg: #050b09;
+          --control-disabled: #14231f;
+          --control-disabled-text: #8fa29b;
+        }
+      }
+
+      .console-root[data-theme="dark"] {
         color-scheme: dark;
         --canvas: #07110f;
         --surface: #0d1916;
@@ -60,20 +125,32 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         --amber-deep: #44331a;
         --red: #ff948f;
         --red-deep: #451f20;
-        --radius: 14px;
+        --preview-bg: #050b09;
+        --control-disabled: #14231f;
+        --control-disabled-text: #8fa29b;
       }
 
       * { box-sizing: border-box; }
 
       body {
         margin: 0;
-        background:
-          radial-gradient(circle at 88% 0%, rgba(38, 112, 83, 0.16), transparent 30rem),
-          var(--canvas);
+        background: var(--canvas);
         color: var(--text);
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: var(--font-sans);
         font-size: 15px;
         line-height: 1.5;
+      }
+
+      .console-root {
+        min-height: 100vh;
+        background:
+          radial-gradient(
+            circle at 88% 0%,
+            color-mix(in srgb, var(--green) 16%, transparent),
+            transparent 30rem
+          ),
+          var(--canvas);
+        color: var(--text);
       }
 
       button, summary, a { font: inherit; }
@@ -97,6 +174,35 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         justify-content: space-between;
         gap: 24px;
         margin-bottom: 18px;
+      }
+
+      .header-meta {
+        display: flex;
+        align-items: end;
+        gap: var(--space-4);
+      }
+
+      .theme-control {
+        display: grid;
+        gap: var(--space-1);
+      }
+
+      .theme-control label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 720;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .theme-control select {
+        min-height: 36px;
+        padding: 6px 28px 6px 10px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
       }
 
       .eyebrow,
@@ -151,17 +257,29 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 20px;
         border: 1px solid var(--line-strong);
         border-radius: calc(var(--radius) + 4px);
-        background: linear-gradient(135deg, rgba(117, 230, 168, 0.08), rgba(13, 25, 22, 0.96) 55%);
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--green) 8%, var(--surface)),
+          color-mix(in srgb, var(--surface) 96%, transparent) 55%
+        );
       }
 
       .state-rail.state-attention {
-        border-color: rgba(255, 148, 143, 0.58);
-        background: linear-gradient(135deg, rgba(255, 148, 143, 0.11), rgba(13, 25, 22, 0.96) 55%);
+        border-color: color-mix(in srgb, var(--red) 58%, transparent);
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--red) 11%, var(--surface)),
+          color-mix(in srgb, var(--surface) 96%, transparent) 55%
+        );
       }
 
       .state-rail.state-active {
-        border-color: rgba(255, 203, 107, 0.65);
-        background: linear-gradient(135deg, rgba(255, 203, 107, 0.1), rgba(13, 25, 22, 0.96) 55%);
+        border-color: color-mix(in srgb, var(--amber) 65%, transparent);
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--amber) 10%, var(--surface)),
+          color-mix(in srgb, var(--surface) 96%, transparent) 55%
+        );
       }
 
       .state-title-row {
@@ -177,17 +295,17 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         flex: 0 0 auto;
         border-radius: 50%;
         background: var(--green);
-        box-shadow: 0 0 0 5px rgba(117, 230, 168, 0.12);
+        box-shadow: 0 0 0 5px color-mix(in srgb, var(--green) 12%, transparent);
       }
 
       .state-attention .state-dot {
         background: var(--red);
-        box-shadow: 0 0 0 5px rgba(255, 148, 143, 0.12);
+        box-shadow: 0 0 0 5px color-mix(in srgb, var(--red) 12%, transparent);
       }
 
       .state-active .state-dot {
         background: var(--amber);
-        box-shadow: 0 0 0 5px rgba(255, 203, 107, 0.12);
+        box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber) 12%, transparent);
       }
 
       .state-title {
@@ -238,17 +356,17 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         width: 100%;
         min-height: 108px;
         padding: 18px;
-        border: 1px solid rgba(117, 230, 168, 0.42);
+        border: 1px solid color-mix(in srgb, var(--green) 42%, transparent);
         border-radius: var(--radius);
-        background: rgba(7, 17, 15, 0.72);
+        background: color-mix(in srgb, var(--surface) 72%, transparent);
         color: var(--text);
         text-align: left;
         opacity: 1;
       }
 
       .write-switch.on {
-        border-color: rgba(255, 203, 107, 0.72);
-        background: rgba(68, 51, 26, 0.54);
+        border-color: color-mix(in srgb, var(--amber) 72%, transparent);
+        background: color-mix(in srgb, var(--amber-deep) 54%, var(--surface));
       }
 
       .switch-track {
@@ -257,9 +375,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         width: 68px;
         height: 38px;
         flex: 0 0 68px;
-        border: 1px solid #527066;
+        border: 1px solid var(--line-strong);
         border-radius: 99px;
-        background: #1a2b26;
+        background: var(--surface-raised);
       }
 
       .switch-thumb {
@@ -270,8 +388,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         height: 28px;
         border-radius: 50%;
         background: var(--muted);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-        transition: transform 160ms ease;
+        box-shadow: var(--shadow-control);
+        transition: transform var(--motion-fast);
       }
 
       .write-switch.on .switch-track {
@@ -307,7 +425,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 10px 12px;
         border: 1px solid var(--line);
         border-radius: 11px;
-        background: rgba(13, 25, 22, 0.72);
+        background: color-mix(in srgb, var(--surface) 72%, transparent);
       }
 
       .delve-links > span {
@@ -364,7 +482,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       }
 
       .dashboard-tab.active {
-        border-color: rgba(117, 230, 168, 0.4);
+        border-color: color-mix(in srgb, var(--green) 40%, transparent);
         background: var(--green-deep);
         color: var(--green);
       }
@@ -373,7 +491,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         min-width: 22px;
         padding: 1px 7px;
         border-radius: 99px;
-        background: rgba(7, 17, 15, 0.68);
+        background: color-mix(in srgb, var(--canvas) 68%, transparent);
         color: currentColor;
         font-size: 11px;
         text-align: center;
@@ -450,7 +568,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 18px;
         border: 1px solid var(--line);
         border-radius: var(--radius);
-        background: rgba(13, 25, 22, 0.9);
+        background: color-mix(in srgb, var(--surface) 90%, transparent);
       }
 
       .panel-header {
@@ -488,8 +606,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 13px 14px;
         border-left: 3px solid var(--green);
         border-radius: 0 8px 8px 0;
-        background: rgba(117, 230, 168, 0.06);
-        color: #dceae4;
+        background: color-mix(in srgb, var(--green) 6%, var(--surface));
+        color: var(--text);
         font-size: 14px;
       }
 
@@ -582,7 +700,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 11px 12px;
         border: 1px solid var(--line);
         border-radius: 9px;
-        background: rgba(18, 33, 29, 0.72);
+        background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
       }
 
       .event-title {
@@ -609,7 +727,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .event-data {
         margin: 0;
         color: var(--muted);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-family: var(--font-mono);
         font-size: 12px;
         overflow-wrap: anywhere;
       }
@@ -678,7 +796,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 14px 15px;
         border-left: 3px solid var(--cyan);
         border-radius: 0 8px 8px 0;
-        background: rgba(120, 216, 233, 0.06);
+        background: color-mix(in srgb, var(--cyan) 6%, var(--surface));
         color: var(--text);
         font-size: 15px;
         white-space: pre-wrap;
@@ -698,15 +816,15 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .publish-notice {
         margin-bottom: 14px;
         padding: 11px 13px;
-        border: 1px solid rgba(117, 230, 168, 0.48);
+        border: 1px solid color-mix(in srgb, var(--green) 48%, transparent);
         border-radius: 9px;
-        background: rgba(19, 60, 42, 0.5);
+        background: color-mix(in srgb, var(--green-deep) 50%, var(--surface));
         color: var(--text);
       }
 
       .publish-notice.attention {
-        border-color: rgba(255, 148, 143, 0.55);
-        background: rgba(69, 31, 32, 0.48);
+        border-color: color-mix(in srgb, var(--red) 55%, transparent);
+        background: color-mix(in srgb, var(--red-deep) 48%, var(--surface));
       }
 
       .simulated-actions {
@@ -729,7 +847,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         min-height: 38px;
         margin-left: auto;
         padding: 8px 13px;
-        border: 1px solid rgba(117, 230, 168, 0.65);
+        border: 1px solid color-mix(in srgb, var(--green) 65%, transparent);
         border-radius: 9px;
         background: var(--green-deep);
         color: var(--text);
@@ -742,7 +860,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       .publish-button:disabled {
         border-color: var(--line);
-        background: #14231f;
+        background: var(--control-disabled);
         color: var(--quiet);
         cursor: not-allowed;
       }
@@ -777,7 +895,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         width: 100%;
         height: 260px;
         object-fit: contain;
-        background: #050b09;
+        background: var(--preview-bg);
         border-bottom: 1px solid var(--line);
       }
 
@@ -808,7 +926,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 8px;
         border: 1px solid var(--line);
         border-radius: 8px;
-        background: rgba(7, 17, 15, 0.45);
+        background: color-mix(in srgb, var(--canvas) 45%, transparent);
       }
 
       .image-state span {
@@ -833,7 +951,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .image-file-meta {
         margin-bottom: 0;
         color: var(--quiet);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-family: var(--font-mono);
         font-size: 11px;
         overflow-wrap: anywhere;
       }
@@ -864,8 +982,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         padding: 9px 13px;
         border: 1px solid var(--line-strong);
         border-radius: 9px;
-        background: #14231f;
-        color: #8fa29b;
+        background: var(--control-disabled);
+        color: var(--control-disabled-text);
         cursor: not-allowed;
         font-size: 13px;
         opacity: 1;
@@ -893,7 +1011,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       .review-feedback[data-status="failed"] strong { color: var(--red); }
 
       .control-row .run-review-button:not(:disabled) {
-        border-color: rgba(117, 230, 168, 0.62);
+        border-color: color-mix(in srgb, var(--green) 62%, transparent);
         background: var(--green-deep);
         color: var(--text);
         cursor: pointer;
@@ -948,6 +1066,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       @media (max-width: 820px) {
         .dashboard-shell { width: min(100% - 24px, 680px); padding-top: 20px; }
         .page-header { align-items: start; flex-direction: column; gap: 8px; }
+        .header-meta { align-items: center; justify-content: space-between; width: 100%; }
         .refresh-note { text-align: left; }
         .state-rail { grid-template-columns: 1fr; }
         .status-strip, .primary-grid, .health-grid, .event-grid, .about-content { grid-template-columns: 1fr; }
@@ -959,6 +1078,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
       @media (max-width: 520px) {
         .dashboard-shell { width: min(100% - 20px, 480px); }
+        .header-meta { align-items: start; flex-direction: column; }
         .state-rail, .panel { padding: 15px; }
         .write-switch { min-height: 96px; padding: 14px; }
         .switch-track { width: 60px; flex-basis: 60px; }
@@ -982,9 +1102,19 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         <p class="eyebrow">Local agent control</p>
         <h1>AgentJido / DelveTown</h1>
       </div>
-      <p class="refresh-note">
-        Last refresh <time datetime={@refreshed_at}>{@refreshed_label}</time> · every 3s
-      </p>
+      <div class="header-meta">
+        <form class="theme-control" phx-change="set_theme">
+          <label for="console-theme">Theme</label>
+          <select id="console-theme" name="theme" aria-label="Console theme">
+            <option value="system" selected={@theme == "system"}>System</option>
+            <option value="light" selected={@theme == "light"}>Light</option>
+            <option value="dark" selected={@theme == "dark"}>Dark</option>
+          </select>
+        </form>
+        <p class="refresh-note">
+          Last refresh <time datetime={@refreshed_at}>{@refreshed_label}</time> · every 3s
+        </p>
+      </div>
     </header>
 
     <section

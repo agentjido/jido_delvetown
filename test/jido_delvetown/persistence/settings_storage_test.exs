@@ -18,7 +18,7 @@ defmodule JidoDelvetown.SettingsStorageTest do
       |> Repo.insert!()
 
     assert settings.scope == scope
-    assert settings.schema_version == 1
+    assert settings.schema_version == Contract.schema_version()
     assert settings.version == 1
     assert settings.values == %{"autonomy_mode" => "observe"}
   end

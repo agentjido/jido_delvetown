@@ -7,7 +7,7 @@ defmodule JidoDelvetown.SettingsTest do
 
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Settings
-  alias JidoDelvetown.Settings.{Bootstrap, SecretStore}
+  alias JidoDelvetown.Settings.{Bootstrap, Contract, SecretStore}
   alias JidoDelvetown.Storage.Settings, as: SettingsRecord
   alias JidoDelvetown.Storage.SettingsRevision
 
@@ -16,7 +16,7 @@ defmodule JidoDelvetown.SettingsTest do
 
     assert {:ok, current} = Settings.current(scope: scope)
     assert current.scope == scope
-    assert current.schema_version == 1
+    assert current.schema_version == Contract.schema_version()
     assert current.version == 1
     assert current.values.autonomy_mode == "observe"
     assert is_integer(current.values.daily_reply_limit)
