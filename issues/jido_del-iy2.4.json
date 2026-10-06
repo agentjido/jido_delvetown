@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T00:40:42Z",
+  "description": "Build the verified image embed and attach it to town.delve.feed.post with caption, languages, creation time, alt text, blob reference, and aspect ratio when known. Add one publishing service for staged top-level image drafts. Use a stable post effect key so retries cannot create a second post. Persist the post receipt and connect it to the draft and artifact. Keep text-only post behavior unchanged. Image replies are outside this epic.",
+  "id": "jido_del-iy2.4",
+  "labels": [],
+  "parent": "jido_del-iy2",
+  "priority": 1,
+  "status": "open",
+  "title": "Publish a staged image as a top-level DelveTown post",
+  "type": "task",
+  "updated_at": "2026-10-06T00:40:42Z"
+}
