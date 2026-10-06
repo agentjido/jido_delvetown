@@ -42,6 +42,7 @@ defmodule JidoDelvetown.InspectionTest do
            }
 
     assert snapshot.actors.recent == []
+    assert snapshot.events.recent == []
     assert snapshot.simulated_posts == []
     assert snapshot.like_proposals == []
     assert snapshot.image_drafts == []
@@ -52,6 +53,89 @@ defmodule JidoDelvetown.InspectionTest do
     assert snapshot.sqlite.migrations.status == "current"
     assert snapshot.sqlite.migrations.pending == []
     assert snapshot.sqlite.legacy_imports == []
+  end
+
+  test "recent inbox events are bounded and expose only safe operator fields" do
+    older = ~U[2026-10-05 11:00:00.000000Z]
+    newer = ~U[2026-10-05 12:00:00.000000Z]
+
+    Repo.insert!(%Actor{
+      did: "did:plc:member",
+      handle: "member.test",
+      display_name: "Member",
+      first_seen_at: older,
+      last_seen_at: newer,
+      metadata: %{"private" => "hidden actor note"}
+    })
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "notification:reply",
+      kind: "reply",
+      actor_did: "did:plc:member",
+      record_uri: "at://did:plc:member/town.delve.feed.post/reply",
+      occurred_at: older,
+      state: "pending",
+      payload: %{
+        "action" => "reply",
+        "cycle_status" => "proposed",
+        "text" => "A bounded reply proposal.",
+        "model_reason" => "Direct question",
+        "private_model_context" => "must stay hidden"
+      },
+      inserted_at: older,
+      updated_at: older
+    })
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "notification:like",
+      kind: "like",
+      actor_did: "did:plc:member",
+      record_uri: "at://did:plc:member/town.delve.feed.post/liked",
+      occurred_at: newer,
+      state: "completed",
+      payload: %{},
+      terminal_at: newer,
+      inserted_at: newer,
+      updated_at: newer
+    })
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "timeline:excluded",
+      kind: "timeline",
+      occurred_at: newer,
+      state: "completed",
+      payload: %{"private" => "excluded event"},
+      terminal_at: newer,
+      inserted_at: newer,
+      updated_at: newer
+    })
+
+    snapshot = Inspection.snapshot(limit: 2)
+
+    assert [like, reply] = snapshot.events.recent
+    assert like.kind == "like"
+    assert like.state == "completed"
+
+    assert like.actor == %{
+             did: "did:plc:member",
+             handle: "member.test",
+             display_name: "Member"
+           }
+
+    assert like.proposal == nil
+    assert reply.kind == "reply"
+    assert reply.state == "pending"
+
+    assert reply.proposal == %{
+             action: "reply",
+             status: "proposed",
+             text: "A bounded reply proposal.",
+             reason: "Direct question"
+           }
+
+    refute inspect(snapshot.events.recent) =~ "must stay hidden"
+    refute inspect(snapshot.events.recent) =~ "hidden actor note"
+    refute inspect(snapshot.events.recent) =~ "excluded event"
   end
 
   test "proactive review inspection exposes bounded latest-job health" do

@@ -38,7 +38,18 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
 
     def inspect_state(limit: 6) do
       %{
-        events: %{limit: 6, counts: %{"pending" => 0, "failed" => 0}},
+        events: %{
+          limit: 6,
+          counts: %{"pending" => 0, "failed" => 0},
+          recent: [
+            %{
+              event_key: "reply:1",
+              kind: "reply",
+              state: "completed",
+              proposal: nil
+            }
+          ]
+        },
         effects: %{attention: []},
         sqlite: %{migrations: %{status: "current"}}
       }
@@ -149,7 +160,18 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.agent_events == [%{type: "agent.updated"}]
 
     assert snapshot.inspection == %{
-             events: %{limit: 6, counts: %{"pending" => 0, "failed" => 0}},
+             events: %{
+               limit: 6,
+               counts: %{"pending" => 0, "failed" => 0},
+               recent: [
+                 %{
+                   event_key: "reply:1",
+                   kind: "reply",
+                   state: "completed",
+                   proposal: nil
+                 }
+               ]
+             },
              effects: %{attention: []},
              sqlite: %{migrations: %{status: "current"}}
            }
@@ -169,6 +191,9 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.overview.attention == []
     assert hd(snapshot.overview.schedule.items).label == "Timeline review"
     assert hd(snapshot.overview.recent_actions).label == "Reply"
+    assert hd(snapshot.inbox.events).event_key == "reply:1"
+    assert Enum.find(snapshot.inbox.categories, &(&1.key == "reply")).count == 1
+    assert snapshot.inbox.actionable_count == 0
     assert snapshot.theme == "dark"
     assert snapshot.setup.required?
     assert snapshot.setup.available?
@@ -216,6 +241,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshotTest do
     assert snapshot.proactive_review.disabled?
     assert snapshot.overview.autonomy.label == "Unavailable"
     assert Enum.any?(snapshot.overview.attention, &(&1.key == "runtime"))
+    assert snapshot.inbox.events == []
     assert snapshot.theme == "system"
     refute snapshot.manual_publish_enabled
     assert snapshot.port == 4040

@@ -17,6 +17,7 @@ defmodule JidoDelvetown.Inspection do
   }
 
   @event_states ["pending", "claimed", "completed", "ignored", "failed"]
+  @inbox_kinds ["reply", "mention", "follow", "like"]
   @effect_states ["reserved", "uncertain", "completed", "permanent_failure"]
   @simulated_post_actions ["post", "reply", "welcome"]
   @like_proposal_scan_limit 100
@@ -29,7 +30,10 @@ defmodule JidoDelvetown.Inspection do
     image_limit = opts |> Keyword.get(:image_limit, 12) |> max(0)
 
     %{
-      events: %{counts: grouped_counts(repo, InteractionEvent, :state, @event_states)},
+      events: %{
+        counts: grouped_counts(repo, InteractionEvent, :state, @event_states),
+        recent: recent_inbox_events(repo, limit)
+      },
       simulated_posts: simulated_posts(repo, simulated_limit),
       like_proposals: like_proposals(repo, simulated_limit),
       image_drafts: image_drafts(repo, image_limit),
@@ -130,6 +134,72 @@ defmodule JidoDelvetown.Inspection do
       )
     )
     |> Enum.map(&encode_times/1)
+  end
+
+  defp recent_inbox_events(repo, limit) do
+    repo.all(
+      from(event in InteractionEvent,
+        left_join: actor in Actor,
+        on: actor.did == event.actor_did,
+        where: event.kind in ^@inbox_kinds,
+        order_by: [desc: event.updated_at, desc: event.occurred_at, asc: event.event_key],
+        limit: ^limit,
+        select: %{
+          event_key: event.event_key,
+          kind: event.kind,
+          state: event.state,
+          attempt_count: event.attempt_count,
+          actor_did: event.actor_did,
+          actor_handle: actor.handle,
+          actor_display_name: actor.display_name,
+          record_uri: event.record_uri,
+          action: fragment("json_extract(?, '$.action')", event.payload),
+          cycle_status: fragment("json_extract(?, '$.cycle_status')", event.payload),
+          text: fragment("json_extract(?, '$.text')", event.payload),
+          model_reason: fragment("json_extract(?, '$.model_reason')", event.payload),
+          failure_present?: not is_nil(event.failure),
+          occurred_at: event.occurred_at,
+          claimed_at: event.claimed_at,
+          terminal_at: event.terminal_at,
+          updated_at: event.updated_at
+        }
+      )
+    )
+    |> Enum.map(&inbox_event_summary/1)
+  end
+
+  defp inbox_event_summary(row) do
+    %{
+      event_key: row.event_key,
+      kind: row.kind,
+      state: row.state,
+      attempt_count: row.attempt_count,
+      actor: %{
+        did: row.actor_did,
+        handle: row.actor_handle,
+        display_name: row.actor_display_name
+      },
+      record_uri: row.record_uri,
+      proposal: inbox_proposal(row),
+      failure_present?: row.failure_present?,
+      occurred_at: iso8601(row.occurred_at),
+      claimed_at: iso8601(row.claimed_at),
+      terminal_at: iso8601(row.terminal_at),
+      updated_at: iso8601(row.updated_at)
+    }
+  end
+
+  defp inbox_proposal(row) do
+    proposal = %{
+      action: row.action,
+      status: row.cycle_status,
+      text: row.text,
+      reason: row.model_reason
+    }
+
+    if Enum.any?(proposal, fn {_key, value} -> value not in [nil, ""] end),
+      do: proposal,
+      else: nil
   end
 
   defp simulated_posts(repo, limit) do

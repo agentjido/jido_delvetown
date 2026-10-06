@@ -3,7 +3,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
 
   alias JidoDelvetown.{Automation, Personality}
   alias JidoDelvetown.Settings.{Behavior, Connection, Console, Limits, Setup}
-  alias JidoDelvetownWeb.DashboardOverview
+  alias JidoDelvetownWeb.{DashboardInbox, DashboardOverview}
 
   @page_title "AgentJido / DelveTown"
 
@@ -40,6 +40,8 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
         proactive_review: proactive_review
       )
 
+    inbox = DashboardInbox.build(inspection)
+
     %{
       page_title: @page_title,
       status: status,
@@ -58,6 +60,7 @@ defmodule JidoDelvetownWeb.DashboardSnapshot do
       reactive_review: reactive_review,
       proactive_review: proactive_review,
       overview: overview,
+      inbox: inbox,
       theme: setting_value(console_settings, :theme, "system"),
       setup: setup_status(setup_service),
       manual_publish_enabled: direct_value(behavior_settings, :manual_publish_enabled?, false),

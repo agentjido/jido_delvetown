@@ -25,6 +25,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   @spec overview(map()) :: Phoenix.LiveView.Rendered.t()
   def overview(assigns), do: content(assign(assigns, :dashboard_section, :overview))
 
+  @spec inbox(map()) :: Phoenix.LiveView.Rendered.t()
+  def inbox(assigns), do: content(assign(assigns, :dashboard_section, :inbox))
+
   @spec runtime_health(map()) :: Phoenix.LiveView.Rendered.t()
   def runtime_health(assigns), do: content(assign(assigns, :dashboard_section, :runtime_health))
 
@@ -932,6 +935,133 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         font-size: 11px;
       }
 
+      .inbox-shell {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .inbox-command-bar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      .inbox-command-copy h2 { margin: 4px 0 8px; }
+      .inbox-command-copy > p:last-child { margin: 0; color: var(--muted); }
+
+      .inbox-scan-control {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .inbox-scan-control .run-review-button { width: 100%; }
+
+      .inbox-scan-meta {
+        margin: 0;
+        color: var(--quiet);
+        font-size: 11px;
+      }
+
+      .inbox-category-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .inbox-category {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .inbox-category strong { color: var(--text); font-size: 17px; }
+
+      .inbox-event-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .inbox-event-card {
+        display: grid;
+        grid-template-columns: minmax(150px, 0.34fr) minmax(0, 1fr);
+        gap: 16px;
+        padding: 15px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-raised);
+      }
+
+      .inbox-event-identity,
+      .inbox-event-body { min-width: 0; }
+
+      .inbox-event-kind {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+
+      .inbox-event-identity strong { display: block; overflow-wrap: anywhere; }
+      .inbox-event-identity time { color: var(--quiet); font-size: 11px; }
+
+      .inbox-event-body > p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .inbox-proposal {
+        display: grid;
+        gap: 7px;
+        padding: 11px 12px;
+        border-left: 3px solid var(--cyan);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+      }
+
+      .inbox-proposal-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 12px;
+      }
+
+      .inbox-proposal blockquote { margin: 0; color: var(--text); font-size: 13px; }
+      .inbox-proposal p { margin: 0; color: var(--muted); font-size: 12px; }
+
+      .inbox-source-link {
+        display: inline-block;
+        margin-top: 9px;
+        color: var(--cyan);
+        font-size: 12px;
+        font-weight: 650;
+        text-decoration: none;
+      }
+
+      .inbox-panel-meta {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
       .panel-header {
         display: flex;
         align-items: baseline;
@@ -1520,7 +1650,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .event-grid,
         .about-content,
         .overview-summary-grid,
-        .overview-detail-grid { grid-template-columns: 1fr; }
+        .overview-detail-grid,
+        .inbox-command-bar { grid-template-columns: 1fr; }
         .status-item { border-right: 0; border-bottom: 1px solid var(--line); }
         .status-item:last-child { border-bottom: 0; }
         .planned-controls { grid-template-columns: 1fr; }
@@ -1546,6 +1677,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         .health-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .event-title { align-items: start; flex-direction: column; gap: 2px; }
         .overview-schedule-list li { align-items: start; flex-direction: column; gap: 2px; }
+        .inbox-category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .inbox-event-card { grid-template-columns: 1fr; }
         .control-row { display: grid; grid-template-columns: 1fr; }
         .control-row button { width: 100%; }
       }
@@ -1580,13 +1713,13 @@ defmodule JidoDelvetownWeb.DashboardComponents do
           <span>Overview</span>
         </a>
         <a
-          id="simulated-posts-tab"
-          class={"operator-nav-link #{tab_class(@active_tab, "simulated-posts")}"}
-          href="/?tab=simulated-posts"
-          aria-current={if @active_tab == "simulated-posts", do: "page"}
+          id="inbox-tab"
+          class={"operator-nav-link #{tab_class(@active_tab, "inbox")}"}
+          href="/?tab=inbox"
+          aria-current={if @active_tab == "inbox", do: "page"}
         >
           <span>Inbox</span>
-          <span class="nav-count">{review_item_count(@inspection)}</span>
+          <span class="nav-count">{inbox_nav_count(@inbox)}</span>
         </a>
         <a
           id="image-drafts-tab"
@@ -1687,11 +1820,11 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             Overview
           </a>
           <a
-            class={"mobile-nav-link #{tab_class(@active_tab, "simulated-posts")}"}
-            href="/?tab=simulated-posts"
-            aria-current={if @active_tab == "simulated-posts", do: "page"}
+            class={"mobile-nav-link #{tab_class(@active_tab, "inbox")}"}
+            href="/?tab=inbox"
+            aria-current={if @active_tab == "inbox", do: "page"}
           >
-            Inbox <span class="nav-count">{review_item_count(@inspection)}</span>
+            Inbox <span class="nav-count">{inbox_nav_count(@inbox)}</span>
           </a>
           <a
             class={"mobile-nav-link #{tab_class(@active_tab, "image-drafts")}"}
@@ -2127,6 +2260,122 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     </section>
 
     <section
+      :if={@dashboard_section == :inbox and @active_tab == "inbox"}
+      id="inbox-panel"
+      class="inbox-shell"
+      role="tabpanel"
+      aria-labelledby="inbox-tab"
+    >
+      <article class="panel">
+        <div class="inbox-command-bar">
+          <div class="inbox-command-copy">
+            <p class="panel-kicker">SQLite event queue</p>
+            <h2>Participation inbox</h2>
+            <p>
+              Review replies, mentions, follows, and likes with their local processing state.
+              A manual scan uses the normal Oban queue and current safety settings. It does not
+              enable protocol writes.
+            </p>
+            <div class="inbox-category-grid" aria-label="Visible inbox event types">
+              <div :for={category <- inbox_categories(@inbox)} class="inbox-category">
+                <span>{display(map_value(category, :label))}</span>
+                <strong>{display(map_value(category, :count, 0))}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="inbox-scan-control">
+            <div
+              id="reactive-review-feedback"
+              class="review-feedback"
+              data-status={map_value(@reactive_review, :status)}
+              aria-live="polite"
+            >
+              <strong>{display(map_value(@reactive_review, :label))}</strong>
+              <span>{display(map_value(@reactive_review, :detail))}</span>
+            </div>
+            <button
+              id="run-reactive-review"
+              type="button"
+              class="run-review-button"
+              phx-click="run_reactive_review"
+              phx-disable-with="Queuing scan…"
+              disabled={map_value(@reactive_review, :disabled?, true)}
+            >
+              Scan DelveTown now
+            </button>
+            <p class="inbox-scan-meta">{inbox_scan_label(@inbox)}</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">Processing state</p>
+            <h2>Recent social events</h2>
+          </div>
+          <div class="inbox-panel-meta">
+            <span class="count">{inbox_proposal_label(@inbox)}</span>
+            <span class={"badge #{if inbox_actionable_count(@inbox) > 0, do: "attention", else: "healthy"}"}>
+              {inbox_actionable_count(@inbox)} need attention
+            </span>
+          </div>
+        </div>
+
+        <p :if={inbox_events(@inbox) == []} class="empty">
+          No reply, mention, follow, or like event is stored yet. Run a scan to check DelveTown.
+        </p>
+
+        <ol :if={inbox_events(@inbox) != []} class="inbox-event-list">
+          <li :for={event <- inbox_events(@inbox)} class="inbox-event-card">
+            <div class="inbox-event-identity">
+              <div class="inbox-event-kind">
+                <span class="badge idle">{state_label(map_value(event, :kind))}</span>
+                <span class={"badge #{action_status_class(map_value(event, :state))}"}>
+                  {state_label(map_value(event, :state))}
+                </span>
+              </div>
+              <strong>{inbox_actor_label(event)}</strong>
+              <time datetime={inbox_event_time(event)}>{inbox_time_label(inbox_event_time(event))}</time>
+            </div>
+
+            <div class="inbox-event-body">
+              <div :if={is_map(map_value(event, :proposal))} class="inbox-proposal">
+                <div class="inbox-proposal-heading">
+                  <strong>
+                    Proposed {state_label(
+                      map_value(map_value(event, :proposal, %{}), :action, "action")
+                    )}
+                  </strong>
+                  <span class="badge active">
+                    {state_label(map_value(map_value(event, :proposal, %{}), :status, "recorded"))}
+                  </span>
+                </div>
+                <blockquote :if={present_text?(map_value(map_value(event, :proposal, %{}), :text))}>
+                  {map_value(map_value(event, :proposal, %{}), :text)}
+                </blockquote>
+                <p :if={present_text?(map_value(map_value(event, :proposal, %{}), :reason))}>
+                  {map_value(map_value(event, :proposal, %{}), :reason)}
+                </p>
+              </div>
+              <p :if={not is_map(map_value(event, :proposal))}>{inbox_event_detail(event)}</p>
+              <a
+                :if={post_url(map_value(event, :record_uri))}
+                class="inbox-source-link"
+                href={post_url(map_value(event, :record_uri))}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View source post ↗
+              </a>
+            </div>
+          </li>
+        </ol>
+      </article>
+    </section>
+
+    <section
       :if={@dashboard_section == :memory_and_effects and @active_tab == "overview"}
       class="health-grid"
       aria-label="Durable memory and effect health"
@@ -2357,18 +2606,9 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     >
       <div>
         <h2>Manual controls</h2>
-        <p>A manual review uses the normal queue, scan lease, and current dry-run settings.</p>
+        <p>Start a timeline review with the current dry-run and safety settings.</p>
       </div>
       <div class="control-stack">
-        <div
-          id="reactive-review-feedback"
-          class="review-feedback"
-          data-status={map_value(@reactive_review, :status)}
-          aria-live="polite"
-        >
-          <strong>{map_value(@reactive_review, :label)}</strong>
-          <span>{map_value(@reactive_review, :detail)}</span>
-        </div>
         <div
           id="proactive-review-feedback"
           class="review-feedback"
@@ -2379,16 +2619,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
           <span>{map_value(@proactive_review, :detail)}</span>
         </div>
         <div class="control-row">
-          <button
-            id="run-reactive-review"
-            type="button"
-            class="run-review-button"
-            phx-click="run_reactive_review"
-            phx-disable-with="Queuing review…"
-            disabled={map_value(@reactive_review, :disabled?, true)}
-          >
-            Run reactive review
-          </button>
           <button
             id="run-proactive-review"
             type="button"
@@ -2444,7 +2674,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       id="simulated-posts-panel"
       class="panel simulated-panel"
       role="tabpanel"
-      aria-labelledby="simulated-posts-tab"
+      aria-label="Simulated actions"
     >
       <div class="panel-header">
         <div>
@@ -2773,11 +3003,6 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   defp event_states, do: ~w(pending claimed completed ignored failed)
   defp effect_states, do: ~w(reserved uncertain completed permanent_failure)
 
-  defp review_item_count(inspection) do
-    length(inspection_list(inspection, [:simulated_posts])) +
-      length(inspection_list(inspection, [:like_proposals]))
-  end
-
   defp overview_autonomy(overview), do: map_value(overview, :autonomy, %{})
   defp overview_connection(overview), do: map_value(overview, :connection, %{})
   defp overview_attention(overview), do: inspection_list(overview, [:attention])
@@ -2791,6 +3016,80 @@ defmodule JidoDelvetownWeb.DashboardComponents do
 
   defp overview_recent_actions(overview),
     do: inspection_list(overview, [:recent_actions])
+
+  defp inbox_events(inbox), do: inspection_list(inbox, [:events])
+  defp inbox_categories(inbox), do: inspection_list(inbox, [:categories])
+
+  defp inbox_actionable_count(inbox) do
+    case map_value(inbox, :actionable_count, 0) do
+      count when is_integer(count) and count >= 0 -> count
+      _count -> 0
+    end
+  end
+
+  defp inbox_nav_count(inbox), do: inbox_actionable_count(inbox)
+
+  defp inbox_proposal_label(inbox) do
+    count =
+      case map_value(inbox, :proposal_count, 0) do
+        value when is_integer(value) and value >= 0 -> value
+        _value -> 0
+      end
+
+    if count == 1, do: "1 proposal", else: "#{count} proposals"
+  end
+
+  defp inbox_scan_label(inbox) do
+    case map_value(inbox, :last_scan) do
+      scan when is_map(scan) ->
+        if map_value(scan, :lease_active?, false) do
+          "A notification scan is running."
+        else
+          "Last completed scan: #{inbox_time_label(map_value(scan, :last_completed_at))}"
+        end
+
+      _scan ->
+        "No completed notification scan is recorded."
+    end
+  end
+
+  defp inbox_actor_label(event) do
+    actor = map_value(event, :actor, %{})
+
+    cond do
+      present_text?(map_value(actor, :handle)) -> "@#{map_value(actor, :handle)}"
+      present_text?(map_value(actor, :display_name)) -> map_value(actor, :display_name)
+      present_text?(map_value(actor, :did)) -> map_value(actor, :did)
+      true -> "Unknown actor"
+    end
+  end
+
+  defp inbox_event_time(event) do
+    map_value(event, :terminal_at) || map_value(event, :claimed_at) ||
+      map_value(event, :occurred_at) || map_value(event, :updated_at)
+  end
+
+  defp inbox_time_label(value) when is_binary(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, time, _offset} -> Calendar.strftime(time, "%b %d · %H:%M UTC")
+      _error -> display(value)
+    end
+  end
+
+  defp inbox_time_label(value), do: display(value)
+
+  defp inbox_event_detail(event) do
+    case map_value(event, :state) do
+      "pending" -> "Waiting for the next reactive review."
+      "claimed" -> "The reactive worker is processing this event."
+      "completed" -> "Processing completed without a saved proposal."
+      "ignored" -> "The active policy ignored this event."
+      "failed" -> "Processing failed. Check the local logs before another scan."
+      _state -> "The local processing state is unavailable."
+    end
+  end
+
+  defp present_text?(value), do: is_binary(value) and String.trim(value) != ""
 
   defp action_status_class(status)
        when status in ["ok", :ok, "completed", "published", "acted"],
@@ -2808,7 +3107,8 @@ defmodule JidoDelvetownWeb.DashboardComponents do
   defp tab_class(active_tab, tab) when active_tab == tab, do: "active"
   defp tab_class(_active_tab, _tab), do: ""
 
-  defp page_title("simulated-posts"), do: "Participation inbox"
+  defp page_title("inbox"), do: "Participation inbox"
+  defp page_title("simulated-posts"), do: "Simulated actions"
   defp page_title("image-drafts"), do: "Drafts & approvals"
   defp page_title(_active_tab), do: "Overview"
 

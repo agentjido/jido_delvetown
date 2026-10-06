@@ -110,7 +110,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
     {:noreply,
      socket
      |> assign(DashboardSnapshot.load())
-     |> assign(:active_tab, "overview")
+     |> assign(:active_tab, "inbox")
      |> assign(:reactive_review, feedback)}
   end
 
@@ -190,6 +190,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
             <% else %>
               <DashboardComponents.operational_state {assigns} />
               <DashboardComponents.overview {assigns} />
+              <DashboardComponents.inbox {assigns} />
               <DashboardComponents.planned_controls {assigns} />
               <DashboardComponents.agent_information {assigns} />
               <DashboardComponents.simulated_actions {assigns} />
@@ -205,6 +206,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_ms)
 
   defp active_tab(%{"tab" => "simulated-posts"}), do: "simulated-posts"
+  defp active_tab(%{"tab" => "inbox"}), do: "inbox"
   defp active_tab(%{"tab" => "image-drafts"}), do: "image-drafts"
   defp active_tab(_params), do: "overview"
 

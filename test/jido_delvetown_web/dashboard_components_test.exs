@@ -15,6 +15,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       :first_run_setup,
       :operational_state,
       :overview,
+      :inbox,
       :runtime_health,
       :memory_and_effects,
       :scan_and_database_status,
@@ -28,7 +29,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
     assert Enum.all?(components, &function_exported?(DashboardComponents, &1, 1))
   end
 
-  test "planned controls keep their LiveView event bindings" do
+  test "planned controls keep the proactive LiveView event binding" do
     review = %{
       status: :idle,
       label: "Ready for review",
@@ -44,9 +45,59 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
       })
 
     assert html =~ ~s(aria-label="Manual controls")
-    assert html =~ ~s(phx-click="run_reactive_review")
     assert html =~ ~s(phx-click="run_proactive_review")
+    refute html =~ ~s(phx-click="run_reactive_review")
     refute html =~ "Interaction memory"
+  end
+
+  test "inbox owns the manual reactive review control and event state" do
+    review = %{
+      status: :idle,
+      label: "Ready for review",
+      detail: "Queue one review with the current dry-run settings.",
+      disabled?: false
+    }
+
+    html =
+      render_component(&DashboardComponents.inbox/1, %{
+        active_tab: "inbox",
+        reactive_review: review,
+        inbox: %{
+          actionable_count: 1,
+          proposal_count: 1,
+          categories: [
+            %{key: "reply", label: "Replies", count: 1},
+            %{key: "mention", label: "Mentions", count: 0},
+            %{key: "follow", label: "Follows", count: 0},
+            %{key: "like", label: "Likes", count: 0}
+          ],
+          last_scan: %{last_completed_at: "2026-10-06T12:00:00Z", lease_active?: false},
+          events: [
+            %{
+              event_key: "reply:1",
+              kind: "reply",
+              state: "pending",
+              actor: %{handle: "member.test"},
+              record_uri: "at://did:plc:member/town.delve.feed.post/source",
+              occurred_at: "2026-10-06T12:00:00Z",
+              proposal: %{
+                action: "reply",
+                status: "proposed",
+                text: "A bounded reply.",
+                reason: "Direct question"
+              }
+            }
+          ]
+        }
+      })
+
+    assert html =~ ~s(id="inbox-panel")
+    assert html =~ ~s(phx-click="run_reactive_review")
+    assert html =~ "Scan DelveTown now"
+    assert html =~ "@member.test"
+    assert html =~ "1 proposal"
+    assert html =~ "A bounded reply."
+    assert html =~ "Direct question"
   end
 
   test "simulated actions keep publish confirmation local to their component" do

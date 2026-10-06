@@ -116,7 +116,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     :ok
   end
 
-  test "renders agent state with the manual reactive review control" do
+  test "renders the operator overview" do
     html = render_dashboard()
 
     assert html =~ "AgentJido"
@@ -152,12 +152,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ ~s(role="progressbar")
     assert html =~ "Recent actions"
     assert html =~ "Direct technical question"
-    assert html =~ "Run reactive review"
     assert html =~ "Approve human-in-the-loop post"
-    assert html =~ "Ready for review"
-    assert html =~ "current dry-run settings"
-    assert html =~ ~s(id="run-reactive-review")
-    assert html =~ ~s(phx-click="run_reactive_review")
     assert html =~ ~s(id="run-proactive-review")
     assert html =~ ~s(phx-click="run_proactive_review")
     assert html =~ ~s(id="proactive-review-feedback")
@@ -169,6 +164,30 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "published-reply"
     assert html =~ "disabled"
     assert function_exported?(DashboardLive, :handle_event, 3)
+  end
+
+  test "renders the participation inbox with manual scan and proposals" do
+    html = render_dashboard(Map.put(base_assigns(), :active_tab, "inbox"))
+
+    assert html =~ ~s(<h1 id="page-title">Participation inbox</h1>)
+    assert html =~ ~s(id="inbox-tab" class="operator-nav-link active")
+    assert html =~ ~s(id="inbox-panel")
+    assert html =~ "Replies"
+    assert html =~ "Mentions"
+    assert html =~ "Follows"
+    assert html =~ "Likes"
+    assert html =~ "@member.test"
+    assert html =~ "A supervisor gives this failure boundary one owner."
+    assert html =~ "The thread asks a direct technical question."
+    assert html =~ "1 need attention"
+    assert html =~ "1 proposal"
+    assert html =~ "Last completed scan: Oct 05 · 11:59 UTC"
+    assert html =~ "Ready for review"
+    assert html =~ "current dry-run settings"
+    assert html =~ ~s(id="run-reactive-review")
+    assert html =~ ~s(phx-click="run_reactive_review")
+    assert html =~ "Scan DelveTown now"
+    refute html =~ ~s(id="overview-panel")
   end
 
   test "renders first-run setup without accepting an LLM key" do
@@ -321,6 +340,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
                DashboardLive.handle_event("run_reactive_review", %{}, socket)
 
       assert updated_socket.assigns.reactive_review.status == String.to_existing_atom(status)
+      assert updated_socket.assigns.active_tab == "inbox"
 
       html = render_dashboard(updated_socket.assigns)
       assert html =~ ~s(data-status="#{status}")
@@ -420,8 +440,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
   test "shows the simulated-post empty state" do
     html = render_dashboard(Map.put(base_assigns(), :active_tab, "simulated-posts"))
 
-    assert html =~ ~s(<h1 id="page-title">Participation inbox</h1>)
-    assert html =~ ~s(id="simulated-posts-tab" class="operator-nav-link active")
+    assert html =~ ~s(<h1 id="page-title">Simulated actions</h1>)
+    assert html =~ ~s(aria-label="Simulated actions")
     assert html =~ "No simulated posts yet"
     assert html =~ "were not sent to DelveTown"
   end
@@ -825,6 +845,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       refreshed_at: "2026-10-05T12:00:00Z",
       refreshed_label: "12:00:00 UTC",
       overview: overview_assigns(),
+      inbox: inbox_assigns(),
       operational_state: %{
         key: "safe",
         label: "Safe: writes off",
@@ -889,6 +910,43 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
           status: "proposed",
           detail: "Direct technical question",
           at: "2026-10-05T12:00:00Z"
+        }
+      ]
+    }
+  end
+
+  defp inbox_assigns do
+    %{
+      actionable_count: 1,
+      proposal_count: 1,
+      categories: [
+        %{key: "reply", label: "Replies", count: 1},
+        %{key: "mention", label: "Mentions", count: 0},
+        %{key: "follow", label: "Follows", count: 0},
+        %{key: "like", label: "Likes", count: 0}
+      ],
+      last_scan: %{
+        name: "notifications",
+        last_completed_at: "2026-10-05T11:59:00Z",
+        lease_active?: false
+      },
+      events: [
+        %{
+          event_key: "reply:1",
+          kind: "reply",
+          state: "pending",
+          actor: %{did: "did:plc:member", handle: "member.test", display_name: "Member"},
+          record_uri: "at://did:plc:member/town.delve.feed.post/source-post",
+          occurred_at: "2026-10-05T11:58:00Z",
+          claimed_at: nil,
+          terminal_at: nil,
+          updated_at: "2026-10-05T11:58:00Z",
+          proposal: %{
+            action: "reply",
+            status: "proposed",
+            text: "A supervisor gives this failure boundary one owner.",
+            reason: "The thread asks a direct technical question."
+          }
         }
       ]
     }
