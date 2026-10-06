@@ -9,9 +9,15 @@
   "id": "jido_del-iy2.1",
   "labels": [],
   "parent": "jido_del-iy2",
+  "comments": [
+    {
+      "text": "Confirmed from the 2026-10-05 DelveTown client lexicon and a read-only public getPosts response: embed type town.delve.embed.images, max 4 images, image/* blobs up to 2,000,000 bytes, required string alt with empty accepted, and optional positive-integer aspectRatio. Added the contract validator, fixture, tests, and documentation. mix precommit: 150 passed.",
+      "timestamp": "2026-10-06T00:55:42Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Confirm the DelveTown image record contract",
   "type": "task",
-  "updated_at": "2026-10-06T00:44:50Z"
+  "updated_at": "2026-10-06T00:55:42Z"
 }
