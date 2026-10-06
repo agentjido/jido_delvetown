@@ -124,7 +124,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         --line-strong: #c5c8c2;
         --text: #191a18;
         --muted: #5f645d;
-        --quiet: #7a7f77;
+        --quiet: #686d66;
         --green: #18733f;
         --green-deep: #e4f3e9;
         --cyan: #315ea8;
@@ -217,6 +217,23 @@ defmodule JidoDelvetownWeb.DashboardComponents do
         outline: 3px solid var(--cyan);
         outline-offset: 3px;
       }
+
+      .skip-link {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 100;
+        padding: 9px 12px;
+        border: 2px solid var(--cyan);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text);
+        font-weight: 760;
+        text-decoration: none;
+        transform: translateY(calc(-100% - 20px));
+      }
+
+      .skip-link:focus { transform: translateY(0); }
 
       .operator-layout {
         display: grid;
@@ -2892,8 +2909,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       :if={@dashboard_section == :overview and @active_tab == "overview"}
       id="overview-panel"
       class="overview-stack"
-      role="tabpanel"
-      aria-labelledby="overview-tab"
+      aria-labelledby="page-title"
     >
       <div class="overview-summary-grid" aria-label="Current operating state">
         <article class="panel overview-summary-card">
@@ -3059,8 +3075,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       :if={@dashboard_section == :inbox and @active_tab == "inbox"}
       id="inbox-panel"
       class="inbox-shell"
-      role="tabpanel"
-      aria-labelledby="inbox-tab"
+      aria-labelledby="page-title"
     >
       <article class="panel">
         <div class="inbox-command-bar">
@@ -3468,8 +3483,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       :if={@dashboard_section == :people and @active_tab == "people"}
       id="people-panel"
       class="people-shell"
-      role="tabpanel"
-      aria-labelledby="people-tab"
+      aria-labelledby="page-title"
     >
       <article class="panel people-summary">
         <div class="panel-header">
@@ -3620,8 +3634,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       :if={@dashboard_section == :activity and @active_tab == "activity"}
       id="activity-panel"
       class="activity-shell"
-      role="tabpanel"
-      aria-labelledby="activity-tab"
+      aria-labelledby="page-title"
     >
       <article class="panel activity-intro">
         <div class="panel-header">
@@ -3717,8 +3730,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       :if={@dashboard_section == :drafts and @active_tab == "drafts"}
       id="drafts-panel"
       class="drafts-shell"
-      role="tabpanel"
-      aria-labelledby="drafts-tab"
+      aria-labelledby="page-title"
     >
       <article class="panel drafts-summary">
         <div class="panel-header">
@@ -4359,8 +4371,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
       :if={@dashboard_section == :settings and @active_tab == "settings"}
       id="settings-panel"
       class="settings-shell"
-      role="tabpanel"
-      aria-labelledby="settings-tab"
+      aria-labelledby="page-title"
     >
       <article class="panel settings-intro">
         <div>

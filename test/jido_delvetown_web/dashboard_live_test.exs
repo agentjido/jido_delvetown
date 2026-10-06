@@ -305,9 +305,10 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ ~s(phx-change="set_theme")
     assert html =~ "Safe: writes off"
     assert html =~ ~s(class="operator-layout")
+    assert html =~ ~s(<a class="skip-link" href="#operator-content">Skip to main content</a>)
     assert html =~ ~s(id="operator-sidebar")
     assert html =~ ~s(id="mobile-console-header")
-    assert html =~ ~s(id="operator-content")
+    assert html =~ ~s(id="operator-content" class="dashboard-shell" tabindex="-1")
     assert html =~ "Inbox"
     assert html =~ "Drafts &amp; approvals"
     assert html =~ "People"
@@ -315,6 +316,8 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "Settings"
     assert html =~ ~s(id="overview-tab")
     assert html =~ ~s(aria-current="page")
+    assert html =~ ~s(id="overview-panel" class="overview-stack" aria-labelledby="page-title")
+    refute html =~ ~s(role="tabpanel")
     assert html =~ ~s(aria-label="Global agent state")
     assert html =~ ~s(role="switch")
     assert html =~ ~s(aria-checked="false")
@@ -594,6 +597,13 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert updated_socket.assigns.theme == "dark"
     assert render_dashboard(updated_socket.assigns) =~ ~s(data-theme="dark")
 
+    assert {:noreply, light_socket} =
+             DashboardLive.handle_event("set_theme", %{"theme" => "light"}, updated_socket)
+
+    assert_received {:theme_selected, "light"}
+    assert light_socket.assigns.theme == "light"
+    assert render_dashboard(light_socket.assigns) =~ ~s(data-theme="light")
+
     Application.put_env(
       :jido_delvetown,
       :console_theme_test_result,
@@ -601,10 +611,10 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     )
 
     assert {:noreply, unchanged_socket} =
-             DashboardLive.handle_event("set_theme", %{"theme" => "sepia"}, updated_socket)
+             DashboardLive.handle_event("set_theme", %{"theme" => "sepia"}, light_socket)
 
     assert_received {:theme_selected, "sepia"}
-    assert unchanged_socket.assigns.theme == "dark"
+    assert unchanged_socket.assigns.theme == "light"
   end
 
   test "reports queued, duplicate, unavailable, and worker-failure review results" do

@@ -384,11 +384,12 @@ defmodule JidoDelvetownWeb.DashboardLive do
     ~H"""
     <div class="console-root" data-theme={@theme}>
       <DashboardComponents.styles {assigns} />
+      <a class="skip-link" href="#operator-content">Skip to main content</a>
       <div class="operator-layout">
         <DashboardComponents.sidebar_navigation {assigns} />
         <div class="operator-workspace">
           <DashboardComponents.mobile_navigation {assigns} />
-          <main id="operator-content" class="dashboard-shell">
+          <main id="operator-content" class="dashboard-shell" tabindex="-1">
             <%= if @show_setup do %>
               <DashboardComponents.first_run_setup {assigns} />
             <% else %>
