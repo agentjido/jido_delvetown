@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [
     "jido_del-nki.1"
   ],
@@ -12,8 +12,8 @@
   "labels": [],
   "parent": "jido_del-nki",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Add the ReqLLM image generator adapter",
   "type": "task",
-  "updated_at": "2026-10-06T01:50:18Z"
+  "updated_at": "2026-10-06T14:30:12Z"
 }
