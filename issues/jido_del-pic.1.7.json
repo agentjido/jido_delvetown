@@ -6,7 +6,8 @@
   "blocks": [
     "jido_del-pic.1.10",
     "jido_del-pic.1.12",
-    "jido_del-pic.1.9"
+    "jido_del-pic.1.9",
+    "jido_del-pic.2.9"
   ],
   "created": "2026-10-06T01:19:48Z",
   "description": "Move model selection, decision timeout, enabled actions, notification handling, dry-run behavior, manual publication policy, and conversation policy to SQLite.",
@@ -17,5 +18,5 @@
   "status": "open",
   "title": "Move agent behavior settings to SQLite",
   "type": "task",
-  "updated_at": "2026-10-06T01:20:10Z"
+  "updated_at": "2026-10-06T01:20:11Z"
 }
