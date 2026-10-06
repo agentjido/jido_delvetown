@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T00:59:44Z",
+  "description": "Define and enforce the policy for selecting an outgoing like. Use a separate configurable daily like budget instead of consuming the reply budget. Exclude owned posts, posts already liked by AgentJido, duplicate local candidates, opted-out or blocked actors, stale candidates, and content that fails the participation safety rules. Apply an actor cooldown so repeated likes do not become spam. Acceptance: the decision model receives only eligible candidates; one selected like consumes one like budget unit only when acted or simulated; skips have stable reasons; restarts preserve the budget and prior selection memory; focused tests cover each exclusion and the budget boundary.",
+  "id": "jido_del-322.2",
+  "labels": [],
+  "parent": "jido_del-322",
+  "priority": 1,
+  "status": "open",
+  "title": "Add outgoing like eligibility and budget rules",
+  "type": "task",
+  "updated_at": "2026-10-06T00:59:44Z"
+}
