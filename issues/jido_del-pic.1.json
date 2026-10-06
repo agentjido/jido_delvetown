@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:19:48Z",
+  "description": "Make SQLite the source of truth for all application and operator settings. Keep only LLM API keys outside SQLite. Provide safe defaults, version history, live updates, and clone-first startup.",
+  "id": "jido_del-pic.1",
+  "labels": [],
+  "parent": "jido_del-pic",
+  "priority": 1,
+  "status": "open",
+  "title": "Move all application configuration to SQLite",
+  "type": "epic",
+  "updated_at": "2026-10-06T01:19:48Z"
+}
