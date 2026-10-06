@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T00:40:42Z",
+  "description": "Expose authenticated blob upload through the transport and fake transport contracts. Upload only validated staged artifacts. Persist upload attempts and the returned blob reference. Retry the exact bytes after timeout or restart and converge on one content-addressed blob. Do not mark an upload complete without a durable receipt. Add tests for success, timeout, retry, restart, invalid MIME, and write guards.",
+  "id": "jido_del-iy2.3",
+  "labels": [],
+  "parent": "jido_del-iy2",
+  "priority": 1,
+  "status": "open",
+  "title": "Add idempotent AT Protocol blob upload plumbing",
+  "type": "task",
+  "updated_at": "2026-10-06T00:40:42Z"
+}
