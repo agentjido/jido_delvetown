@@ -5,14 +5,16 @@
     "jido_del-pic.2.6"
   ],
   "blocks": [],
+  "closed_at": "2026-10-06T14:56:57Z",
+  "close_reason": "Implemented preview-first image generation in Drafts with operator-selected model, size, and quality; async progress; durable failure, usage, and provenance inspection; generated previews; and separate publication approval. Full precommit passes with 396 tests and no dependency cycles.",
   "created": "2026-10-06T01:49:52Z",
   "description": "Add a Generate image action to the redesigned Drafts view. Let the operator enter and review the prompt, caption, alt text, model, size, and quality. Show progress, usage, failure state, generated preview, provenance, and a separate publication approval.",
   "id": "jido_del-nki.7",
   "labels": [],
   "parent": "jido_del-nki",
   "priority": 2,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Add image generation to Drafts and Approvals",
   "type": "task",
-  "updated_at": "2026-10-06T14:49:18Z"
+  "updated_at": "2026-10-06T14:56:57Z"
 }
