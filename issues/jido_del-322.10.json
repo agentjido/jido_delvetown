@@ -9,9 +9,15 @@
   "id": "jido_del-322.10",
   "labels": [],
   "parent": "jido_del-322",
+  "comments": [
+    {
+      "text": "Fixed in commit 0866db6. Decision-model errors now produce one safe skip with the error reason, finish the selected event as ignored, and do not return a failed cycle to Oban. Regression proof runs the same reactive notification twice: the decision model is called once, the event stays terminal, attempt_count stays 1, and no protocol record is created. Checks: focused 20 tests passed; compile with warnings as errors passed; full package 416 tests passed.",
+      "timestamp": "2026-10-06T15:50:04Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Recover a reactive cycle after decision execution returns no decision",
   "type": "bug",
-  "updated_at": "2026-10-06T15:47:44Z"
+  "updated_at": "2026-10-06T15:50:04Z"
 }
