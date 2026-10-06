@@ -3,7 +3,9 @@
   "blocked_by": [
     "jido_del-pic.1.7"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-pic.1.12"
+  ],
   "created": "2026-10-06T01:19:48Z",
   "description": "Add observe, review, and autonomous modes. Define valid action behavior for each mode and require explicit confirmation before autonomous writes become active.",
   "id": "jido_del-pic.1.10",
