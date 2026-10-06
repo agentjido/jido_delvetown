@@ -1,6 +1,8 @@
 {
   "assignee": "",
-  "blocked_by": [],
+  "blocked_by": [
+    "jido_del-3zq.3"
+  ],
   "blocks": [],
   "created": "2026-10-06T01:07:20Z",
   "description": "Update the developer README with the final subsystem ownership map and the public entry points. Verify that tests mirror the source layout and remove stale path references. Run format checking, warnings-as-errors compilation, all tests, and xref cycle checks on the final state. Acceptance: the root folder contains only the application, agent, config, and intentional public facade files; mix precommit passes; xref reports no dependency cycles; the document states the legacy-code removal condition and the ownership of events, effects, scans, protocol access, publishing, and admin presentation.",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Document and verify the final subsystem map",
   "type": "task",
-  "updated_at": "2026-10-06T01:07:20Z"
+  "updated_at": "2026-10-06T01:07:30Z"
 }
