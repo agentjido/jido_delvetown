@@ -116,6 +116,10 @@ JidoDelvetown.Settings.update(
     member_discovery_limit: 20,
     member_max_age_hours: 24,
     friend_sync_limit: 1_000,
+    reactive_review_cron: "*/15 * * * *",
+    proactive_review_cron: "5,35 * * * *",
+    member_discovery_cron: "7 * * * *",
+    friend_sync_cron: "17 * * * *",
     conversation_turn_limit: 4,
     conversation_max_age_hours: 72,
     conversation_non_response_limit: 2
@@ -323,11 +327,13 @@ less and must state that the account is automated.
 
 ## Schedule and manual runs
 
-Oban Cron adds a reactive cycle job every 15 minutes with `*/15 * * * *`. It
-adds proposal-only proactive timeline reviews at minutes 5 and 35 with
-`5,35 * * * *`. It adds a member discovery job at minute 7 of every hour with
-`7 * * * *`. It also syncs the account's follow collection into local friend
-memory at minute 17 of every hour with `17 * * * *`. These jobs use the
+SQLite stores the four worker schedules. The defaults add a reactive cycle job
+every 15 minutes with `*/15 * * * *`, proposal-only proactive timeline reviews
+at minutes 5 and 35 with `5,35 * * * *`, member discovery at minute 7 of every
+hour with `7 * * * *`, and friend synchronization at minute 17 with
+`17 * * * *`. A valid active schedule update replaces the Oban Cron process
+after the database transaction commits. The queue and its durable jobs keep
+running. These jobs use the
 `delvetown` queue with one worker. A worker returns failures to Oban for retry.
 One incomplete unique job is allowed for each worker, so a slow run does not
 create a second run of the same type. Scheduled proactive work always uses the
@@ -442,7 +448,8 @@ entry points.
 
 Oban stores scheduled work and retry state in SQLite. The application starts
 the Jido Agent before it starts the Oban queue, so a durable job cannot run
-against an Agent that has not started.
+against an Agent that has not started. It then loads the active schedules from
+SQLite and starts the supervised Oban Cron process.
 
 The application supervises a named `JidoDelvetown.Jido` instance and loads the
 Agent into it before startup completes. The instance owns the Agent process,

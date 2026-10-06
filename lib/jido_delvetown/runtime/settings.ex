@@ -7,8 +7,8 @@ defmodule JidoDelvetown.Settings do
   reject stale writes. Protected values also require their key in `:confirmed`.
   """
 
-  alias JidoDelvetown.Repo
-  alias JidoDelvetown.Settings.{Bootstrap, Contract}
+  alias JidoDelvetown.{Automation, Repo}
+  alias JidoDelvetown.Settings.{Bootstrap, Contract, Schedules}
   alias JidoDelvetown.Settings.SecretStore
   alias JidoDelvetown.Storage.{Settings, SettingsRevision}
 
@@ -88,12 +88,35 @@ defmodule JidoDelvetown.Settings do
 
     with {:ok, changes} <- normalize_changes(changes),
          {:ok, update_opts} <- normalize_update_opts(opts) do
-      repo.transaction(
-        fn -> update_transaction(repo, scope, changes, update_opts) end,
-        mode: :immediate
-      )
+      repo
+      |> transaction(scope, changes, update_opts)
+      |> maybe_reconcile_schedules(repo, scope, changes)
     end
   end
+
+  defp transaction(repo, scope, changes, update_opts) do
+    repo.transaction(
+      fn -> update_transaction(repo, scope, changes, update_opts) end,
+      mode: :immediate
+    )
+  end
+
+  defp maybe_reconcile_schedules({:ok, snapshot} = result, repo, scope, changes) do
+    active_scope? = repo == Repo and scope == Bootstrap.active_scope()
+    schedule_supplied? = Enum.any?(Map.keys(changes), &(&1 in Schedules.keys()))
+
+    if active_scope? and schedule_supplied? do
+      case Automation.reconcile_schedules() do
+        :ok -> result
+        {:error, reason} -> {:error, {:settings_activation_failed, :worker_reconcile, reason}}
+      end
+    else
+      {:ok, snapshot}
+    end
+  end
+
+  defp maybe_reconcile_schedules({:error, _reason} = error, _repo, _scope, _changes),
+    do: error
 
   defp update_transaction(repo, scope, changes, opts) do
     with %Settings{} = settings <- repo.get(Settings, scope),

@@ -3,7 +3,8 @@ defmodule JidoDelvetown.Automation do
 
   import Ecto.Query
 
-  alias JidoDelvetown.Repo
+  alias JidoDelvetown.{AutomationRuntime, Repo}
+  alias JidoDelvetown.Settings.Schedules
 
   @reactive_worker JidoDelvetown.Workers.ReactiveParticipationWorker
   @proactive_review_worker JidoDelvetown.Workers.ProactiveReviewWorker
@@ -11,7 +12,10 @@ defmodule JidoDelvetown.Automation do
   @manual_source "admin"
   @active_states ~w(available scheduled executing retryable suspended)
 
-  def running?, do: is_pid(Oban.whereis(Oban))
+  def running? do
+    is_pid(Oban.whereis(Oban)) and
+      is_pid(Oban.Registry.whereis(Oban, {:plugin, Oban.Cron}))
+  end
 
   @doc "Queues one manual reactive review without changing protocol-write settings."
   def enqueue_reactive_review, do: enqueue_review(@reactive_worker, :reactive)
@@ -71,7 +75,21 @@ defmodule JidoDelvetown.Automation do
   end
 
   def proactive_review_cron, do: worker_cron(@proactive_review_worker)
+  def member_discovery_cron, do: worker_cron(JidoDelvetown.Workers.MemberDiscoveryWorker)
   def friend_sync_cron, do: worker_cron(@friend_sync_worker)
+
+  @doc "Replaces the Oban Cron child with all active schedules from SQLite."
+  @spec reconcile_schedules() :: :ok | {:error, term()}
+  def reconcile_schedules do
+    with {:ok, crontab} <- Schedules.crontab(),
+         :ok <- AutomationRuntime.reconcile(crontab) do
+      :ok
+    end
+  rescue
+    error -> {:error, {:schedule_reconcile_failed, Exception.message(error)}}
+  catch
+    :exit, reason -> {:error, {:schedule_reconcile_failed, reason}}
+  end
 
   @doc "Returns bounded schedule and latest-job health for proactive reviews."
   def proactive_review_health(opts \\ []) do
@@ -95,10 +113,10 @@ defmodule JidoDelvetown.Automation do
   end
 
   def crontab do
-    :jido_delvetown
-    |> Application.fetch_env!(Oban)
-    |> Keyword.fetch!(:cron)
-    |> Keyword.fetch!(:crontab)
+    case Schedules.crontab() do
+      {:ok, crontab} -> crontab
+      {:error, _reason} -> []
+    end
   end
 
   defp ensure_runtime_available do

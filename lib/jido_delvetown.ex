@@ -90,6 +90,7 @@ defmodule JidoDelvetown do
         schedule_enabled?: Automation.running?(),
         cron: Automation.reactive_cron(),
         proactive_review_cron: Automation.proactive_review_cron(),
+        member_discovery_cron: Automation.member_discovery_cron(),
         friend_sync_cron: Automation.friend_sync_cron(),
         autonomy_mode: behavior_value(Behavior.autonomy_mode()),
         writes_enabled?: Behavior.writes_enabled?(),

@@ -50,6 +50,7 @@ defmodule JidoDelvetown.AgentTest do
     assert JidoDelvetown.status().schedule_enabled?
     assert JidoDelvetown.status().cron == "*/15 * * * *"
     assert JidoDelvetown.status().proactive_review_cron == "5,35 * * * *"
+    assert JidoDelvetown.status().member_discovery_cron == "7 * * * *"
     assert JidoDelvetown.status().friend_sync_cron == "17 * * * *"
     assert is_pid(Oban.whereis(Oban))
 

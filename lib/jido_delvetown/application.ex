@@ -18,6 +18,7 @@ defmodule JidoDelvetown.Application do
       Session,
       AgentBootstrap,
       {Oban, Application.fetch_env!(:jido_delvetown, Oban)},
+      JidoDelvetown.AutomationRuntime,
       Dashboard
     ]
 
