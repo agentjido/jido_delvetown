@@ -10,9 +10,15 @@
   "id": "jido_del-pic.1.13",
   "labels": [],
   "parent": "jido_del-pic.1",
+  "comments": [
+    {
+      "text": "Verification requires the browser setup flow owned by jido_del-pic.2.3. The current dashboard has no setup form or settings write event. Add that issue as a blocker so this check can verify the real browser workflow instead of a substitute Settings.update call.",
+      "timestamp": "2026-10-06T13:04:51Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Verify clone-first startup and configuration persistence",
   "type": "task",
-  "updated_at": "2026-10-06T13:04:18Z"
+  "updated_at": "2026-10-06T13:04:51Z"
 }
