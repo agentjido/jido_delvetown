@@ -1,7 +1,9 @@
 {
   "assignee": "",
   "blocked_by": [],
-  "blocks": [],
+  "blocks": [
+    "jido_del-iy2.3"
+  ],
   "created": "2026-10-06T00:40:42Z",
   "description": "Add SQLite-backed image draft and artifact state for existing image bytes. Use a SHA-256 content digest as the stable artifact identity. Store caption, required alt text, MIME type, byte size, dimensions when available, source metadata, lifecycle state, failure data, and timestamps. Enforce bounded MIME, size, dimensions, caption, and alt-text validation. A repeated stage request for the same logical draft must reuse the durable record. Exclude image generation.",
   "id": "jido_del-iy2.2",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Add durable image draft and artifact storage",
   "type": "task",
-  "updated_at": "2026-10-06T00:40:42Z"
+  "updated_at": "2026-10-06T00:40:48Z"
 }
