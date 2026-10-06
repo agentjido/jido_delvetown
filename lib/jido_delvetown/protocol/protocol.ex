@@ -3,8 +3,8 @@ defmodule JidoDelvetown.Protocol do
 
   alias JidoDelvetown.AuditLog
   alias JidoDelvetown.Config
+  alias JidoDelvetown.EffectStore
   alias JidoDelvetown.Session
-  alias JidoDelvetown.Store
   alias JidoDelvetown.Transport.ProtoRune, as: DefaultTransport
 
   @allowed_collections [
@@ -104,7 +104,7 @@ defmodule JidoDelvetown.Protocol do
     with :ok <- allowed_collection(collection),
          {:ok, session} <- session_module().session(),
          {:ok, effect} <-
-           Store.reserve_effect(effect_key, collection, effect_attributes(opts), store()) do
+           reserve_effect(effect_key, collection, effect_attributes(opts)) do
       create_or_reuse(session, effect, record)
     end
   end
@@ -117,12 +117,7 @@ defmodule JidoDelvetown.Protocol do
          :ok <- allowed_collection(collection),
          effect_key = effect_key("delete", [uri]),
          {:ok, effect} <-
-           Store.reserve_effect(
-             effect_key,
-             collection,
-             %{rkey: rkey, subject_key: uri},
-             store()
-           ) do
+           reserve_effect(effect_key, collection, %{rkey: rkey, subject_key: uri}) do
       delete_or_reuse(session, effect)
     end
   end
@@ -168,7 +163,7 @@ defmodule JidoDelvetown.Protocol do
   defp attempt_create(session, effect, record) do
     record = Map.put(record, "$type", effect.collection)
 
-    with {:ok, attempted} <- Store.begin_effect_attempt(effect.key, store()) do
+    with {:ok, attempted} <- begin_effect_attempt(effect.key) do
       create_once(session, attempted, record)
     end
   end
@@ -226,7 +221,7 @@ defmodule JidoDelvetown.Protocol do
   defp fail_create_permanently(effect, create_error) do
     failure = %{operation: :create, reason: safe_reason(create_error)}
 
-    with {:ok, _failed} <- Store.fail_effect_permanently(effect.key, failure, store()) do
+    with {:ok, _failed} <- fail_effect_permanently(effect.key, failure) do
       audit(:create_record, %{
         collection: effect.collection,
         rkey: effect.rkey,
@@ -238,7 +233,7 @@ defmodule JidoDelvetown.Protocol do
   end
 
   defp complete_create(effect, receipt, reconciled?) do
-    with {:ok, _effect} <- Store.complete_effect(effect.key, receipt, store()) do
+    with {:ok, _effect} <- complete_effect(effect.key, receipt) do
       audit(:create_record, %{
         collection: effect.collection,
         rkey: effect.rkey,
@@ -272,7 +267,7 @@ defmodule JidoDelvetown.Protocol do
     do: attempt_delete(session, effect)
 
   defp attempt_delete(session, effect) do
-    with {:ok, attempted} <- Store.begin_effect_attempt(effect.key, store()) do
+    with {:ok, attempted} <- begin_effect_attempt(effect.key) do
       case transport().delete_record(session, attempted.collection, attempted.rkey, []) do
         {:ok, receipt} ->
           complete_delete(attempted, false, receipt)
@@ -309,7 +304,7 @@ defmodule JidoDelvetown.Protocol do
   defp complete_delete(effect, reconciled?, receipt \\ %{}) do
     saved_receipt = %{deleted: true, remote: receipt}
 
-    with {:ok, _effect} <- Store.complete_effect(effect.key, saved_receipt, store()) do
+    with {:ok, _effect} <- complete_effect(effect.key, saved_receipt) do
       audit(:delete_record, %{
         collection: effect.collection,
         rkey: effect.rkey,
@@ -324,7 +319,7 @@ defmodule JidoDelvetown.Protocol do
   defp fail_delete_permanently(effect, delete_error) do
     failure = %{operation: :delete, reason: safe_reason(delete_error)}
 
-    with {:ok, _failed} <- Store.fail_effect_permanently(effect.key, failure, store()) do
+    with {:ok, _failed} <- fail_effect_permanently(effect.key, failure) do
       audit(:delete_record, %{
         collection: effect.collection,
         rkey: effect.rkey,
@@ -413,6 +408,25 @@ defmodule JidoDelvetown.Protocol do
   defp transport,
     do: Application.get_env(:jido_delvetown, :transport, DefaultTransport)
 
-  defp store,
-    do: Application.get_env(:jido_delvetown, :store, Store)
+  defp reserve_effect(key, collection, attributes) do
+    apply(effect_store(), :reserve, [key, collection, attributes, effect_store_opts()])
+  end
+
+  defp begin_effect_attempt(key) do
+    apply(effect_store(), :begin_attempt, [key, effect_store_opts()])
+  end
+
+  defp complete_effect(key, receipt) do
+    apply(effect_store(), :complete, [key, receipt, effect_store_opts()])
+  end
+
+  defp fail_effect_permanently(key, failure) do
+    apply(effect_store(), :fail_permanently, [key, failure, effect_store_opts()])
+  end
+
+  defp effect_store,
+    do: Application.get_env(:jido_delvetown, :effect_store, EffectStore)
+
+  defp effect_store_opts,
+    do: Application.get_env(:jido_delvetown, :effect_store_opts, [])
 end

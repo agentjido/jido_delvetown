@@ -15,7 +15,7 @@ defmodule Mix.Tasks.Delvetown.Review do
 
   use Mix.Task
 
-  alias JidoDelvetown.{Config, Store}
+  alias JidoDelvetown.{Config, EffectStore}
 
   @requirements ["app.start"]
   @switches [count: :integer, flow: :string, help: :boolean]
@@ -43,7 +43,7 @@ defmodule Mix.Tasks.Delvetown.Review do
        when flow in ["reactive", "proactive"] and is_integer(count) and
               count in 1..@maximum_count do
     ensure_safe!()
-    before_counts = Store.counts()
+    before_counts = EffectStore.counts()
 
     results =
       for number <- 1..count do
@@ -53,7 +53,7 @@ defmodule Mix.Tasks.Delvetown.Review do
       end
 
     ensure_safe!()
-    after_counts = Store.counts()
+    after_counts = EffectStore.counts()
 
     if before_counts != after_counts do
       Mix.raise(

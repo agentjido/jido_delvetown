@@ -3,30 +3,22 @@ defmodule JidoDelvetown.ProtocolTest do
 
   alias JidoDelvetown.Actions.{CreatePost, LikePost}
   alias JidoDelvetown.AuditLog
+  alias JidoDelvetown.EffectStore
   alias JidoDelvetown.Protocol
   alias JidoDelvetown.Repo
-  alias JidoDelvetown.Store
   alias JidoDelvetown.Storage.{AuditEvent, Effect}
   alias JidoDelvetown.Test.FakeSession
   alias JidoDelvetown.Test.FakeTransport
-
-  @test_store JidoDelvetown.TestStore
 
   setup do
     Repo.delete_all(AuditEvent)
     Repo.delete_all(Effect)
 
-    start_supervised!(
-      Supervisor.child_spec(
-        {Store, name: @test_store},
-        id: make_ref()
-      )
-    )
-
     previous = %{
       session_module: Application.get_env(:jido_delvetown, :session_module),
       transport: Application.get_env(:jido_delvetown, :transport),
-      store: Application.get_env(:jido_delvetown, :store),
+      effect_store: Application.get_env(:jido_delvetown, :effect_store),
+      effect_store_opts: Application.get_env(:jido_delvetown, :effect_store_opts),
       test_owner: Application.get_env(:jido_delvetown, :test_owner),
       create_result: Application.get_env(:jido_delvetown, :create_result),
       get_result: Application.get_env(:jido_delvetown, :get_result),
@@ -37,7 +29,8 @@ defmodule JidoDelvetown.ProtocolTest do
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
-    Application.put_env(:jido_delvetown, :store, @test_store)
+    Application.put_env(:jido_delvetown, :effect_store, EffectStore)
+    Application.put_env(:jido_delvetown, :effect_store_opts, repo: Repo)
     Application.put_env(:jido_delvetown, :test_owner, self())
 
     on_exit(fn ->
@@ -90,7 +83,7 @@ defmodule JidoDelvetown.ProtocolTest do
 
     assert_received {:create_record, "town.delve.feed.like", _record, rkey}
     assert_received {:get_record, "town.delve.feed.like", ^rkey}
-    assert %{status: :completed, rkey: ^rkey} = Store.effect("effect-key", @test_store)
+    assert %{status: :completed, rkey: ^rkey} = EffectStore.get("effect-key")
   end
 
   test "a lost reply retries with the same record key" do
@@ -106,7 +99,7 @@ defmodule JidoDelvetown.ProtocolTest do
 
     assert_received {:create_record, "town.delve.feed.post", _record, ^first_rkey}
     assert_received {:get_record, "town.delve.feed.post", ^first_rkey}
-    assert %{status: :uncertain, attempt_count: 1} = Store.effect(key, @test_store)
+    assert %{status: :uncertain, attempt_count: 1} = EffectStore.get(key)
 
     Application.delete_env(:jido_delvetown, :create_result)
 
@@ -117,17 +110,16 @@ defmodule JidoDelvetown.ProtocolTest do
     assert_received {:create_record, "town.delve.feed.post", _record, ^first_rkey}
 
     assert %{status: :completed, attempt_count: 2, rkey: ^first_rkey} =
-             Store.effect(key, @test_store)
+             EffectStore.get(key)
   end
 
   test "an uncertain effect reconciles remote success before another write" do
     System.put_env("DELVETOWN_WRITE_ENABLED", "true")
     key = "reply:remote-success"
 
-    assert {:ok, reserved} =
-             Store.reserve_effect(key, "town.delve.feed.post", @test_store)
+    assert {:ok, reserved} = EffectStore.reserve(key, "town.delve.feed.post")
 
-    assert {:ok, %{status: :uncertain}} = Store.begin_effect_attempt(key, @test_store)
+    assert {:ok, %{status: :uncertain}} = EffectStore.begin_attempt(key)
 
     Application.put_env(
       :jido_delvetown,
@@ -143,7 +135,7 @@ defmodule JidoDelvetown.ProtocolTest do
     refute_received {:create_record, _collection, _record, _rkey}
 
     assert %{status: :completed, attempt_count: 1, rkey: ^rkey} =
-             Store.effect(key, @test_store)
+             EffectStore.get(key)
   end
 
   test "an original post uses its stable opportunity identifier" do
@@ -168,7 +160,7 @@ defmodule JidoDelvetown.ProtocolTest do
     key = Protocol.effect_key("post", ["daily:2026-10-05"])
 
     assert %{status: :completed, rkey: ^rkey, subject_key: "daily:2026-10-05"} =
-             Store.effect(key, @test_store)
+             EffectStore.get(key)
   end
 
   test "an owned deletion is durable and idempotent" do
@@ -184,7 +176,7 @@ defmodule JidoDelvetown.ProtocolTest do
     key = Protocol.effect_key("delete", [uri])
 
     assert %{status: :completed, rkey: "owned-record", subject_key: ^uri} =
-             Store.effect(key, @test_store)
+             EffectStore.get(key)
   end
 
   test "a permanent create failure is not retried" do
@@ -202,7 +194,7 @@ defmodule JidoDelvetown.ProtocolTest do
              Protocol.create_record(key, "town.delve.feed.like", %{subject: %{}})
 
     assert_received {:create_record, "town.delve.feed.like", _record, _rkey}
-    assert %{status: :permanent_failure, attempt_count: 1} = Store.effect(key, @test_store)
+    assert %{status: :permanent_failure, attempt_count: 1} = EffectStore.get(key)
 
     assert {:error, {:effect_failed_permanently, _failure}} =
              Protocol.create_record(key, "town.delve.feed.like", %{subject: %{}})

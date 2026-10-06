@@ -3,7 +3,7 @@ defmodule JidoDelvetown.Application do
 
   use Application
 
-  alias JidoDelvetown.{AgentBootstrap, Config, Database, Repo, Session, Store}
+  alias JidoDelvetown.{AgentBootstrap, Config, Database, Repo, Session}
   alias JidoDelvetown.Jido, as: JidoInstance
 
   @impl true
@@ -15,7 +15,6 @@ defmodule JidoDelvetown.Application do
         Repo,
         Database,
         JidoInstance,
-        Store,
         {DynamicSupervisor, strategy: :one_for_one, name: JidoDelvetown.SessionSupervisor},
         Session,
         AgentBootstrap,

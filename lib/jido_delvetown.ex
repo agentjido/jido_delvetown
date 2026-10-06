@@ -5,13 +5,13 @@ defmodule JidoDelvetown do
   alias JidoDelvetown.AuditLog
   alias JidoDelvetown.Automation
   alias JidoDelvetown.Config
+  alias JidoDelvetown.EffectStore
   alias JidoDelvetown.FriendList
   alias JidoDelvetown.FriendSync
   alias JidoDelvetown.Inspection
   alias JidoDelvetown.Personality
   alias JidoDelvetown.Participation.CycleRunner
   alias JidoDelvetown.Session
-  alias JidoDelvetown.Store
   alias JidoDelvetown.Transport.ProtoRune, as: Transport
 
   def connect, do: Session.connect()
@@ -79,7 +79,7 @@ defmodule JidoDelvetown do
 
       %{
         session: Session.status(),
-        store: Store.counts(),
+        store: EffectStore.counts(),
         schedule_enabled?: Automation.running?(),
         cron: Automation.reactive_cron(),
         proactive_review_cron: Automation.proactive_review_cron(),

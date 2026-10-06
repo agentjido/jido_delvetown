@@ -7,10 +7,10 @@ defmodule JidoDelvetown.ManualPublisher do
     Candidate,
     Config,
     ConversationMemory,
+    EffectStore,
     InteractionEvents,
     OutgoingLikePolicy,
     Protocol,
-    Store,
     WelcomePost
   }
 
@@ -91,7 +91,7 @@ defmodule JidoDelvetown.ManualPublisher do
   end
 
   defp publish_like_candidate(event, candidate, target, effect_key) do
-    case Store.effect(effect_key) do
+    case EffectStore.get(effect_key) do
       nil ->
         with :ok <- current_like_eligibility(candidate, event.event_key) do
           create_manual_like(event, target, effect_key)
