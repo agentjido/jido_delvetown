@@ -8,7 +8,9 @@
     "jido_del-pic.1.8",
     "jido_del-pic.1.9"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-pic.1.13"
+  ],
   "created": "2026-10-06T01:19:48Z",
   "description": "Detect existing DELVETOWN settings, preview and import them once with an audit record, then remove normal environment reads. Do not import LLM API keys.",
   "id": "jido_del-pic.1.12",
