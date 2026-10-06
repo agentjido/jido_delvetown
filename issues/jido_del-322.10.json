@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T15:47:31Z",
+  "description": "Live QA selected a direct reply and reached the decision model, but the cycle failed twice with decision_failed and model_reason 'Cycle did not reach a decision'. Make the decision path return or recover a deterministic terminal result, keep retries idempotent, and prove the reactive event does not remain in a repeatable failure loop. Add regression tests. This issue blocks jido_del-322.7.",
+  "id": "jido_del-322.10",
+  "labels": [],
+  "parent": "jido_del-322",
+  "priority": 1,
+  "status": "open",
+  "title": "Recover a reactive cycle after decision execution returns no decision",
+  "type": "bug",
+  "updated_at": "2026-10-06T15:47:31Z"
+}
