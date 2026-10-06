@@ -1,0 +1,14 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T00:40:30Z",
+  "description": "Deliver an operator-tested path that accepts existing image bytes, stores durable local draft and artifact state, uploads an AT Protocol blob, builds the DelveTown image embed, and publishes one top-level image post through the existing write guards. Include dry-run preview and manual publication. Preserve idempotency across retries and restarts. This epic does not add ReqLLM image generation, autonomous image selection, scheduled image posts, or image replies.",
+  "id": "jido_del-iy2",
+  "labels": [],
+  "priority": 1,
+  "status": "open",
+  "title": "Support image post plumbing for DelveTown",
+  "type": "epic",
+  "updated_at": "2026-10-06T00:40:30Z"
+}
