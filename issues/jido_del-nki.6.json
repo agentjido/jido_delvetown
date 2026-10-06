@@ -5,7 +5,8 @@
     "jido_del-nki.5"
   ],
   "blocks": [
-    "jido_del-nki.7"
+    "jido_del-nki.7",
+    "jido_del-nki.8"
   ],
   "created": "2026-10-06T01:49:52Z",
   "description": "Add an operator command that creates one durable generation request and staged draft from a prompt, caption, and alt text. Show estimated operation settings before the call. Never publish from this command and return the saved draft ID and provenance.",
