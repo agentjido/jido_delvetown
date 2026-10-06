@@ -11,20 +11,35 @@ defmodule JidoDelvetown.ImageUploader do
 
   @spec upload(String.t()) :: {:ok, map()} | {:error, term()}
   def upload(digest) when is_binary(digest) do
-    with :ok <- Protocol.ensure_writes_enabled(),
-         {:ok, prepared} <- ImageDrafts.begin_upload(digest) do
-      upload_or_reuse(digest, prepared)
-    end
+    upload_with(digest, &Protocol.ensure_writes_enabled/0, &Protocol.upload_blob/2)
   end
 
   def upload(_digest), do: {:error, :invalid_artifact_digest}
 
-  defp upload_or_reuse(_digest, %{reused?: true, artifact: artifact}) do
+  @spec upload_manual(String.t()) :: {:ok, map()} | {:error, term()}
+  def upload_manual(digest) when is_binary(digest) do
+    upload_with(
+      digest,
+      &Protocol.ensure_manual_publish_enabled/0,
+      &Protocol.upload_manual_blob/2
+    )
+  end
+
+  def upload_manual(_digest), do: {:error, :invalid_artifact_digest}
+
+  defp upload_with(digest, permission, upload) do
+    with :ok <- permission.(),
+         {:ok, prepared} <- ImageDrafts.begin_upload(digest) do
+      upload_or_reuse(digest, prepared, upload)
+    end
+  end
+
+  defp upload_or_reuse(_digest, %{reused?: true, artifact: artifact}, _upload) do
     {:ok, %{blob: artifact.upload_receipt, artifact: artifact, reused?: true}}
   end
 
-  defp upload_or_reuse(digest, %{reused?: false, artifact: artifact}) do
-    case Protocol.upload_blob(artifact.bytes, artifact.mime_type) do
+  defp upload_or_reuse(digest, %{reused?: false, artifact: artifact}, upload) do
+    case upload.(artifact.bytes, artifact.mime_type) do
       {:ok, response} -> save_receipt(digest, response)
       {:error, reason} -> fail_upload(digest, {:transport, safe_reason(reason)})
     end

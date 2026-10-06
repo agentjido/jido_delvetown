@@ -55,6 +55,23 @@ defmodule JidoDelvetown.Protocol do
     end
   end
 
+  @doc false
+  def upload_manual_blob(bytes, mime_type) when is_binary(bytes) and is_binary(mime_type) do
+    with :ok <- manual_publish_enabled(),
+         {:ok, session} <- session_module().session() do
+      result = transport().upload_blob(session, bytes, mime_type, [])
+
+      audit(:upload_blob, %{
+        mime_type: mime_type,
+        byte_size: byte_size(bytes),
+        mode: :manual,
+        result: outcome(result)
+      })
+
+      result
+    end
+  end
+
   def list_own_records(collection, params) when is_binary(collection) and is_map(params) do
     with :ok <- allowed_collection(collection),
          {:ok, session} <- session_module().session() do
@@ -124,6 +141,9 @@ defmodule JidoDelvetown.Protocol do
 
   @doc false
   def ensure_writes_enabled, do: writes_enabled()
+
+  @doc false
+  def ensure_manual_publish_enabled, do: manual_publish_enabled()
 
   defp create_or_reuse(_session, %{status: :completed} = effect, _record) do
     {:ok, %{receipt: effect.receipt, reused?: true, reconciled?: false}}

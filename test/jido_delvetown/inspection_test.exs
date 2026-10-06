@@ -1,13 +1,15 @@
 defmodule JidoDelvetown.InspectionTest do
   use ExUnit.Case, async: false
 
-  alias JidoDelvetown.{Inspection, Repo}
+  alias JidoDelvetown.{ImageDrafts, Inspection, Repo}
 
   alias JidoDelvetown.Storage.{
     Actor,
     AuditEvent,
     Conversation,
     Effect,
+    ImageArtifact,
+    ImageDraft,
     InteractionEvent,
     LegacyImport,
     ScanState
@@ -40,11 +42,41 @@ defmodule JidoDelvetown.InspectionTest do
 
     assert snapshot.actors.recent == []
     assert snapshot.simulated_posts == []
+    assert snapshot.image_drafts == []
     assert snapshot.scans == []
     assert snapshot.effects.completed_receipts == []
     assert snapshot.sqlite.migrations.status == "current"
     assert snapshot.sqlite.migrations.pending == []
     assert snapshot.sqlite.legacy_imports == []
+  end
+
+  test "image drafts expose bounded preview and publication state" do
+    bytes = <<0x89, 0x50, 0x4E, 0x47, "preview">>
+
+    assert {:ok, _result} =
+             ImageDrafts.stage("image:preview", bytes, %{
+               caption: "AgentJido at a workbench.",
+               alt_text: "A green robot at a workbench.",
+               mime_type: "image/png",
+               width: 640,
+               height: 480,
+               source_metadata: %{source: "local_file", filename: "portrait.png"}
+             })
+
+    assert [draft] = Inspection.snapshot(image_limit: 1).image_drafts
+    assert draft.draft_key == "image:preview"
+    assert draft.validation_state == "valid"
+    assert draft.publication_state == "staged"
+    assert draft.post_uri == nil
+    assert draft.artifact.upload_state == "staged"
+    assert draft.artifact.upload_attempt_count == 0
+    assert draft.artifact.width == 640
+    assert draft.artifact.height == 480
+    assert draft.artifact.source == "local_file"
+    assert draft.artifact.filename == "portrait.png"
+
+    assert draft.artifact.preview_data_url ==
+             "data:image/png;base64,#{Base.encode64(bytes)}"
   end
 
   test "simulated posts expose only durable draft fields in newest-first order" do
@@ -261,7 +293,17 @@ defmodule JidoDelvetown.InspectionTest do
 
   defp clear_inspection_tables do
     Enum.each(
-      [AuditEvent, Effect, Conversation, Actor, InteractionEvent, ScanState, LegacyImport],
+      [
+        ImageDraft,
+        ImageArtifact,
+        AuditEvent,
+        Effect,
+        Conversation,
+        Actor,
+        InteractionEvent,
+        ScanState,
+        LegacyImport
+      ],
       &Repo.delete_all/1
     )
   end

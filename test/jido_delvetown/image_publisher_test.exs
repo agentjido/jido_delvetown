@@ -29,6 +29,7 @@ defmodule JidoDelvetown.ImagePublisherTest do
     }
 
     old_write = System.get_env("DELVETOWN_WRITE_ENABLED")
+    old_manual = System.get_env("DELVETOWN_MANUAL_PUBLISH_ENABLED")
 
     Application.put_env(:jido_delvetown, :session_module, FakeSession)
     Application.put_env(:jido_delvetown, :transport, FakeTransport)
@@ -38,6 +39,7 @@ defmodule JidoDelvetown.ImagePublisherTest do
     on_exit(fn ->
       restore_env(previous)
       restore_system_env("DELVETOWN_WRITE_ENABLED", old_write)
+      restore_system_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", old_manual)
     end)
 
     :ok
@@ -178,6 +180,35 @@ defmodule JidoDelvetown.ImagePublisherTest do
     refute_received {:upload_blob, _bytes, _mime_type}
     refute_received {:create_record, _collection, _record, _rkey}
     assert ImageDrafts.get("image:invalid").state == "staged"
+  end
+
+  test "manual publication uploads and posts while scheduled writes stay off" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
+    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "true")
+    stage_draft("image:manual", 640, 480)
+    configure_upload()
+
+    assert {:ok, result} =
+             ImagePublisher.publish_manual("image:manual", created_at: @created_at)
+
+    assert result.draft.state == "published"
+    assert_received {:upload_blob, @bytes, "image/png"}
+    assert_received {:create_record, "town.delve.feed.post", record, _rkey}
+    assert record == result.record
+  end
+
+  test "manual publication makes no remote call when its permission is off" do
+    System.put_env("DELVETOWN_WRITE_ENABLED", "false")
+    System.put_env("DELVETOWN_MANUAL_PUBLISH_ENABLED", "false")
+    stage_draft("image:manual-disabled", 640, 480)
+    configure_upload()
+
+    assert {:error, :manual_publish_disabled} =
+             ImagePublisher.publish_manual("image:manual-disabled", created_at: @created_at)
+
+    assert ImageDrafts.get("image:manual-disabled").artifact.state == "staged"
+    refute_received {:upload_blob, _bytes, _mime_type}
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   defp stage_draft(key, width, height) do

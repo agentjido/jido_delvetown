@@ -3,7 +3,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
   use Phoenix.LiveView
 
-  alias JidoDelvetown.{ManualPublisher, Personality}
+  alias JidoDelvetown.{ImagePublisher, ManualPublisher, Personality}
 
   @refresh_ms 3_000
 
@@ -15,6 +15,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
       snapshot()
       |> Map.put(:active_tab, active_tab(params))
       |> Map.put(:publish_notice, nil)
+      |> Map.put(:image_publish_notice, nil)
 
     {:ok, assign(socket, assigns)}
   end
@@ -45,6 +46,28 @@ defmodule JidoDelvetownWeb.DashboardLive do
      |> assign(snapshot())
      |> assign(:active_tab, "simulated-posts")
      |> assign(:publish_notice, notice)}
+  end
+
+  @impl true
+  def handle_event("publish_image", %{"draft_key" => draft_key}, socket) do
+    notice =
+      case image_publisher().publish_manual(draft_key) do
+        {:ok, publication} ->
+          %{
+            kind: "safe",
+            text: "The image draft was published to DelveTown.",
+            uri: map_value(publication, :receipt, %{}) |> map_value(:uri)
+          }
+
+        {:error, reason} ->
+          %{kind: "attention", text: image_publish_error(reason), uri: nil}
+      end
+
+    {:noreply,
+     socket
+     |> assign(snapshot())
+     |> assign(:active_tab, "image-drafts")
+     |> assign(:image_publish_notice, notice)}
   end
 
   @impl true
@@ -345,6 +368,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
 
         .dashboard-tabs {
           display: flex;
+          flex-wrap: wrap;
           gap: 7px;
           margin-bottom: 16px;
           padding: 5px;
@@ -749,6 +773,90 @@ defmodule JidoDelvetownWeb.DashboardLive do
           font-weight: 680;
         }
 
+        .image-draft-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+
+        .image-draft-card {
+          display: grid;
+          grid-template-rows: auto 1fr;
+          overflow: hidden;
+          border: 1px solid var(--line);
+          border-radius: 11px;
+          background: var(--surface-raised);
+        }
+
+        .image-preview {
+          display: block;
+          width: 100%;
+          height: 260px;
+          object-fit: contain;
+          background: #050b09;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .image-draft-body {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          padding: 16px;
+        }
+
+        .image-draft-body h3 { margin-bottom: 0; overflow-wrap: anywhere; }
+        .image-caption { margin-bottom: 0; white-space: pre-wrap; }
+
+        .image-alt {
+          margin-bottom: 0;
+          color: var(--muted);
+          font-size: 13px;
+        }
+
+        .image-state-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 7px;
+        }
+
+        .image-state {
+          min-width: 0;
+          padding: 8px;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: rgba(7, 17, 15, 0.45);
+        }
+
+        .image-state span {
+          display: block;
+          color: var(--quiet);
+          font-size: 10px;
+          font-weight: 720;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
+        .image-state strong {
+          display: block;
+          overflow: hidden;
+          margin-top: 2px;
+          color: var(--text);
+          font-size: 12px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .image-file-meta {
+          margin-bottom: 0;
+          color: var(--quiet);
+          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          font-size: 11px;
+          overflow-wrap: anywhere;
+        }
+
         .planned-controls {
           display: grid;
           grid-template-columns: minmax(210px, 1fr) minmax(0, 2fr);
@@ -842,6 +950,8 @@ defmodule JidoDelvetownWeb.DashboardLive do
           .write-switch { min-height: 96px; padding: 14px; }
           .switch-track { width: 60px; flex-basis: 60px; }
           .write-switch.on .switch-thumb { transform: translateX(22px); }
+          .image-draft-grid { grid-template-columns: 1fr; }
+          .image-preview { height: 220px; }
           .detail-grid { grid-template-columns: 1fr; gap: 9px; }
           .health-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .event-title { align-items: start; flex-direction: column; gap: 2px; }
@@ -981,6 +1091,17 @@ defmodule JidoDelvetownWeb.DashboardLive do
         >
           Simulated posts
           <span class="tab-count">{length(inspection_list(@inspection, [:simulated_posts]))}</span>
+        </a>
+        <a
+          id="image-drafts-tab"
+          class={"dashboard-tab #{tab_class(@active_tab, "image-drafts")}"}
+          href="/?tab=image-drafts"
+          role="tab"
+          aria-selected={to_string(@active_tab == "image-drafts")}
+          aria-controls="image-drafts-panel"
+        >
+          Image drafts
+          <span class="tab-count">{length(inspection_list(@inspection, [:image_drafts]))}</span>
         </a>
       </nav>
 
@@ -1428,6 +1549,121 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </ol>
       </section>
 
+      <section
+        :if={@active_tab == "image-drafts"}
+        id="image-drafts-panel"
+        class="panel simulated-panel"
+        role="tabpanel"
+        aria-labelledby="image-drafts-tab"
+      >
+        <div class="panel-header">
+          <div>
+            <p class="panel-kicker">SQLite image review</p>
+            <h2>Image drafts</h2>
+          </div>
+          <span class="badge safe">
+            {if @manual_publish_enabled, do: "Manual publish ready", else: "Local only"}
+          </span>
+        </div>
+
+        <p class="simulated-intro">
+          Staging and review are local. They do not upload a blob or create a DelveTown post.
+          The confirmed publish button sends only the selected image draft under the manual publish
+          permission. Scheduled writes stay off.
+        </p>
+
+        <p
+          :if={@image_publish_notice}
+          class={"publish-notice #{map_value(@image_publish_notice, :kind)}"}
+          role="status"
+        >
+          {map_value(@image_publish_notice, :text)}
+          <a
+            :if={post_url(map_value(@image_publish_notice, :uri), session_actor(@status))}
+            href={post_url(map_value(@image_publish_notice, :uri), session_actor(@status))}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View published post ↗
+          </a>
+        </p>
+
+        <p :if={inspection_list(@inspection, [:image_drafts]) == []} class="empty">
+          No image drafts yet. Stage a local image to review it here.
+        </p>
+
+        <ol
+          :if={inspection_list(@inspection, [:image_drafts]) != []}
+          class="image-draft-grid"
+        >
+          <li
+            :for={draft <- inspection_list(@inspection, [:image_drafts])}
+            class="image-draft-card"
+          >
+            <img
+              class="image-preview"
+              src={inspection_value(draft, [:artifact, :preview_data_url])}
+              alt={map_value(draft, :alt_text, "Image draft preview")}
+            />
+            <div class="image-draft-body">
+              <div class="simulated-card-header">
+                <span class="badge idle">Top-level image</span>
+                <time>{display(map_value(draft, :inserted_at))}</time>
+              </div>
+              <h3>{display(map_value(draft, :draft_key))}</h3>
+              <p class="image-caption">{display(map_value(draft, :caption))}</p>
+              <p class="image-alt">
+                <strong>Alt text:</strong> {display(map_value(draft, :alt_text))}
+              </p>
+
+              <div class="image-state-grid" aria-label="Image draft states">
+                <div class="image-state">
+                  <span>Validation</span>
+                  <strong>{state_label(map_value(draft, :validation_state))}</strong>
+                </div>
+                <div class="image-state">
+                  <span>Upload</span>
+                  <strong>{state_label(inspection_value(draft, [:artifact, :upload_state]))}</strong>
+                </div>
+                <div class="image-state">
+                  <span>Publication</span>
+                  <strong>{state_label(map_value(draft, :publication_state))}</strong>
+                </div>
+              </div>
+
+              <p class="image-file-meta">
+                {image_file_detail(draft)}
+              </p>
+
+              <div class="simulated-actions">
+                <a
+                  :if={image_post_url(draft, @status)}
+                  class="source-link"
+                  href={image_post_url(draft, @status)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View published post ↗
+                </a>
+                <span :if={image_published?(draft)} class="published-state">Published</span>
+                <button
+                  :if={not image_published?(draft)}
+                  type="button"
+                  class="publish-button"
+                  phx-click="publish_image"
+                  phx-value-draft_key={map_value(draft, :draft_key)}
+                  phx-disable-with="Publishing…"
+                  data-confirm="Upload this image and publish this exact draft to DelveTown?"
+                  disabled={not @manual_publish_enabled}
+                >
+                  Publish image to DelveTown
+                </button>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </section>
+
       <p class="footer-note">
         Local dashboard on port {@port}. Scheduled protocol writes remain controlled by the write lock.
       </p>
@@ -1475,6 +1711,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp schedule_refresh, do: Process.send_after(self(), :refresh, @refresh_ms)
 
   defp active_tab(%{"tab" => "simulated-posts"}), do: "simulated-posts"
+  defp active_tab(%{"tab" => "image-drafts"}), do: "image-drafts"
   defp active_tab(_params), do: "overview"
 
   defp safe_read(fun) do
@@ -1592,8 +1829,45 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp publish_error(:missing_reply_target), do: "The reply target could not be loaded."
   defp publish_error(_reason), do: "DelveTown did not accept the draft. Check the local logs."
 
+  defp image_publish_error(:manual_publish_disabled),
+    do: "Manual publishing is off. Set DELVETOWN_MANUAL_PUBLISH_ENABLED=true and restart."
+
+  defp image_publish_error(:image_draft_not_found), do: "The saved image draft was not found."
+  defp image_publish_error(:artifact_not_found), do: "The saved image file was not found."
+
+  defp image_publish_error({:invalid_draft_state, state}),
+    do: "The image draft cannot be published from state #{state}."
+
+  defp image_publish_error(_reason),
+    do: "DelveTown did not accept the image draft. Check the local logs."
+
   defp publisher,
     do: Application.get_env(:jido_delvetown, :manual_publisher, ManualPublisher)
+
+  defp image_publisher,
+    do: Application.get_env(:jido_delvetown, :image_publisher, ImagePublisher)
+
+  defp image_published?(draft), do: map_value(draft, :publication_state) == "published"
+
+  defp image_post_url(draft, status) do
+    post_url(map_value(draft, :post_uri), session_actor(status))
+  end
+
+  defp image_file_detail(draft) do
+    artifact = map_value(draft, :artifact, %{})
+    mime_type = display(map_value(artifact, :mime_type))
+    byte_size = display(map_value(artifact, :byte_size))
+    dimensions = image_dimensions(artifact)
+    digest = display(map_value(artifact, :digest))
+    "#{mime_type} · #{byte_size} bytes · #{dimensions} · #{digest}"
+  end
+
+  defp image_dimensions(artifact) do
+    case {map_value(artifact, :width), map_value(artifact, :height)} do
+      {width, height} when is_integer(width) and is_integer(height) -> "#{width}×#{height}"
+      _dimensions -> "dimensions not set"
+    end
+  end
 
   defp state_label(value) do
     value

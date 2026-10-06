@@ -10,6 +10,8 @@ defmodule JidoDelvetown.Inspection do
     AuditEvent,
     Conversation,
     Effect,
+    ImageArtifact,
+    ImageDraft,
     InteractionEvent,
     LegacyImport,
     ScanState
@@ -24,10 +26,12 @@ defmodule JidoDelvetown.Inspection do
     repo = Keyword.get(opts, :repo, Repo)
     limit = opts |> Keyword.get(:limit, @default_limit) |> max(0)
     simulated_limit = opts |> Keyword.get(:simulated_limit, 25) |> max(0)
+    image_limit = opts |> Keyword.get(:image_limit, 12) |> max(0)
 
     %{
       events: %{counts: grouped_counts(repo, InteractionEvent, :state, @event_states)},
       simulated_posts: simulated_posts(repo, simulated_limit),
+      image_drafts: image_drafts(repo, image_limit),
       actors: %{recent: recent_actors(repo, limit)},
       conversations: %{
         counts: grouped_counts(repo, Conversation, :status, ["active", "closed"]),
@@ -41,6 +45,54 @@ defmodule JidoDelvetown.Inspection do
       }
     }
   end
+
+  defp image_drafts(repo, limit) do
+    repo.all(
+      from(draft in ImageDraft,
+        join: artifact in ImageArtifact,
+        on: artifact.digest == draft.artifact_digest,
+        order_by: [desc: draft.updated_at, asc: draft.draft_key],
+        limit: ^limit,
+        select: {draft, artifact}
+      )
+    )
+    |> Enum.map(&image_draft_summary/1)
+  end
+
+  defp image_draft_summary({draft, artifact}) do
+    %{
+      draft_key: draft.draft_key,
+      caption: draft.caption,
+      alt_text: draft.alt_text,
+      validation_state: "valid",
+      publication_state: draft.state,
+      publication_failure_present?: not is_nil(draft.failure),
+      post_uri: map_value(draft.post_receipt, "uri"),
+      published_at: iso8601(draft.published_at),
+      inserted_at: iso8601(draft.inserted_at),
+      artifact: %{
+        digest: artifact.digest,
+        preview_data_url: preview_data_url(artifact),
+        mime_type: artifact.mime_type,
+        byte_size: artifact.byte_size,
+        width: artifact.width,
+        height: artifact.height,
+        upload_state: artifact.state,
+        upload_attempt_count: artifact.upload_attempt_count,
+        upload_failure_present?: not is_nil(artifact.failure),
+        uploaded_at: iso8601(artifact.uploaded_at),
+        source: map_value(artifact.source_metadata, "source"),
+        filename: map_value(artifact.source_metadata, "filename")
+      }
+    }
+  end
+
+  defp preview_data_url(%{mime_type: mime_type, bytes: bytes})
+       when is_binary(mime_type) and is_binary(bytes) do
+    "data:#{mime_type};base64,#{Base.encode64(bytes)}"
+  end
+
+  defp preview_data_url(_artifact), do: nil
 
   defp grouped_counts(repo, schema, field_name, known_states) do
     observed =
@@ -274,4 +326,7 @@ defmodule JidoDelvetown.Inspection do
 
   defp iso8601(nil), do: nil
   defp iso8601(%DateTime{} = value), do: DateTime.to_iso8601(value)
+
+  defp map_value(map, key) when is_map(map), do: Map.get(map, key)
+  defp map_value(_map, _key), do: nil
 end

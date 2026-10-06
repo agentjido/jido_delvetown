@@ -18,19 +18,32 @@ defmodule JidoDelvetown.ImagePublisher do
   def publish(draft_key, opts \\ [])
 
   def publish(draft_key, opts) when is_binary(draft_key) and is_list(opts) do
-    with :ok <- Protocol.ensure_writes_enabled(),
+    publish_with(draft_key, opts, :scheduled)
+  end
+
+  def publish(_draft_key, _opts), do: {:error, :invalid_image_publication_request}
+
+  @spec publish_manual(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  def publish_manual(draft_key, opts \\ [])
+
+  def publish_manual(draft_key, opts) when is_binary(draft_key) and is_list(opts) do
+    publish_with(draft_key, opts, :manual)
+  end
+
+  def publish_manual(_draft_key, _opts), do: {:error, :invalid_image_publication_request}
+
+  defp publish_with(draft_key, opts, mode) do
+    with :ok <- ensure_permission(mode),
          {:ok, publish_opts} <- publication_options(opts),
          {:ok, draft} <- fetch_draft(draft_key),
-         {:ok, upload} <- ImageUploader.upload(draft.artifact_digest),
+         {:ok, upload} <- upload(draft.artifact_digest, mode),
          {:ok, record} <- build_record(draft, upload.blob, publish_opts),
          effect_key = Protocol.effect_key("image_post", [draft_key]),
          {:ok, reservation} <-
            ImageDrafts.reserve_publication(draft_key, effect_key, record) do
-      publish_or_reuse(draft_key, effect_key, reservation)
+      publish_or_reuse(draft_key, effect_key, reservation, mode)
     end
   end
-
-  def publish(_draft_key, _opts), do: {:error, :invalid_image_publication_request}
 
   @doc false
   @spec build_record(map(), map(), keyword()) :: {:ok, map()} | {:error, term()}
@@ -63,7 +76,12 @@ defmodule JidoDelvetown.ImagePublisher do
 
   def build_record(_draft, _blob, _opts), do: {:error, :invalid_image_post}
 
-  defp publish_or_reuse(_draft_key, _effect_key, %{reused?: true, draft: draft, record: record}) do
+  defp publish_or_reuse(
+         _draft_key,
+         _effect_key,
+         %{reused?: true, draft: draft, record: record},
+         _mode
+       ) do
     {:ok,
      %{
        draft: draft,
@@ -74,11 +92,25 @@ defmodule JidoDelvetown.ImagePublisher do
      }}
   end
 
-  defp publish_or_reuse(draft_key, effect_key, %{reused?: false, record: record}) do
-    case Protocol.create_record(effect_key, @collection, record, subject_key: draft_key) do
+  defp publish_or_reuse(draft_key, effect_key, %{reused?: false, record: record}, mode) do
+    case create_record(mode, effect_key, record, draft_key) do
       {:ok, result} -> complete_publication(draft_key, effect_key, record, result)
       {:error, reason} -> fail_publication(draft_key, effect_key, reason)
     end
+  end
+
+  defp ensure_permission(:scheduled), do: Protocol.ensure_writes_enabled()
+  defp ensure_permission(:manual), do: Protocol.ensure_manual_publish_enabled()
+
+  defp upload(digest, :scheduled), do: ImageUploader.upload(digest)
+  defp upload(digest, :manual), do: ImageUploader.upload_manual(digest)
+
+  defp create_record(:scheduled, effect_key, record, draft_key) do
+    Protocol.create_record(effect_key, @collection, record, subject_key: draft_key)
+  end
+
+  defp create_record(:manual, effect_key, record, draft_key) do
+    Protocol.create_manual_record(effect_key, @collection, record, subject_key: draft_key)
   end
 
   defp complete_publication(draft_key, effect_key, record, result) do

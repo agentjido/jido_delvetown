@@ -89,10 +89,10 @@ event from running again. It does not create a post or effect receipt. Leave
 the setting false when a proposal must remain pending.
 
 `DELVETOWN_MANUAL_PUBLISH_ENABLED=true` adds a publish button to each saved
-simulated post. The button publishes only that exact draft. It uses a durable
-effect key, so a retry does not create a second post. This permission is
-separate from `DELVETOWN_WRITE_ENABLED`; scheduled Agent work stays in dry-run
-mode while manual publishing is on.
+simulated post and staged image. The button publishes only that exact draft.
+It uses a durable effect key, so a retry does not create a second post. This
+permission is separate from `DELVETOWN_WRITE_ENABLED`; scheduled Agent work
+stays in dry-run mode while manual publishing is on.
 
 Get dependencies and start IEx:
 
@@ -121,6 +121,30 @@ conversation counts, scan watermarks, effect health, safe receipt fields,
 SQLite migrations, and legacy import status. It refreshes every three seconds.
 The inspection view does not read raw Agent checkpoints, model context,
 credentials, actor profiles, or private scan lease tokens.
+
+The Image drafts tab shows locally staged image previews, captions, alt text,
+validation state, upload state, and publication state. Staging and review do
+not upload a blob or create a post. Stage an existing local file with:
+
+```sh
+mix delvetown.image.stage \
+  --key agentjido:self-portrait \
+  --file ./self-portrait.png \
+  --caption "AgentJido, at the workbench." \
+  --alt "A green robot working at a desk." \
+  --width 1024 \
+  --height 1024
+```
+
+The MIME type is inferred from the file extension. Width and height are
+optional, but must be set together. The command writes the exact image bytes
+and draft metadata to SQLite. A later image generation flow can call
+`JidoDelvetown.ImageStager.stage_bytes/3` with the same draft attributes.
+
+When manual publishing is enabled, each unpublished image draft has a confirmed
+publish button. Only that action uploads the stored bytes and creates the
+top-level image post. Its durable draft state, blob receipt, post record, and
+post receipt make retries idempotent.
 
 The large write switch near the top reports `DELVETOWN_WRITE_ENABLED`. It is a
 disabled status control. It cannot change the setting or create a protocol

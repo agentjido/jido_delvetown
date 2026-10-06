@@ -9,6 +9,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "AgentJido"
     assert html =~ "Safe: writes off"
     assert html =~ "Simulated posts"
+    assert html =~ "Image drafts"
     assert html =~ ~s(id="overview-tab")
     assert html =~ ~s(aria-selected="true")
     assert html =~ ~s(role="switch")
@@ -108,6 +109,80 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
 
     assert html =~ "No simulated posts yet"
     assert html =~ "were not sent to DelveTown"
+  end
+
+  test "shows local image previews and a confirmed manual publish action" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "image-drafts")
+      |> Map.put(:manual_publish_enabled, true)
+      |> put_in([:inspection, :image_drafts], [
+        %{
+          draft_key: "agentjido:self-portrait",
+          caption: "AgentJido at the workbench.",
+          alt_text: "A green robot writing at a workbench.",
+          validation_state: "valid",
+          publication_state: "staged",
+          inserted_at: "2026-10-05T12:04:00Z",
+          post_uri: nil,
+          artifact: %{
+            digest: "sha256:preview",
+            preview_data_url: "data:image/png;base64,iVBORw0KGgo=",
+            mime_type: "image/png",
+            byte_size: 8,
+            width: 1024,
+            height: 1024,
+            upload_state: "staged"
+          }
+        }
+      ])
+
+    html = render_dashboard(assigns)
+
+    assert html =~ ~s(id="image-drafts-panel")
+    assert html =~ "Staging and review are local"
+    assert html =~ ~s(src="data:image/png;base64,iVBORw0KGgo=")
+    assert html =~ ~s(alt="A green robot writing at a workbench.")
+    assert html =~ "AgentJido at the workbench."
+    assert html =~ "Validation"
+    assert html =~ "Upload"
+    assert html =~ "Publication"
+    assert html =~ "1024×1024"
+    assert html =~ ~s(phx-click="publish_image")
+    assert html =~ ~s(phx-value-draft_key="agentjido:self-portrait")
+    assert html =~ "Upload this image and publish this exact draft"
+  end
+
+  test "shows a published image link instead of the publish button" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "image-drafts")
+      |> Map.put(:manual_publish_enabled, true)
+      |> put_in([:inspection, :image_drafts], [
+        %{
+          draft_key: "image:published",
+          caption: "Published image.",
+          alt_text: "Published image preview.",
+          validation_state: "valid",
+          publication_state: "published",
+          post_uri: "at://did:plc:agentjido/town.delve.feed.post/image-rkey",
+          artifact: %{
+            digest: "sha256:published",
+            preview_data_url: "data:image/png;base64,iVBORw0KGgo=",
+            mime_type: "image/png",
+            byte_size: 8,
+            width: nil,
+            height: nil,
+            upload_state: "uploaded"
+          }
+        }
+      ])
+
+    html = render_dashboard(assigns)
+
+    assert html =~ "Published"
+    assert html =~ "/profile/agentjido.test/post/image-rkey"
+    refute html =~ "Publish image to DelveTown"
   end
 
   test "shows when protocol writes are enabled" do
@@ -212,6 +287,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       agent_events: [],
       inspection: %{
         simulated_posts: [],
+        image_drafts: [],
         events: %{
           counts: %{
             "pending" => 1,
@@ -286,6 +362,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       inspection_error: nil,
       manual_publish_enabled: false,
       publish_notice: nil,
+      image_publish_notice: nil,
       character: %{
         name: "AgentJido",
         mission: "Make BEAM agent engineering easier to understand.",
