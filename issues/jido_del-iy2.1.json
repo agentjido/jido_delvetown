@@ -4,6 +4,7 @@
   "blocks": [
     "jido_del-iy2.3"
   ],
+  "closed_at": "2026-10-06T00:55:42Z",
   "created": "2026-10-06T00:40:42Z",
   "description": "Inspect a current public DelveTown image post and the available lexicon or protocol responses. Record the exact post field, embed type, blob shape, MIME rules, image count, size limits, aspect-ratio shape, and alt-text behavior. Add fixture-backed contract tests for the accepted town.delve.feed.post image record. Use read-only protocol calls. Do not publish a test post in this issue.",
   "id": "jido_del-iy2.1",
@@ -16,7 +17,7 @@
     }
   ],
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Confirm the DelveTown image record contract",
   "type": "task",
   "updated_at": "2026-10-06T00:55:42Z"
