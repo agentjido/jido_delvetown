@@ -6,9 +6,15 @@
   "description": "Deliver an operator-tested path that accepts existing image bytes, stores durable local draft and artifact state, uploads an AT Protocol blob, builds the DelveTown image embed, and publishes one top-level image post through the existing write guards. Include dry-run preview and manual publication. Preserve idempotency across retries and restarts. This epic does not add ReqLLM image generation, autonomous image selection, scheduled image posts, or image replies.",
   "id": "jido_del-iy2",
   "labels": [],
+  "comments": [
+    {
+      "text": "Scope update, 2026-10-05: Public DelveTown pages show rendered image posts, including an Image marker in the accessible representation. Keep jido_del-iy2.1 as the source of truth for the custom record contract. The live acceptance path now stages an AgentJido illustrated or generated self-portrait, publishes it once as an independent top-level post after explicit operator confirmation, and verifies the result through protocol readback, a fresh public-page load, and the durable local receipt. Image-generation flow integration remains outside this epic.",
+      "timestamp": "2026-10-06T00:51:29Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Support image post plumbing for DelveTown",
   "type": "epic",
-  "updated_at": "2026-10-06T00:44:50Z"
+  "updated_at": "2026-10-06T00:51:29Z"
 }
