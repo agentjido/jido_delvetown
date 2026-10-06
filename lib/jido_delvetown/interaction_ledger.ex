@@ -28,13 +28,18 @@ defmodule JidoDelvetown.InteractionLedger do
         event_key: candidate.event_key,
         kind: candidate.reason,
         actor_did: get_in(candidate, [:author, :did]),
-        record_uri: candidate.uri,
+        record_uri: Map.get(candidate, :target_uri) || candidate.uri,
         source_id: candidate.protocol_id || candidate.id,
         occurred_at: candidate.indexed_at,
         payload: %{
           protocol_id: Map.get(candidate, :protocol_id),
+          notification_id: Map.get(candidate, :protocol_id),
+          notification_uri: Map.get(candidate, :uri),
+          notification_cid: Map.get(candidate, :cid),
           raw_reason: Map.get(candidate, :raw_reason),
           reason_subject: Map.get(candidate, :reason_subject),
+          target_uri: Map.get(candidate, :target_uri),
+          target_cid: Map.get(candidate, :target_cid),
           joined_at: Map.get(candidate, :joined_at)
         }
       }
@@ -217,8 +222,11 @@ defmodule JidoDelvetown.InteractionLedger do
         status when status in ["ignored", "skipped"] ->
           case claim(notification.event_key) do
             {:ok, _claimed} ->
-              case finish(notification.event_key, :ignored, %{reason: "policy_skip"}) do
-                {:ok, _event} -> {:cont, :ok}
+              with :ok <- remember_social_signal(notification, cycle),
+                   {:ok, _event} <-
+                     finish(notification.event_key, :ignored, %{reason: "policy_skip"}) do
+                {:cont, :ok}
+              else
                 {:error, reason} -> {:halt, {:error, reason}}
               end
 
@@ -423,7 +431,7 @@ defmodule JidoDelvetown.InteractionLedger do
               contact_count: if(contacted?, do: 1, else: 0),
               welcome_status: welcome_status,
               opted_out: opted_out?,
-              metadata: %{}
+              metadata: actor_metadata(%{}, cycle.candidate, seen_at)
             }
             |> repo.insert!()
 
@@ -437,7 +445,8 @@ defmodule JidoDelvetown.InteractionLedger do
               last_interaction_at: if(contacted?, do: seen_at, else: actor.last_interaction_at),
               contact_count: actor.contact_count + if(contacted?, do: 1, else: 0),
               welcome_status: welcome_status || actor.welcome_status,
-              opted_out: actor.opted_out || opted_out?
+              opted_out: actor.opted_out || opted_out?,
+              metadata: actor_metadata(actor.metadata || %{}, cycle.candidate, seen_at)
             )
             |> repo.update!()
         end
@@ -448,6 +457,37 @@ defmodule JidoDelvetown.InteractionLedger do
   end
 
   defp remember_actor(_candidate, _cycle, _decision, _at), do: :ok
+
+  defp remember_social_signal(%{reason: "like"} = candidate, cycle) do
+    observed_at = candidate.indexed_at || now()
+    ignored_cycle = %{cycle | candidate: candidate, status: "ignored"}
+    remember_actor(candidate, ignored_cycle, %{action: "skip"}, observed_at)
+  end
+
+  defp remember_social_signal(_candidate, _cycle), do: :ok
+
+  defp actor_metadata(metadata, %{reason: "like", event_key: event_key}, observed_at)
+       when is_binary(event_key) do
+    entry = %{
+      "event_key" => event_key,
+      "observed_at" => DateTime.to_iso8601(observed_at)
+    }
+
+    prior_likes =
+      metadata
+      |> Map.get("incoming_likes", [])
+      |> List.wrap()
+      |> Enum.filter(&is_map/1)
+
+    likes =
+      [entry | prior_likes]
+      |> Enum.uniq_by(&Map.get(&1, "event_key"))
+      |> Enum.take(20)
+
+    Map.put(metadata, "incoming_likes", likes)
+  end
+
+  defp actor_metadata(metadata, _candidate, _observed_at), do: metadata
 
   defp remember_relationship(candidate, cycle, decision, at) do
     with :ok <- remember_follower(candidate, at),

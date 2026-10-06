@@ -31,6 +31,25 @@ defmodule JidoDelvetown.EventNormalizationTest do
     assert Enum.all?(candidates, &(&1.indexed_at == "2026-10-05T12:00:00Z"))
   end
 
+  test "normalizes like and liked reasons with their target reference" do
+    candidates =
+      Candidate.notifications(%{
+        "notifications" => [
+          like_notification("event-like", "like"),
+          like_notification("event-liked", "liked")
+        ]
+      })
+
+    assert Enum.map(candidates, & &1.reason) == ["like", "like"]
+    assert Enum.map(candidates, & &1.raw_reason) == ["like", "liked"]
+
+    assert Enum.all?(candidates, fn candidate ->
+             candidate.target_uri ==
+               "at://did:plc:agent/town.delve.feed.post/target" and
+               candidate.target_cid == "target-cid"
+           end)
+  end
+
   test "duplicate and overlapping pages create one durable event" do
     [candidate] =
       Candidate.notifications(%{
@@ -48,6 +67,30 @@ defmodule JidoDelvetown.EventNormalizationTest do
              actor_did: "did:plc:member",
              source_id: "event-overlap"
            } = InteractionLedger.event(candidate.event_key)
+  end
+
+  test "duplicate like delivery keeps one durable target event" do
+    [candidate] = candidates([like_notification("event-like-overlap", "like")])
+
+    assert :ok = InteractionLedger.observe_candidates([candidate])
+    assert :ok = InteractionLedger.observe_candidates([candidate, candidate])
+
+    assert Repo.aggregate(InteractionEvent, :count, :event_key) == 1
+
+    assert %InteractionEvent{
+             event_key: "notification:event-like-overlap",
+             kind: "like",
+             actor_did: "did:plc:member",
+             source_id: "event-like-overlap",
+             record_uri: "at://did:plc:agent/town.delve.feed.post/target",
+             occurred_at: ~U[2026-10-05 12:00:00.000000Z]
+           } = event = InteractionLedger.event(candidate.event_key)
+
+    assert event.payload["notification_uri"] ==
+             "at://did:plc:member/town.delve.feed.like/one"
+
+    assert event.payload["notification_cid"] == "like-cid"
+    assert event.payload["target_cid"] == "target-cid"
   end
 
   test "event identities do not change when a page is reordered" do
@@ -82,6 +125,36 @@ defmodule JidoDelvetown.EventNormalizationTest do
     assert candidate.root == nil
   end
 
+  test "a like with missing optional fields uses its reason subject as the target" do
+    [candidate] =
+      candidates([
+        %{
+          "id" => "event-minimal-like",
+          "reason" => "liked",
+          "reasonSubject" => "at://did:plc:agent/town.delve.feed.post/minimal",
+          "author" => %{"did" => "did:plc:member"}
+        }
+      ])
+
+    assert candidate.reason == "like"
+    assert candidate.uri == nil
+    assert candidate.cid == nil
+    assert candidate.target_uri == "at://did:plc:agent/town.delve.feed.post/minimal"
+    assert candidate.target_cid == nil
+
+    assert :ok = InteractionLedger.observe_candidates([candidate])
+
+    assert InteractionLedger.event(candidate.event_key).record_uri ==
+             "at://did:plc:agent/town.delve.feed.post/minimal"
+  end
+
+  test "an unsupported reason remains unknown" do
+    [candidate] = candidates([notification("event-unknown", "quoted")])
+
+    assert candidate.reason == "unknown"
+    assert candidate.raw_reason == "quoted"
+  end
+
   test "an empty protocol identifier uses immutable source fields" do
     item = notification("", "mention")
     [candidate] = candidates([item])
@@ -106,6 +179,25 @@ defmodule JidoDelvetown.EventNormalizationTest do
       "indexedAt" => "2026-10-05T12:00:00Z",
       "author" => %{"did" => "did:plc:member", "handle" => "member.test"},
       "record" => %{"text" => "Hello AgentJido"}
+    }
+  end
+
+  defp like_notification(id, reason) do
+    %{
+      "id" => id,
+      "uri" => "at://did:plc:member/town.delve.feed.like/one",
+      "cid" => "like-cid",
+      "reason" => reason,
+      "reasonSubject" => "at://did:plc:agent/town.delve.feed.post/target",
+      "isRead" => false,
+      "indexedAt" => "2026-10-05T12:00:00Z",
+      "author" => %{"did" => "did:plc:member", "handle" => "member.test"},
+      "record" => %{
+        "subject" => %{
+          "uri" => "at://did:plc:agent/town.delve.feed.post/target",
+          "cid" => "target-cid"
+        }
+      }
     }
   end
 end

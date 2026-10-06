@@ -59,6 +59,8 @@ defmodule JidoDelvetown.Candidate do
     reason = normalize_reason(raw_reason)
     author = actor(value(item, :author, %{}))
     indexed_at = value(item, :indexed_at)
+    target = record |> value(:subject, %{}) |> strong_ref()
+    target_uri = target_uri(target, reason_subject)
 
     event_key =
       notification_event_key(protocol_id, reason, author, uri, reason_subject, indexed_at)
@@ -72,6 +74,8 @@ defmodule JidoDelvetown.Candidate do
       reason: reason,
       raw_reason: raw_reason,
       reason_subject: reason_subject,
+      target_uri: target_uri,
+      target_cid: target && target.cid,
       unread?: value(item, :is_read) not in [true, "true"],
       indexed_at: indexed_at,
       author: author,
@@ -201,9 +205,14 @@ defmodule JidoDelvetown.Candidate do
       value when value in ["reply", "replied"] -> "reply"
       value when value in ["mention", "mentioned"] -> "mention"
       value when value in ["follow", "followed", "new_follow"] -> "follow"
+      value when value in ["like", "liked"] -> "like"
       _value -> "unknown"
     end
   end
+
+  defp target_uri(%{uri: uri}, _reason_subject), do: uri
+  defp target_uri(_target, reason_subject) when is_binary(reason_subject), do: reason_subject
+  defp target_uri(_target, _reason_subject), do: nil
 
   defp present(value) when is_binary(value) and value != "", do: value
   defp present(_value), do: nil

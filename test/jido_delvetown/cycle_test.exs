@@ -62,6 +62,22 @@ defmodule JidoDelvetown.CycleTest do
          %{
            "notifications" => [
              %{
+               "id" => "event-like-priority",
+               "uri" => "at://did:plc:liker/town.delve.feed.like/priority",
+               "cid" => "like-cid",
+               "reason" => "like",
+               "reasonSubject" => "at://did:plc:agent/town.delve.feed.post/liked",
+               "isRead" => false,
+               "indexedAt" => "2026-10-05T11:58:00Z",
+               "author" => %{"did" => "did:plc:liker", "handle" => "liker.test"},
+               "record" => %{
+                 "subject" => %{
+                   "uri" => "at://did:plc:agent/town.delve.feed.post/liked",
+                   "cid" => "liked-post-cid"
+                 }
+               }
+             },
+             %{
                "uri" => uri,
                "cid" => "reply-cid",
                "reason" => "reply",
@@ -113,8 +129,13 @@ defmodule JidoDelvetown.CycleTest do
     assert is_integer(state.last_run.selection.score)
     assert state.last_run.selection.reason =~ "direct scored"
     assert state.notifications.processed[uri].status == "proposed"
+    assert state.notifications.processed["event-like-priority"].status == "ignored"
     assert state.budget.replies == 0
     assert Repo.get_by!(InteractionEvent, record_uri: uri).state == "pending"
+
+    assert %InteractionEvent{state: "ignored", kind: "like"} =
+             Repo.get!(InteractionEvent, "notification:event-like-priority")
+
     refute_received {:create_record, _collection, _record, _rkey}
 
     assert_received {:decision, "answer_direct_request", payload}
@@ -122,6 +143,76 @@ defmodule JidoDelvetown.CycleTest do
 
     decision_event = Enum.find(Store.recent_events(Store, 10), &(&1.type == :decision))
     assert decision_event.data.selection.reason == state.last_run.selection.reason
+  end
+
+  test "an incoming like becomes one terminal social signal without a reply" do
+    like_uri = "at://did:plc:liker/town.delve.feed.like/one"
+    target_uri = "at://did:plc:agent/town.delve.feed.post/liked"
+
+    configure_reads(%{
+      "town.delve.notification.listNotifications" =>
+        {:ok,
+         %{
+           "notifications" => [
+             %{
+               "uri" => like_uri,
+               "cid" => "like-cid",
+               "reason" => "liked",
+               "reasonSubject" => target_uri,
+               "isRead" => false,
+               "indexedAt" => "2026-10-05T12:00:00Z",
+               "author" => %{
+                 "did" => "did:plc:liker",
+                 "handle" => "liker.test",
+                 "displayName" => "Liker"
+               },
+               "record" => %{
+                 "subject" => %{"uri" => target_uri, "cid" => "target-cid"}
+               }
+             }
+           ]
+         }}
+    })
+
+    assert {:ok, first_state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert first_state.last_run.status == "skipped"
+    assert first_state.last_run.intent == "skip"
+    assert first_state.last_run.action == "skip"
+    assert first_state.notifications.processed[like_uri].status == "ignored"
+
+    event = Repo.get_by!(InteractionEvent, source_id: like_uri)
+    assert event.kind == "like"
+    assert event.state == "ignored"
+    assert event.attempt_count == 1
+    assert event.record_uri == target_uri
+    assert event.payload["target_cid"] == "target-cid"
+    assert event.payload["notification_cid"] == "like-cid"
+
+    actor = Repo.get!(Actor, "did:plc:liker")
+    assert actor.handle == "liker.test"
+    assert actor.contact_count == 0
+    assert actor.last_interaction_at == nil
+
+    assert actor.metadata["incoming_likes"] == [
+             %{
+               "event_key" => event.event_key,
+               "observed_at" => "2026-10-05T12:00:00.000000Z"
+             }
+           ]
+
+    assert {:ok, repeated_state} =
+             Jido.Exec.run(ReactiveParticipationCycle, %{mode: "normal"}, context())
+
+    assert repeated_state.last_run.status == "skipped"
+    assert Repo.get!(InteractionEvent, event.event_key).attempt_count == 1
+
+    assert Repo.get!(Actor, "did:plc:liker").metadata["incoming_likes"] ==
+             actor.metadata["incoming_likes"]
+
+    refute_received {:decision, _intent, _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
   end
 
   test "a dry-run action can advance local memory without a protocol write" do
