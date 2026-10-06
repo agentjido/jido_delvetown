@@ -226,10 +226,13 @@ defmodule JidoDelvetown.InteractionLedgerTest do
       status: "simulated",
       errors: [],
       defer?: false,
+      selection: %{reason: "useful discussion scored 83", score: 83},
+      state: %{budget: %{date: "2026-10-05", likes: 2}},
       candidate: %{
         id: "at://did:plc:liked-author/town.delve.feed.post/one",
         uri: "at://did:plc:liked-author/town.delve.feed.post/one",
         cid: "post-cid",
+        text: String.duplicate("x", 600),
         indexed_at: DateTime.to_iso8601(now),
         author: %{did: actor_did, handle: "liked-author.test"},
         root: nil
@@ -239,6 +242,18 @@ defmodule JidoDelvetown.InteractionLedgerTest do
     assert :ok = Ledger.record_cycle(cycle, %{action: "like"}, DateTime.to_iso8601(now))
     assert Ledger.outreach_count("like", since) == 1
     assert Ledger.recent_outreach_for_actor?("like", actor_did, since)
+
+    event = Repo.get_by!(InteractionEvent, record_uri: cycle.candidate.uri)
+    assert event.payload["like_review"]["author"]["handle"] == "liked-author.test"
+    assert String.length(event.payload["like_review"]["post_text"]) == 500
+    assert event.payload["like_review"]["selected_at"] == DateTime.to_iso8601(now)
+
+    assert event.payload["like_review"]["budget"] == %{
+             "date" => "2026-10-05",
+             "likes" => 2,
+             "limit" => 5,
+             "remaining" => 3
+           }
 
     refute Ledger.recent_outreach_for_actor?(
              "like",

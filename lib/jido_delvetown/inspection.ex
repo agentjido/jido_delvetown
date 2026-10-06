@@ -20,6 +20,7 @@ defmodule JidoDelvetown.Inspection do
   @event_states ["pending", "claimed", "completed", "ignored", "failed"]
   @effect_states ["reserved", "uncertain", "completed", "permanent_failure"]
   @simulated_post_actions ["post", "reply", "welcome"]
+  @like_proposal_scan_limit 100
   @default_limit 8
 
   def snapshot(opts \\ []) do
@@ -31,6 +32,7 @@ defmodule JidoDelvetown.Inspection do
     %{
       events: %{counts: grouped_counts(repo, InteractionEvent, :state, @event_states)},
       simulated_posts: simulated_posts(repo, simulated_limit),
+      like_proposals: like_proposals(repo, simulated_limit),
       image_drafts: image_drafts(repo, image_limit),
       actors: %{recent: recent_actors(repo, limit)},
       conversations: %{
@@ -160,6 +162,95 @@ defmodule JidoDelvetown.Inspection do
     )
     |> Enum.map(&encode_times/1)
   end
+
+  defp like_proposals(_repo, 0), do: []
+
+  defp like_proposals(repo, limit) do
+    scan_limit = min(max(limit * 4, limit), @like_proposal_scan_limit)
+
+    repo.all(
+      from(event in InteractionEvent,
+        left_join: actor in Actor,
+        on: actor.did == event.actor_did,
+        where: fragment("json_extract(?, '$.action')", event.payload) == "like",
+        order_by: [
+          desc: fragment("json_extract(?, '$.like_review.selected_at')", event.payload),
+          desc: event.updated_at,
+          desc: event.occurred_at,
+          asc: event.event_key
+        ],
+        limit: ^scan_limit,
+        select: %{
+          event_key: event.event_key,
+          event_state: event.state,
+          cycle_status: fragment("json_extract(?, '$.cycle_status')", event.payload),
+          target_uri: event.record_uri,
+          target_author_did: event.actor_did,
+          target_author_handle:
+            fragment("json_extract(?, '$.like_review.author.handle')", event.payload),
+          target_author_display_name:
+            fragment("json_extract(?, '$.like_review.author.display_name')", event.payload),
+          remembered_handle: actor.handle,
+          remembered_display_name: actor.display_name,
+          post_text: fragment("json_extract(?, '$.like_review.post_text')", event.payload),
+          selection_reason: fragment("json_extract(?, '$.selection.reason')", event.payload),
+          policy_score: fragment("json_extract(?, '$.selection.score')", event.payload),
+          selected_at: fragment("json_extract(?, '$.like_review.selected_at')", event.payload),
+          budget_date: fragment("json_extract(?, '$.like_review.budget.date')", event.payload),
+          budget_likes: fragment("json_extract(?, '$.like_review.budget.likes')", event.payload),
+          budget_limit: fragment("json_extract(?, '$.like_review.budget.limit')", event.payload),
+          budget_remaining:
+            fragment("json_extract(?, '$.like_review.budget.remaining')", event.payload),
+          published_status:
+            fragment("json_extract(?, '$.manual_publication.status')", event.payload),
+          occurred_at: event.occurred_at,
+          terminal_at: event.terminal_at
+        }
+      )
+    )
+    |> Enum.map(&like_proposal_summary/1)
+    |> Enum.uniq_by(&(&1.target_uri || &1.event_key))
+    |> Enum.take(limit)
+  end
+
+  defp like_proposal_summary(row) do
+    %{
+      event_key: row.event_key,
+      event_state: row.event_state,
+      proposal_status: row.cycle_status,
+      publication_state: like_publication_state(row),
+      target_uri: row.target_uri,
+      target_author: %{
+        did: row.target_author_did,
+        handle: row.target_author_handle || row.remembered_handle,
+        display_name: row.target_author_display_name || row.remembered_display_name
+      },
+      post_text: row.post_text,
+      selection_reason: row.selection_reason,
+      policy_score: row.policy_score,
+      selected_at: row.selected_at || iso8601(row.terminal_at) || iso8601(row.occurred_at),
+      budget: %{
+        date: row.budget_date,
+        likes: row.budget_likes,
+        limit: row.budget_limit,
+        remaining: row.budget_remaining
+      }
+    }
+  end
+
+  defp like_publication_state(%{event_state: "failed"}), do: "failed"
+  defp like_publication_state(%{event_state: "ignored"}), do: "ignored"
+
+  defp like_publication_state(%{published_status: status})
+       when is_binary(status) and status != "",
+       do: status
+
+  defp like_publication_state(%{cycle_status: "acted"}), do: "published"
+
+  defp like_publication_state(%{cycle_status: status}) when status in ["proposed", "simulated"],
+    do: status
+
+  defp like_publication_state(row), do: row.cycle_status || row.event_state
 
   defp recent_conversations(repo, limit) do
     repo.all(

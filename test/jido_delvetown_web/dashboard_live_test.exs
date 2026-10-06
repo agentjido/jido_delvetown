@@ -235,6 +235,60 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     assert html =~ "were not sent to DelveTown"
   end
 
+  test "shows like proposals as bodyless review cards with clear terminal state" do
+    assigns =
+      base_assigns()
+      |> Map.put(:active_tab, "simulated-posts")
+      |> put_in([:inspection, :like_proposals], [
+        %{
+          event_key: "like:simulated",
+          event_state: "completed",
+          proposal_status: "simulated",
+          publication_state: "simulated",
+          target_uri: "at://did:plc:author/town.delve.feed.post/target-one",
+          target_author: %{
+            did: "did:plc:author",
+            handle: "author.test",
+            display_name: "Author"
+          },
+          post_text: "Which OTP boundary should own this failure?",
+          selection_reason: "useful discussion scored 83",
+          policy_score: 83,
+          selected_at: "2026-10-05T11:00:00Z",
+          budget: %{date: "2026-10-05", likes: 1, limit: 5, remaining: 4}
+        },
+        %{
+          event_key: "like:failed",
+          event_state: "failed",
+          proposal_status: "failed",
+          publication_state: "failed",
+          target_uri: "at://did:plc:other/town.delve.feed.post/target-two",
+          target_author: %{did: "did:plc:other", display_name: "Other"},
+          post_text: nil,
+          selection_reason: "policy evaluation failed",
+          policy_score: nil,
+          selected_at: "2026-10-05T10:00:00Z",
+          budget: %{}
+        }
+      ])
+
+    html = render_dashboard(assigns)
+
+    assert html =~ ~s(id="like-proposals")
+    assert html =~ "Like proposals"
+    assert html =~ "@author.test"
+    assert html =~ "Which OTP boundary should own this failure?"
+    assert html =~ "useful discussion scored 83"
+    assert html =~ "Policy score:</strong> 83"
+    assert html =~ "1 of 5 used · 4 left"
+    assert html =~ "2026-10-05T11:00:00Z"
+    assert html =~ "View target post"
+    assert html =~ "/profile/did%3Aplc%3Aauthor/post/target-one"
+    assert html =~ "Failed"
+    assert html =~ "Target post text was not stored for this older proposal."
+    refute html =~ "Publish this exact like"
+  end
+
   test "shows local image previews and a confirmed manual publish action" do
     assigns =
       base_assigns()
@@ -450,6 +504,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       agent_events: [],
       inspection: %{
         simulated_posts: [],
+        like_proposals: [],
         image_drafts: [],
         events: %{
           counts: %{

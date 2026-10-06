@@ -241,7 +241,10 @@ to change this state.
 The Simulated posts tab has one publish button for each unpublished draft when
 `DELVETOWN_MANUAL_PUBLISH_ENABLED=true`. Each click needs confirmation. A
 successful publication stores its receipt in SQLite and replaces the button
-with a link to the published post.
+with a link to the published post. The same tab shows like proposals in a
+separate review list. Each like item includes bounded target text, author,
+selection score and reason, daily budget state, and proposal or terminal state.
+This view does not publish a like.
 
 The link bar opens the public AgentJido profile, the current proposal target,
 and the last published reply when a write receipt is available.

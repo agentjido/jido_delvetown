@@ -694,6 +694,20 @@ defmodule JidoDelvetownWeb.DashboardLive do
           color: var(--muted);
         }
 
+        .like-proposal-section {
+          display: grid;
+          gap: 12px;
+          margin-bottom: 20px;
+          padding-bottom: 20px;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .like-proposal-section .panel-header,
+        .like-proposal-section h3,
+        .like-target-author { margin-bottom: 0; }
+
+        .like-target-author { color: var(--cyan); }
+
         .simulated-list {
           display: grid;
           gap: 12px;
@@ -1151,8 +1165,7 @@ defmodule JidoDelvetownWeb.DashboardLive do
           aria-selected={to_string(@active_tab == "simulated-posts")}
           aria-controls="simulated-posts-panel"
         >
-          Simulated posts
-          <span class="tab-count">{length(inspection_list(@inspection, [:simulated_posts]))}</span>
+          Simulated posts <span class="tab-count">{review_item_count(@inspection)}</span>
         </a>
         <a
           id="image-drafts-tab"
@@ -1568,9 +1581,10 @@ defmodule JidoDelvetownWeb.DashboardLive do
         </div>
 
         <p class="simulated-intro">
-          These drafts were selected by the agent during dry-run cycles. They were stored locally
-          and were not sent to DelveTown. A publish button sends only the selected draft. Scheduled
-          agent writes stay off. This list refreshes every 3 seconds.
+          These items were selected by the agent during review or dry-run cycles. They were stored
+          locally and were not sent to DelveTown. Like proposals stay separate because they have no
+          generated text body. A publish button sends only a selected text draft. Scheduled agent
+          writes stay off. This list refreshes every 3 seconds.
         </p>
 
         <p
@@ -1588,6 +1602,61 @@ defmodule JidoDelvetownWeb.DashboardLive do
             View published post ↗
           </a>
         </p>
+
+        <section id="like-proposals" class="like-proposal-section" aria-labelledby="like-heading">
+          <div class="panel-header">
+            <h3 id="like-heading">Like proposals</h3>
+            <span class="count">{length(inspection_list(@inspection, [:like_proposals]))}</span>
+          </div>
+
+          <p :if={inspection_list(@inspection, [:like_proposals]) == []} class="empty">
+            No like proposals yet. A selected timeline post will appear here after the next review.
+          </p>
+
+          <ol
+            :if={inspection_list(@inspection, [:like_proposals]) != []}
+            class="simulated-list"
+          >
+            <li
+              :for={proposal <- inspection_list(@inspection, [:like_proposals])}
+              class="simulated-card"
+            >
+              <div class="simulated-card-header">
+                <span class={"badge #{like_state_class(map_value(proposal, :publication_state))}"}>
+                  {state_label(map_value(proposal, :publication_state))}
+                </span>
+                <time>{display(map_value(proposal, :selected_at))}</time>
+              </div>
+              <p class="like-target-author">
+                <strong>{like_author_label(proposal)}</strong>
+              </p>
+              <blockquote class="simulated-draft">{like_post_text(proposal)}</blockquote>
+              <div class="simulated-meta">
+                <span>
+                  <strong>Selection:</strong> {display(map_value(proposal, :selection_reason))}
+                </span>
+                <span><strong>Policy score:</strong> {display(map_value(proposal, :policy_score))}</span>
+                <span><strong>Budget:</strong> {like_budget_label(proposal)}</span>
+                <span>
+                  <strong>Event:</strong> {state_label(map_value(proposal, :event_state))}
+                </span>
+              </div>
+              <div class="simulated-actions">
+                <a
+                  :if={post_url(map_value(proposal, :target_uri))}
+                  class="source-link"
+                  href={post_url(map_value(proposal, :target_uri))}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View target post ↗
+                </a>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        <h3>Post and reply drafts</h3>
 
         <p :if={inspection_list(@inspection, [:simulated_posts]) == []} class="empty">
           No simulated posts yet. A selected reply, welcome, or original post will appear here.
@@ -1906,6 +1975,11 @@ defmodule JidoDelvetownWeb.DashboardLive do
   defp event_states, do: ~w(pending claimed completed ignored failed)
   defp effect_states, do: ~w(reserved uncertain completed permanent_failure)
 
+  defp review_item_count(inspection) do
+    length(inspection_list(inspection, [:simulated_posts])) +
+      length(inspection_list(inspection, [:like_proposals]))
+  end
+
   defp tab_class(active_tab, tab) when active_tab == tab, do: "active"
   defp tab_class(_active_tab, _tab), do: ""
 
@@ -1915,6 +1989,40 @@ defmodule JidoDelvetownWeb.DashboardLive do
       _text -> "Draft text was not stored for this older simulated action."
     end
   end
+
+  defp like_author_label(proposal) do
+    author = map_value(proposal, :target_author, %{})
+
+    case map_value(author, :handle) do
+      handle when is_binary(handle) and handle != "" -> "@#{handle}"
+      _handle -> display(map_value(author, :display_name) || map_value(author, :did))
+    end
+  end
+
+  defp like_post_text(proposal) do
+    case map_value(proposal, :post_text) do
+      text when is_binary(text) and text != "" -> text
+      _text -> "Target post text was not stored for this older proposal."
+    end
+  end
+
+  defp like_budget_label(proposal) do
+    budget = map_value(proposal, :budget, %{})
+
+    case {map_value(budget, :likes), map_value(budget, :limit), map_value(budget, :remaining)} do
+      {likes, limit, remaining}
+      when is_integer(likes) and is_integer(limit) and is_integer(remaining) ->
+        "#{likes} of #{limit} used · #{remaining} left"
+
+      _budget ->
+        "Not recorded"
+    end
+  end
+
+  defp like_state_class(state) when state in ["failed", "ignored"], do: "attention"
+  defp like_state_class("proposed"), do: "active"
+  defp like_state_class("published"), do: "safe"
+  defp like_state_class(_state), do: "idle"
 
   defp published?(post), do: map_value(post, :published_status) == "completed"
 

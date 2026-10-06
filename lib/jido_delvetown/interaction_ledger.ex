@@ -3,13 +3,13 @@ defmodule JidoDelvetown.InteractionLedger do
 
   import Ecto.Query
 
-  alias JidoDelvetown.FriendList
-  alias JidoDelvetown.Repo
+  alias JidoDelvetown.{Config, FriendList, Repo}
   alias JidoDelvetown.Storage.{Actor, Conversation, InteractionEvent}
 
   @terminal_states ["completed", "ignored", "failed"]
   @default_retention_days 90
   @default_event_limit 5_000
+  @like_review_text_limit 500
 
   def event_key(kind, values) when is_binary(kind) and is_list(values) do
     digest =
@@ -186,23 +186,21 @@ defmodule JidoDelvetown.InteractionLedger do
       source_id: candidate.id,
       occurred_at: Map.get(candidate, :indexed_at) || completed_at,
       payload:
-        maybe_add_publication_actor(
-          %{
-            cycle_kind: cycle.kind,
-            mode: cycle.mode,
-            intent: cycle.intent,
-            action: decision.action,
-            cycle_status: cycle.status,
-            text: Map.get(decision, :text),
-            topic: Map.get(decision, :topic),
-            model_reason: Map.get(decision, :reason),
-            response_format: Map.get(decision, :format),
-            selection: Map.get(cycle, :selection, %{}),
-            publication_target: publication_target(candidate)
-          },
-          decision,
-          candidate
-        )
+        %{
+          cycle_kind: cycle.kind,
+          mode: cycle.mode,
+          intent: cycle.intent,
+          action: decision.action,
+          cycle_status: cycle.status,
+          text: Map.get(decision, :text),
+          topic: Map.get(decision, :topic),
+          model_reason: Map.get(decision, :reason),
+          response_format: Map.get(decision, :format),
+          selection: Map.get(cycle, :selection, %{}),
+          publication_target: publication_target(candidate)
+        }
+        |> maybe_add_publication_actor(decision, candidate)
+        |> maybe_add_like_review(cycle, decision, candidate, completed_at)
     }
 
     with {:ok, _event} <- observe(attrs),
@@ -368,6 +366,37 @@ defmodule JidoDelvetown.InteractionLedger do
   end
 
   defp maybe_add_publication_actor(payload, _decision, _candidate), do: payload
+
+  defp maybe_add_like_review(payload, cycle, %{action: "like"}, candidate, selected_at) do
+    likes = get_in(cycle, [:state, :budget, :likes]) || 0
+    limit = Config.daily_like_limit()
+
+    Map.put(payload, :like_review, %{
+      author: %{
+        did: get_in(candidate, [:author, :did]),
+        handle: get_in(candidate, [:author, :handle]),
+        display_name: get_in(candidate, [:author, :display_name])
+      },
+      post_text: bounded_like_text(candidate),
+      selected_at: selected_at,
+      budget: %{
+        date: get_in(cycle, [:state, :budget, :date]),
+        likes: likes,
+        limit: limit,
+        remaining: max(limit - likes, 0)
+      }
+    })
+  end
+
+  defp maybe_add_like_review(payload, _cycle, _decision, _candidate, _selected_at),
+    do: payload
+
+  defp bounded_like_text(candidate) do
+    case Map.get(candidate, :text) || get_in(candidate, [:thread, :post, :text]) do
+      text when is_binary(text) -> String.slice(text, 0, @like_review_text_limit)
+      _text -> nil
+    end
+  end
 
   def context_for(candidate, opts \\ []) when is_map(candidate) do
     actor = maybe_actor(get_in(candidate, [:author, :did]), opts)

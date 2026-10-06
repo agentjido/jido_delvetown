@@ -43,6 +43,7 @@ defmodule JidoDelvetown.InspectionTest do
 
     assert snapshot.actors.recent == []
     assert snapshot.simulated_posts == []
+    assert snapshot.like_proposals == []
     assert snapshot.image_drafts == []
     assert snapshot.scans == []
     assert snapshot.effects.completed_receipts == []
@@ -179,6 +180,42 @@ defmodule JidoDelvetown.InspectionTest do
     assert reply.published_uri == "at://did:plc:agent/town.delve.feed.post/published"
     refute inspect(snapshot.simulated_posts) =~ "must stay hidden"
     refute inspect(snapshot.simulated_posts) =~ "This public post"
+  end
+
+  test "like proposals are bounded, deduplicated, and separate from text drafts" do
+    insert_like_event("duplicate-proposed", "target-one", "proposed", "pending", "10:00:00")
+    insert_like_event("proposed", "target-two", "proposed", "pending", "10:30:00")
+    insert_like_event("ignored", "target-three", "skipped", "ignored", "10:45:00")
+    insert_like_event("failed", "target-four", "failed", "failed", "10:50:00")
+    insert_like_event("duplicate-simulated", "target-one", "simulated", "completed", "11:00:00")
+
+    snapshot = Inspection.snapshot(simulated_limit: 10)
+    proposals = Map.new(snapshot.like_proposals, &{&1.target_uri, &1})
+
+    assert map_size(proposals) == 4
+    assert snapshot.simulated_posts == []
+
+    target_one = proposals["at://did:plc:author/town.delve.feed.post/target-one"]
+    assert target_one.proposal_status == "simulated"
+    assert target_one.publication_state == "simulated"
+    assert target_one.target_author.handle == "author.test"
+    assert target_one.post_text == "Which OTP boundary should own this failure?"
+    assert target_one.selection_reason == "useful discussion scored 83"
+    assert target_one.policy_score == 83
+    assert target_one.selected_at == "2026-10-05T11:00:00Z"
+    assert target_one.budget == %{date: "2026-10-05", likes: 1, limit: 5, remaining: 4}
+
+    assert proposals["at://did:plc:author/town.delve.feed.post/target-two"].publication_state ==
+             "proposed"
+
+    assert proposals["at://did:plc:author/town.delve.feed.post/target-three"].publication_state ==
+             "ignored"
+
+    assert proposals["at://did:plc:author/town.delve.feed.post/target-four"].publication_state ==
+             "failed"
+
+    refute inspect(snapshot.like_proposals) =~ "hidden model trace"
+    refute inspect(snapshot.like_proposals) =~ "private failure detail"
   end
 
   test "active memory exposes bounded actor, conversation, scan, and receipt fields" do
@@ -320,6 +357,38 @@ defmodule JidoDelvetown.InspectionTest do
       reserved_at: now,
       completed_at: if(status in ["completed", "permanent_failure"], do: now)
     }
+  end
+
+  defp insert_like_event(suffix, target, cycle_status, state, time) do
+    selected_at = "2026-10-05T#{time}Z"
+    occurred_at = DateTime.from_iso8601("2026-10-05T#{time}.000000Z") |> elem(1)
+
+    Repo.insert!(%InteractionEvent{
+      event_key: "like:#{suffix}",
+      kind: "proactive",
+      actor_did: "did:plc:author",
+      record_uri: "at://did:plc:author/town.delve.feed.post/#{target}",
+      occurred_at: occurred_at,
+      state: state,
+      failure: if(state == "failed", do: %{"reason" => "private failure detail"}),
+      terminal_at: if(state in ["completed", "ignored", "failed"], do: occurred_at),
+      payload: %{
+        "action" => "like",
+        "cycle_status" => cycle_status,
+        "private_model_context" => "hidden model trace",
+        "selection" => %{"reason" => "useful discussion scored 83", "score" => 83},
+        "like_review" => %{
+          "author" => %{
+            "did" => "did:plc:author",
+            "handle" => "author.test",
+            "display_name" => "Author"
+          },
+          "post_text" => "Which OTP boundary should own this failure?",
+          "selected_at" => selected_at,
+          "budget" => %{"date" => "2026-10-05", "likes" => 1, "limit" => 5, "remaining" => 4}
+        }
+      }
+    })
   end
 
   defp clear_inspection_tables do
