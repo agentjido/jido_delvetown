@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:07:19Z",
+  "description": "Move dashboard status, inspection, character, event, and display-assignment assembly out of DashboardLive into one read-only snapshot or presenter module. Preserve safe failure handling and the three-second refresh behavior. Keep LiveView lifecycle, events, and rendering unchanged in this issue. Acceptance: DashboardLive no longer owns data-source orchestration; snapshot tests cover healthy and unavailable dependencies; existing dashboard tests pass.",
+  "id": "jido_del-3zq.2",
+  "labels": [],
+  "parent": "jido_del-3zq",
+  "priority": 2,
+  "status": "open",
+  "title": "Extract dashboard snapshot assembly",
+  "type": "task",
+  "updated_at": "2026-10-06T01:07:19Z"
+}
