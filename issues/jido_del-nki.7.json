@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:49:52Z",
+  "description": "Add a Generate image action to the redesigned Drafts view. Let the operator enter and review the prompt, caption, alt text, model, size, and quality. Show progress, usage, failure state, generated preview, provenance, and a separate publication approval.",
+  "id": "jido_del-nki.7",
+  "labels": [],
+  "parent": "jido_del-nki",
+  "priority": 2,
+  "status": "open",
+  "title": "Add image generation to Drafts and Approvals",
+  "type": "task",
+  "updated_at": "2026-10-06T01:49:52Z"
+}
