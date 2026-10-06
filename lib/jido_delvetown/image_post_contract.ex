@@ -53,6 +53,19 @@ defmodule JidoDelvetown.ImagePostContract do
 
   def validate(_record), do: {:error, :invalid_post}
 
+  @doc "Validates one AT Protocol image blob reference."
+  @spec validate_blob(map()) :: :ok | {:error, atom()}
+  def validate_blob(blob) when is_map(blob) do
+    with :ok <- require_type(blob, @blob_type, :invalid_blob_type),
+         :ok <- validate_blob_ref(field(blob, :ref, "ref")),
+         :ok <- validate_mime_type(field(blob, :mime_type, "mimeType")),
+         :ok <- validate_blob_size(field(blob, :size, "size")) do
+      :ok
+    end
+  end
+
+  def validate_blob(_blob), do: {:error, :invalid_blob}
+
   defp fetch_images(embed) do
     case field(embed, :images, "images") do
       images when is_list(images) -> {:ok, images}
@@ -84,15 +97,6 @@ defmodule JidoDelvetown.ImagePostContract do
   end
 
   defp validate_image(_image), do: {:error, :invalid_image_entry}
-
-  defp validate_blob(blob) do
-    with :ok <- require_type(blob, @blob_type, :invalid_blob_type),
-         :ok <- validate_blob_ref(field(blob, :ref, "ref")),
-         :ok <- validate_mime_type(field(blob, :mime_type, "mimeType")),
-         :ok <- validate_blob_size(field(blob, :size, "size")) do
-      :ok
-    end
-  end
 
   defp validate_blob_ref(ref) when is_map(ref) do
     case field(ref, :"$link", "$link") do

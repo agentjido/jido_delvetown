@@ -12,6 +12,7 @@ defmodule JidoDelvetown.Transport do
   @callback label_bot(session(), String.t(), keyword()) :: result()
   @callback appview_query(session(), String.t(), map(), keyword()) :: result()
   @callback appview_procedure(session(), String.t(), map(), keyword()) :: result()
+  @callback upload_blob(session(), binary(), String.t(), keyword()) :: result()
   @callback create_record(session(), String.t(), map(), String.t(), keyword()) :: result()
   @callback get_record(session(), String.t(), String.t(), keyword()) :: result()
   @callback list_records(session(), String.t(), map(), keyword()) :: result()

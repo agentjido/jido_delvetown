@@ -88,6 +88,11 @@ defmodule JidoDelvetown.Transport.ProtoRune do
   end
 
   @impl true
+  def upload_blob(session, bytes, mime_type, opts \\ []) do
+    Repo.upload_blob(session, bytes, mime_type, http: Keyword.get(opts, :http, []))
+  end
+
+  @impl true
   def label_bot(session, description, opts \\ []) do
     with {:ok, record} <- current_profile(session, opts) do
       labels = bot_labels(value(record, :labels))

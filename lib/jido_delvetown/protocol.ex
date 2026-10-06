@@ -39,6 +39,22 @@ defmodule JidoDelvetown.Protocol do
     end
   end
 
+  @doc false
+  def upload_blob(bytes, mime_type) when is_binary(bytes) and is_binary(mime_type) do
+    with :ok <- writes_enabled(),
+         {:ok, session} <- session_module().session() do
+      result = transport().upload_blob(session, bytes, mime_type, [])
+
+      audit(:upload_blob, %{
+        mime_type: mime_type,
+        byte_size: byte_size(bytes),
+        result: outcome(result)
+      })
+
+      result
+    end
+  end
+
   def list_own_records(collection, params) when is_binary(collection) and is_map(params) do
     with :ok <- allowed_collection(collection),
          {:ok, session} <- session_module().session() do
@@ -105,6 +121,9 @@ defmodule JidoDelvetown.Protocol do
 
   def now, do: DateTime.utc_now() |> DateTime.truncate(:millisecond) |> DateTime.to_iso8601()
   def allowed_collections, do: @allowed_collections
+
+  @doc false
+  def ensure_writes_enabled, do: writes_enabled()
 
   defp create_or_reuse(_session, %{status: :completed} = effect, _record) do
     {:ok, %{receipt: effect.receipt, reused?: true, reconciled?: false}}

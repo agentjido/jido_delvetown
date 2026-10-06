@@ -41,4 +41,29 @@ defmodule JidoDelvetown.TransportTest do
     assert headers["atproto-proxy"] == "did:web:api.delve.town#bsky_appview"
     assert headers["authorization"] == "Bearer access-token"
   end
+
+  test "blob uploads send exact bytes with authentication and content type" do
+    session = %ProtoRune.Atproto.Session{
+      access_jwt: "access-token",
+      refresh_jwt: "refresh-token",
+      handle: "bot.test",
+      did: "did:plc:bot",
+      service_url: "https://pds.test/xrpc"
+    }
+
+    bytes = <<0, 1, 2, 3, 255>>
+
+    assert {:ok, %{}} =
+             Transport.upload_blob(session, bytes, "image/png",
+               http: [adapter: HTTPAdapter, rate_limit: false, retry: false]
+             )
+
+    assert_received {:http_request, :post, url, opts}
+    assert url == "https://pds.test/xrpc/com.atproto.repo.uploadBlob"
+    assert Keyword.fetch!(opts, :body) == bytes
+
+    headers = Keyword.fetch!(opts, :headers) |> Map.new()
+    assert headers["content-type"] == "image/png"
+    assert headers["authorization"] == "Bearer access-token"
+  end
 end

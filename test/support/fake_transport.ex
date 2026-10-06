@@ -38,6 +38,12 @@ defmodule JidoDelvetown.Test.FakeTransport do
   end
 
   @impl true
+  def upload_blob(_session, bytes, mime_type, _opts) do
+    notify({:upload_blob, bytes, mime_type})
+    result(:upload_blob_result, {:error, :not_configured})
+  end
+
+  @impl true
   def create_record(_session, collection, record, rkey, _opts) do
     notify({:create_record, collection, record, rkey})
     result(:create_result, {:ok, %{uri: "at://did:plc:bot/#{collection}/#{rkey}", cid: "cid"}})

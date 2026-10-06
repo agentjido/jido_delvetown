@@ -55,6 +55,38 @@ defmodule JidoDelvetown.ImageDrafts do
 
   def get_artifact(_digest), do: nil
 
+  @doc false
+  @spec begin_upload(String.t()) ::
+          {:ok, %{artifact: map(), reused?: boolean()}} | {:error, term()}
+  def begin_upload(digest) when is_binary(digest) do
+    Repo.transaction(fn -> begin_upload_transaction(digest) end, mode: :immediate)
+    |> transaction_result()
+  end
+
+  def begin_upload(_digest), do: {:error, :invalid_artifact_digest}
+
+  @doc false
+  @spec complete_upload(String.t(), map()) :: {:ok, map()} | {:error, term()}
+  def complete_upload(digest, blob) when is_binary(digest) and is_map(blob) do
+    Repo.transaction(fn -> complete_upload_transaction(digest, blob) end, mode: :immediate)
+    |> transaction_result()
+  end
+
+  def complete_upload(_digest, _blob), do: {:error, :invalid_upload_receipt}
+
+  @doc false
+  @spec record_upload_failure(String.t(), map()) :: {:ok, map()} | {:error, term()}
+  def record_upload_failure(digest, failure) when is_binary(digest) and is_map(failure) do
+    with {:ok, failure} <- normalize_metadata(failure) do
+      Repo.transaction(fn -> record_upload_failure_transaction(digest, failure) end,
+        mode: :immediate
+      )
+      |> transaction_result()
+    end
+  end
+
+  def record_upload_failure(_digest, _failure), do: {:error, :invalid_upload_failure}
+
   @spec digest(binary()) :: String.t()
   def digest(bytes) when is_binary(bytes) do
     "sha256:" <> (:crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower))
@@ -194,6 +226,142 @@ defmodule JidoDelvetown.ImageDrafts do
     end
   end
 
+  defp begin_upload_transaction(digest) do
+    case Repo.get(ImageArtifact, digest) do
+      nil ->
+        Repo.rollback(:artifact_not_found)
+
+      artifact ->
+        case validate_stored_artifact(artifact) do
+          :ok -> begin_valid_upload(artifact)
+          {:error, reason} -> Repo.rollback(reason)
+        end
+    end
+  end
+
+  defp begin_valid_upload(%{state: "uploaded", upload_receipt: receipt} = artifact)
+       when is_map(receipt) do
+    %{artifact: artifact_view(artifact), reused?: true}
+  end
+
+  defp begin_valid_upload(%{state: state} = artifact)
+       when state in ["staged", "upload_uncertain"] do
+    now = DateTime.utc_now()
+
+    artifact =
+      artifact
+      |> Ecto.Changeset.change(
+        state: "upload_uncertain",
+        failure: nil,
+        upload_attempt_count: artifact.upload_attempt_count + 1,
+        upload_started_at: now
+      )
+      |> Repo.update!()
+
+    %{artifact: artifact_view(artifact), reused?: false}
+  end
+
+  defp begin_valid_upload(%{state: "uploaded"}), do: Repo.rollback(:missing_upload_receipt)
+
+  defp begin_valid_upload(%{state: state}),
+    do: Repo.rollback({:invalid_artifact_state, state})
+
+  defp complete_upload_transaction(digest, blob) do
+    case Repo.get(ImageArtifact, digest) do
+      nil ->
+        Repo.rollback(:artifact_not_found)
+
+      artifact ->
+        with :ok <- validate_upload_receipt(blob, artifact) do
+          receipt = canonical_blob_receipt(blob)
+          persist_upload_receipt(artifact, receipt)
+        else
+          {:error, reason} -> Repo.rollback({:invalid_upload_receipt, reason})
+        end
+    end
+  end
+
+  defp persist_upload_receipt(%{state: "uploaded", upload_receipt: receipt} = artifact, receipt),
+    do: artifact_view(artifact)
+
+  defp persist_upload_receipt(%{state: "uploaded"}, _receipt),
+    do: Repo.rollback(:upload_receipt_conflict)
+
+  defp persist_upload_receipt(%{state: "upload_uncertain"} = artifact, receipt) do
+    artifact
+    |> Ecto.Changeset.change(
+      state: "uploaded",
+      failure: nil,
+      upload_receipt: receipt,
+      uploaded_at: DateTime.utc_now()
+    )
+    |> Repo.update!()
+    |> artifact_view()
+  end
+
+  defp persist_upload_receipt(%{state: state}, _receipt),
+    do: Repo.rollback({:invalid_artifact_state, state})
+
+  defp record_upload_failure_transaction(digest, failure) do
+    case Repo.get(ImageArtifact, digest) do
+      nil ->
+        Repo.rollback(:artifact_not_found)
+
+      %{state: "upload_uncertain"} = artifact ->
+        artifact
+        |> Ecto.Changeset.change(failure: failure)
+        |> Repo.update!()
+        |> artifact_view()
+
+      %{state: state} ->
+        Repo.rollback({:invalid_artifact_state, state})
+    end
+  end
+
+  defp validate_stored_artifact(artifact) do
+    cond do
+      not is_binary(artifact.bytes) or byte_size(artifact.bytes) == 0 ->
+        {:error, :invalid_staged_bytes}
+
+      artifact.byte_size != byte_size(artifact.bytes) ->
+        {:error, :artifact_size_mismatch}
+
+      artifact.digest != digest(artifact.bytes) ->
+        {:error, :artifact_digest_mismatch}
+
+      artifact.mime_type not in @mime_types ->
+        {:error, :unsupported_mime_type}
+
+      artifact.byte_size > ImagePostContract.max_blob_bytes() ->
+        {:error, :image_too_large}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_upload_receipt(blob, artifact) do
+    with :ok <- ImagePostContract.validate_blob(blob),
+         true <- blob_value(blob, :mime_type, "mimeType") == artifact.mime_type,
+         true <- blob_value(blob, :size, "size") == artifact.byte_size do
+      :ok
+    else
+      false -> {:error, :artifact_metadata_mismatch}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp canonical_blob_receipt(blob) do
+    ref = blob_value(blob, :ref, "ref")
+
+    %{
+      "$type" => blob_value(blob, :"$type", "$type"),
+      "ref" => %{"$link" => blob_value(ref, :"$link", "$link")},
+      "mimeType" => blob_value(blob, :mime_type, "mimeType"),
+      "size" => blob_value(blob, :size, "size")
+    }
+  end
+
   defp stage_artifact(staged) do
     case Repo.get(ImageArtifact, staged.digest) do
       nil ->
@@ -298,6 +466,10 @@ defmodule JidoDelvetown.ImageDrafts do
       source_metadata: artifact.source_metadata,
       state: artifact.state,
       failure: artifact.failure,
+      upload_attempt_count: artifact.upload_attempt_count,
+      upload_receipt: artifact.upload_receipt,
+      upload_started_at: artifact.upload_started_at,
+      uploaded_at: artifact.uploaded_at,
       inserted_at: artifact.inserted_at,
       updated_at: artifact.updated_at
     }
@@ -308,6 +480,13 @@ defmodule JidoDelvetown.ImageDrafts do
 
   defp value(map, key, default \\ nil) do
     Map.get(map, key, Map.get(map, Atom.to_string(key), default))
+  end
+
+  defp blob_value(map, atom_key, string_key) do
+    case Map.fetch(map, atom_key) do
+      {:ok, value} -> value
+      :error -> Map.get(map, string_key)
+    end
   end
 
   defp json_safe(nil), do: nil
