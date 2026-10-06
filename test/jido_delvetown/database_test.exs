@@ -16,6 +16,8 @@ defmodule JidoDelvetown.DatabaseTest do
     assert "interaction_events" in tables
     assert "actors" in tables
     assert "actor_relationships" in tables
+    assert "image_artifacts" in tables
+    assert "image_drafts" in tables
     assert "conversations" in tables
     assert "effects" in tables
     assert "audit_events" in tables
