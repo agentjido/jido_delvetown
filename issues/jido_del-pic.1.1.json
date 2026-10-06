@@ -1,7 +1,9 @@
 {
   "assignee": "",
   "blocked_by": [],
-  "blocks": [],
+  "blocks": [
+    "jido_del-pic.1.2"
+  ],
   "created": "2026-10-06T01:19:48Z",
   "description": "Inventory every current application setting. Define its type, default, validation, safety rules, and activation timing. LLM API keys remain external secrets.",
   "id": "jido_del-pic.1.1",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Define the typed settings contract",
   "type": "task",
-  "updated_at": "2026-10-06T01:19:48Z"
+  "updated_at": "2026-10-06T01:20:09Z"
 }
