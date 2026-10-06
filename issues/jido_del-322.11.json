@@ -9,9 +9,15 @@
   "id": "jido_del-322.11",
   "labels": [],
   "parent": "jido_del-322",
+  "comments": [
+    {
+      "text": "Implemented in fa3e112. Admin proactive jobs now run the normal cycle only when Observe mode and dry_run_mark_actioned are active; scheduled jobs remain proposal-only. A pending proposed like can be promoted only by this explicit simulation path. The durable event becomes completed/simulated, the like budget advances once, repeat runs do not duplicate the event or budget, and no protocol record is created. UI copy and disabled-state guidance now identify the simulation control. Verification: warnings-as-errors compile passed; full suite passed with 419 tests.",
+      "timestamp": "2026-10-06T16:05:24Z"
+    }
+  ],
   "priority": 1,
   "status": "in_progress",
   "title": "Stage manual proactive reviews as simulated drafts",
   "type": "bug",
-  "updated_at": "2026-10-06T15:59:22Z"
+  "updated_at": "2026-10-06T16:05:24Z"
 }
