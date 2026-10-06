@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:19:48Z",
+  "description": "Replace the current dashboard with a responsive operator console. Use Jido.run structure, DelveTown social patterns, light and dark themes, first-run setup, and focused operational views.",
+  "id": "jido_del-pic.2",
+  "labels": [],
+  "parent": "jido_del-pic",
+  "priority": 1,
+  "status": "open",
+  "title": "Redesign the AgentJido operator console",
+  "type": "epic",
+  "updated_at": "2026-10-06T01:19:48Z"
+}
