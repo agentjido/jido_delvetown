@@ -3,9 +3,12 @@ defmodule JidoDelvetown.SettingsTest do
 
   import Ecto.Query
 
+  import ExUnit.CaptureLog
+
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Settings
-  alias JidoDelvetown.Settings.Bootstrap
+  alias JidoDelvetown.Settings.{Bootstrap, SecretStore}
+  alias JidoDelvetown.Storage.Settings, as: SettingsRecord
   alias JidoDelvetown.Storage.SettingsRevision
 
   test "reads the current settings with typed keys and a version" do
@@ -80,10 +83,93 @@ defmodule JidoDelvetown.SettingsTest do
     assert {:error, {:setting_not_persisted, :data_dir}} =
              Settings.update(%{data_dir: "/tmp/other"}, scope: scope)
 
-    assert {:error, {:secure_storage_required, :account_app_password}} =
-             Settings.update(%{account_app_password: "plain-text"}, scope: scope)
-
     assert revision_count(scope) == 1
+  end
+
+  test "encrypts secrets and redacts all normal read and revision output" do
+    scope = bootstrap_scope()
+    password = "test-password-that-must-not-leak"
+
+    log =
+      capture_log(fn ->
+        assert {:ok, updated} =
+                 Settings.update(%{account_app_password: password},
+                   scope: scope,
+                   source: "operator"
+                 )
+
+        assert updated.values.account_app_password == "[REDACTED]"
+      end)
+
+    refute log =~ password
+
+    stored = Repo.get!(SettingsRecord, scope)
+    envelope = stored.values["account_app_password"]
+    assert SecretStore.encrypted?(envelope)
+    refute envelope =~ password
+
+    assert {:ok, current} = Settings.current(scope: scope)
+    assert current.values.account_app_password == "[REDACTED]"
+
+    assert {:ok, public_setting} = Settings.fetch(:account_app_password, scope: scope)
+    assert public_setting.value == "[REDACTED]"
+
+    assert {:ok, secret_setting} = Settings.fetch_secret(:account_app_password, scope: scope)
+    assert secret_setting.value == password
+    assert secret_setting.version == current.version
+
+    assert revision = revision(scope, current.version)
+    assert revision.values["account_app_password"] == "[REDACTED]"
+  end
+
+  test "keeps the encrypted value stable when the secret does not change" do
+    scope = bootstrap_scope()
+    password = "stable-secret"
+
+    assert {:ok, first} =
+             Settings.update(%{account_app_password: password}, scope: scope)
+
+    first_envelope = Repo.get!(SettingsRecord, scope).values["account_app_password"]
+
+    assert {:ok, unchanged} =
+             Settings.update(%{account_app_password: password},
+               scope: scope,
+               expected_version: first.version
+             )
+
+    assert unchanged == first
+    assert Repo.get!(SettingsRecord, scope).values["account_app_password"] == first_envelope
+
+    assert {:ok, updated} =
+             Settings.update(%{daily_reply_limit: 9},
+               scope: scope,
+               expected_version: first.version
+             )
+
+    assert updated.version == first.version + 1
+    assert Repo.get!(SettingsRecord, scope).values["account_app_password"] == first_envelope
+    assert revision_count(scope) == 3
+  end
+
+  test "rejects a damaged encrypted value without returning its content" do
+    scope = bootstrap_scope()
+    password = "secret-that-must-stay-hidden"
+
+    assert {:ok, _updated} =
+             Settings.update(%{account_app_password: password}, scope: scope)
+
+    settings = Repo.get!(SettingsRecord, scope)
+
+    settings
+    |> SettingsRecord.changeset(%{
+      values: Map.put(settings.values, "account_app_password", "enc:v1:damaged")
+    })
+    |> Repo.update!()
+
+    assert {:error, {:secret_read_failed, :account_app_password, :secret_decryption_failed}} =
+             Settings.current(scope: scope)
+
+    refute inspect(Settings.current(scope: scope)) =~ password
   end
 
   test "rejects an invalid combination without changing either row" do

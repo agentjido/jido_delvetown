@@ -1,6 +1,7 @@
 defmodule JidoDelvetown.DatabaseTest do
   use ExUnit.Case, async: false
 
+  import Bitwise
   import Ecto.Query
 
   alias JidoDelvetown.{Config, Repo}
@@ -10,6 +11,12 @@ defmodule JidoDelvetown.DatabaseTest do
   test "the application starts one migrated SQLite database" do
     assert Process.alive?(Process.whereis(Repo))
     assert File.regular?(Config.database_path())
+    assert File.regular?(Config.settings_key_path())
+
+    assert {:ok, %{mode: mode, size: 32, type: :regular}} =
+             File.stat(Config.settings_key_path())
+
+    assert (mode &&& 0o077) == 0
 
     tables =
       Repo.query!("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").rows

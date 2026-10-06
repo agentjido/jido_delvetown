@@ -5,6 +5,7 @@ defmodule JidoDelvetown.Database do
 
   alias JidoDelvetown.{Config, InteractionEvents, LegacyImporter, Repo}
   alias JidoDelvetown.Settings.Bootstrap, as: SettingsBootstrap
+  alias JidoDelvetown.Settings.SecretStore
 
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
@@ -13,7 +14,8 @@ defmodule JidoDelvetown.Database do
     path = Application.app_dir(:jido_delvetown, "priv/repo/migrations")
     _versions = Ecto.Migrator.run(Repo, path, :up, all: true)
 
-    with {:ok, _settings} <- SettingsBootstrap.run(),
+    with {:ok, _key} <- SecretStore.ensure_key(),
+         {:ok, _settings} <- SettingsBootstrap.run(),
          :ok <- import_legacy_state(),
          {:ok, _count} <- InteractionEvents.recover_stale_claims(stale_after_ms: 0) do
       {:ok, %{migration_path: path}}

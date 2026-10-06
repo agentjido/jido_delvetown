@@ -9,6 +9,7 @@ defmodule JidoDelvetown.Settings do
 
   alias JidoDelvetown.Repo
   alias JidoDelvetown.Settings.{Bootstrap, Contract}
+  alias JidoDelvetown.Settings.SecretStore
   alias JidoDelvetown.Storage.{Settings, SettingsRevision}
 
   @redacted "[REDACTED]"
@@ -55,6 +56,31 @@ defmodule JidoDelvetown.Settings do
     end
   end
 
+  @doc "Returns one decrypted secret for internal runtime use."
+  @spec fetch_secret(atom() | String.t(), keyword()) :: {:ok, setting()} | {:error, term()}
+  def fetch_secret(key, opts \\ []) do
+    repo = Keyword.get(opts, :repo, Repo)
+    scope = Keyword.get(opts, :scope, Bootstrap.active_scope())
+
+    with {:ok, %{storage: :encrypted_database} = definition} <- Contract.definition(key),
+         %Settings{} = settings <- repo.get(Settings, scope),
+         :ok <- validate_schema_version(settings.schema_version),
+         {:ok, values} <- decoded_values(settings.values),
+         :ok <- validate_values(values) do
+      {:ok,
+       %{
+         key: definition.key,
+         value: Map.fetch!(values, definition.key),
+         schema_version: settings.schema_version,
+         version: settings.version
+       }}
+    else
+      {:ok, definition} -> {:error, {:not_a_secret_setting, definition.key}}
+      nil -> {:error, {:settings_not_found, scope}}
+      {:error, _reason} = error -> error
+    end
+  end
+
   @spec update(map() | keyword(), keyword()) :: {:ok, snapshot()} | {:error, term()}
   def update(changes, opts \\ []) do
     repo = Keyword.get(opts, :repo, Repo)
@@ -73,7 +99,7 @@ defmodule JidoDelvetown.Settings do
     with %Settings{} = settings <- repo.get(Settings, scope),
          :ok <- validate_schema_version(settings.schema_version),
          :ok <- validate_expected_version(settings.version, opts.expected_version),
-         {:ok, current_values} <- typed_values(settings.values),
+         {:ok, current_values} <- decoded_values(settings.values),
          next_values = Map.merge(current_values, changes),
          :ok <- validate_values(next_values),
          changed_keys <- changed_keys(current_values, next_values),
@@ -85,19 +111,23 @@ defmodule JidoDelvetown.Settings do
     end
   end
 
-  defp persist_update(_repo, settings, values, [], _opts), do: snapshot!(settings, values)
+  defp persist_update(_repo, settings, values, [], _opts),
+    do: public_snapshot(settings, values)
 
-  defp persist_update(repo, settings, values, _changed_keys, opts) do
-    serialized = serialize(values)
-
-    with {:ok, updated} <-
+  defp persist_update(repo, settings, values, changed_keys, opts) do
+    with {:ok, serialized} <- serialize(values, settings.values, changed_keys),
+         {:ok, updated} <-
            settings
            |> Settings.changeset(%{values: serialized})
            |> repo.update(),
          {:ok, _revision} <- insert_revision(repo, updated, opts) do
-      snapshot!(updated, values)
+      public_snapshot(updated, values)
     else
-      {:error, changeset} -> repo.rollback({:settings_write_failed, changeset})
+      {:error, %Ecto.Changeset{} = changeset} ->
+        repo.rollback({:settings_write_failed, changeset})
+
+      {:error, reason} ->
+        repo.rollback(reason)
     end
   end
 
@@ -118,7 +148,6 @@ defmodule JidoDelvetown.Settings do
     if is_map(changes) or change_entries?(changes) do
       Enum.reduce_while(changes, {:ok, %{}}, fn {key, value}, {:ok, normalized} ->
         with {:ok, definition} <- database_definition(key),
-             :ok <- ensure_writable(definition, value),
              :ok <- Contract.validate(definition.key, value),
              :ok <- ensure_unique_key(normalized, definition.key) do
           {:cont, {:ok, Map.put(normalized, definition.key, value)}}
@@ -149,12 +178,6 @@ defmodule JidoDelvetown.Settings do
       {:error, _reason} = error -> error
     end
   end
-
-  defp ensure_writable(%{storage: :encrypted_database, key: key}, value)
-       when not is_nil(value),
-       do: {:error, {:secure_storage_required, key}}
-
-  defp ensure_writable(_definition, _value), do: :ok
 
   defp ensure_unique_key(normalized, key) do
     if Map.has_key?(normalized, key),
@@ -309,25 +332,34 @@ defmodule JidoDelvetown.Settings do
 
   defp snapshot(%Settings{} = settings) do
     with :ok <- validate_schema_version(settings.schema_version),
-         {:ok, values} <- typed_values(settings.values),
+         {:ok, values} <- decoded_values(settings.values),
          :ok <- validate_values(values) do
-      {:ok, snapshot!(settings, values)}
+      {:ok, public_snapshot(settings, values)}
     end
   end
 
-  defp snapshot!(settings, values) do
+  defp public_snapshot(settings, values) do
     %{
       scope: settings.scope,
       schema_version: settings.schema_version,
       version: settings.version,
-      values: values
+      values: redact_secrets(values)
     }
   end
 
-  defp typed_values(values) when is_map(values) do
+  defp decoded_values(values) when is_map(values) do
     Enum.reduce_while(values, {:ok, %{}}, fn {key, value}, {:ok, typed} ->
       case Contract.definition(key) do
-        {:ok, definition} when definition.storage in [:database, :encrypted_database] ->
+        {:ok, %{storage: :encrypted_database} = definition} ->
+          case decrypt_secret(definition, value) do
+            {:ok, plaintext} ->
+              {:cont, {:ok, Map.put(typed, definition.key, plaintext)}}
+
+            {:error, reason} ->
+              {:halt, {:error, reason}}
+          end
+
+        {:ok, %{storage: :database} = definition} ->
           {:cont, {:ok, Map.put(typed, definition.key, value)}}
 
         {:ok, _definition} ->
@@ -339,10 +371,61 @@ defmodule JidoDelvetown.Settings do
     end)
   end
 
-  defp typed_values(_values), do: {:error, :invalid_stored_settings}
+  defp decoded_values(_values), do: {:error, :invalid_stored_settings}
 
-  defp serialize(values),
-    do: Map.new(values, fn {key, value} -> {Atom.to_string(key), value} end)
+  defp decrypt_secret(_definition, nil), do: {:ok, nil}
+
+  defp decrypt_secret(definition, envelope) when is_binary(envelope) do
+    case SecretStore.decrypt(definition.key, envelope) do
+      {:ok, plaintext} -> {:ok, plaintext}
+      {:error, reason} -> {:error, {:secret_read_failed, definition.key, reason}}
+    end
+  end
+
+  defp decrypt_secret(definition, _value),
+    do: {:error, {:secret_read_failed, definition.key, :invalid_secret_envelope}}
+
+  defp serialize(values, stored, changed_keys) do
+    changed_keys = MapSet.new(changed_keys)
+
+    Enum.reduce_while(Contract.database_definitions(), {:ok, %{}}, fn definition,
+                                                                      {:ok, encoded} ->
+      key = definition.key
+      name = Atom.to_string(key)
+      value = Map.fetch!(values, key)
+
+      case encode_value(definition, value, stored, MapSet.member?(changed_keys, key)) do
+        {:ok, stored_value} -> {:cont, {:ok, Map.put(encoded, name, stored_value)}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp encode_value(%{storage: :database}, value, _stored, _changed?), do: {:ok, value}
+
+  defp encode_value(%{storage: :encrypted_database, key: key}, _value, stored, false),
+    do: {:ok, Map.fetch!(stored, Atom.to_string(key))}
+
+  defp encode_value(%{storage: :encrypted_database}, nil, _stored, true), do: {:ok, nil}
+
+  defp encode_value(%{storage: :encrypted_database, key: key}, value, _stored, true) do
+    case SecretStore.encrypt(key, value) do
+      {:ok, envelope} -> {:ok, envelope}
+      {:error, reason} -> {:error, {:secret_write_failed, key, reason}}
+    end
+  end
+
+  defp redact_secrets(values) do
+    Map.new(Contract.database_definitions(), fn definition ->
+      value = Map.fetch!(values, definition.key)
+
+      case definition.storage do
+        :encrypted_database when is_nil(value) -> {definition.key, nil}
+        :encrypted_database -> {definition.key, @redacted}
+        :database -> {definition.key, value}
+      end
+    end)
+  end
 
   defp revision_values(values) do
     Map.new(Contract.database_definitions(), fn definition ->

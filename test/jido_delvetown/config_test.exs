@@ -18,6 +18,7 @@ defmodule JidoDelvetown.ConfigTest do
 
     assert Config.data_dir() == data_dir
     assert Config.database_path() == database_path
+    assert Config.settings_key_path() == database_path <> ".settings.key"
     assert Config.legacy_checkpoint_path() == Path.join(data_dir, "jido_checkpoints")
     assert Config.legacy_state_path() == Path.join(data_dir, "delvetown_state.dets")
 

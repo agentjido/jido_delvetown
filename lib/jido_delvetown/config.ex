@@ -127,6 +127,15 @@ defmodule JidoDelvetown.Config do
       |> Path.expand()
   end
 
+  def settings_key_path do
+    Application.get_env(
+      :jido_delvetown,
+      :settings_key_path,
+      database_path() <> ".settings.key"
+    )
+    |> Path.expand()
+  end
+
   def legacy_import_enabled? do
     case System.get_env("DELVETOWN_LEGACY_IMPORT_ENABLED") do
       nil -> Application.get_env(:jido_delvetown, :legacy_import_enabled, true)
