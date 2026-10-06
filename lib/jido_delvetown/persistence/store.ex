@@ -6,9 +6,8 @@ defmodule JidoDelvetown.Store do
   import Ecto.Query
 
   alias JidoDelvetown.Repo
-  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent, ScanState}
+  alias JidoDelvetown.Storage.{AuditEvent, Effect, InteractionEvent}
 
-  @notification_scan "notifications"
   @seen_kinds ["seen", "legacy_seen"]
 
   def start_link(opts \\ []) do
@@ -16,10 +15,6 @@ defmodule JidoDelvetown.Store do
     GenServer.start_link(__MODULE__, opts, name: name)
   end
 
-  def cursor(server \\ __MODULE__), do: GenServer.call(server, :cursor)
-  def put_cursor(cursor, server \\ __MODULE__), do: GenServer.call(server, {:put_cursor, cursor})
-  def seen?(uri, server \\ __MODULE__), do: GenServer.call(server, {:seen?, uri})
-  def mark_seen(uri, server \\ __MODULE__), do: GenServer.call(server, {:mark_seen, uri})
   def effect(key, server \\ __MODULE__), do: GenServer.call(server, {:effect, key})
   def counts(server \\ __MODULE__), do: GenServer.call(server, :counts)
 
@@ -58,75 +53,6 @@ defmodule JidoDelvetown.Store do
   end
 
   @impl true
-  def handle_call(:cursor, _from, state) do
-    cursor =
-      case state.repo.get(ScanState, @notification_scan) do
-        %ScanState{cursor: cursor} -> cursor
-        nil -> nil
-      end
-
-    {:reply, cursor, state}
-  end
-
-  def handle_call({:put_cursor, cursor}, _from, state)
-      when is_binary(cursor) or is_nil(cursor) do
-    now = now()
-
-    state.repo.insert_all(
-      ScanState,
-      [
-        %{
-          name: @notification_scan,
-          cursor: cursor,
-          metadata: %{},
-          inserted_at: now,
-          updated_at: now
-        }
-      ],
-      on_conflict: {:replace, [:cursor, :updated_at]},
-      conflict_target: [:name]
-    )
-
-    {:reply, :ok, state}
-  end
-
-  def handle_call({:seen?, uri}, _from, state) do
-    seen? =
-      state.repo.exists?(
-        from(event in InteractionEvent,
-          where: event.record_uri == ^uri and event.kind in ^@seen_kinds
-        )
-      )
-
-    {:reply, seen?, state}
-  end
-
-  def handle_call({:mark_seen, uri}, _from, state) do
-    now = now()
-
-    state.repo.insert_all(
-      InteractionEvent,
-      [
-        %{
-          event_key: seen_event_key(uri),
-          kind: "seen",
-          record_uri: uri,
-          occurred_at: now,
-          state: "completed",
-          attempt_count: 0,
-          payload: %{},
-          terminal_at: now,
-          inserted_at: now,
-          updated_at: now
-        }
-      ],
-      on_conflict: :nothing,
-      conflict_target: [:event_key]
-    )
-
-    {:reply, :ok, state}
-  end
-
   def handle_call({:effect, key}, _from, state) do
     {:reply, state.repo.get(Effect, key) |> effect_map(), state}
   end
@@ -380,11 +306,6 @@ defmodule JidoDelvetown.Store do
       [kind, _digest] -> kind
       _other -> "effect"
     end
-  end
-
-  defp seen_event_key(uri) do
-    digest = :crypto.hash(:sha256, uri) |> Base.url_encode64(padding: false)
-    "seen:" <> digest
   end
 
   defp json_safe(nil), do: nil

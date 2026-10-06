@@ -105,23 +105,6 @@ defmodule JidoDelvetown.StoreAndTidTest do
     assert Repo.aggregate(Effect, :count, :operation_key) == 1
   end
 
-  test "cursor and seen state remain after a Store restart" do
-    name = JidoDelvetown.ProgressStoreTestServer
-    {:ok, first_store} = Store.start_link(name: name)
-    Process.unlink(first_store)
-
-    assert :ok = Store.put_cursor("cursor-2", name)
-    assert :ok = Store.mark_seen("at://post/one", name)
-    GenServer.stop(first_store)
-
-    {:ok, second_store} = Store.start_link(name: name)
-    Process.unlink(second_store)
-    assert Store.cursor(name) == "cursor-2"
-    assert Store.seen?("at://post/one", name)
-    assert Store.counts(name).seen == 1
-    GenServer.stop(second_store)
-  end
-
   defp restore_env(name, nil), do: System.delete_env(name)
   defp restore_env(name, value), do: System.put_env(name, value)
 end
