@@ -1,7 +1,9 @@
 {
   "assignee": "",
   "blocked_by": [],
-  "blocks": [],
+  "blocks": [
+    "jido_del-322.7"
+  ],
   "created": "2026-10-06T15:39:05Z",
   "description": "A notification page can contain many direct and follow events. The current cycle observes all rows, processes at most one, and advances the cursor. The remaining rows stay pending and InteractionEvents.pending? then blocks proactive reviews forever. Process the durable pending backlog before advancing past it, or keep the cursor until all observed work is terminal. Preserve idempotency, bounded work, budgets, leases, and one durable action per event. Add tests that prove no observed direct request is stranded and proactive review can continue after the backlog is terminal.",
   "id": "jido_del-322.9",
@@ -11,5 +13,5 @@
   "status": "open",
   "title": "Drain observed notification events before advancing the scan cursor",
   "type": "bug",
-  "updated_at": "2026-10-06T15:39:05Z"
+  "updated_at": "2026-10-06T15:39:14Z"
 }
