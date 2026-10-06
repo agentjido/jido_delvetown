@@ -3,7 +3,9 @@
   "blocked_by": [
     "jido_del-3zq.3"
   ],
-  "blocks": [],
+  "blocks": [
+    "jido_del-pic.2.2"
+  ],
   "created": "2026-10-06T01:19:48Z",
   "description": "Create a restrained Jido.run-based design system with DelveTown social cues. Support system, light, and dark themes and persist the selected theme in SQLite.",
   "id": "jido_del-pic.2.1",
