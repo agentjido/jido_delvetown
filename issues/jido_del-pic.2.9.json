@@ -3,6 +3,7 @@
   "blocked_by": [
     "jido_del-pic.1.4",
     "jido_del-pic.1.7",
+    "jido_del-pic.1.8",
     "jido_del-pic.2.2"
   ],
   "blocks": [],
@@ -15,5 +16,5 @@
   "status": "open",
   "title": "Build the runtime Settings editor",
   "type": "task",
-  "updated_at": "2026-10-06T01:20:11Z"
+  "updated_at": "2026-10-06T01:20:12Z"
 }
