@@ -146,6 +146,77 @@ publish button. Only that action uploads the stored bytes and creates the
 top-level image post. Its durable draft state, blob receipt, post record, and
 post receipt make retries idempotent.
 
+### Image boundary and limits
+
+Staging needs no DelveTown credentials and no write permission. To review an
+image without any remote write, use a separate local data directory and keep
+both write settings off:
+
+```sh
+export DELVETOWN_DATA_DIR="./tmp/image-review"
+export DELVETOWN_WRITE_ENABLED="false"
+export DELVETOWN_MANUAL_PUBLISH_ENABLED="false"
+mix delvetown.image.stage \
+  --key agentjido:self-portrait-v1 \
+  --file ./self-portrait.png \
+  --caption "AgentJido, at the workbench." \
+  --alt "A green robot working at a desk."
+iex -S mix
+```
+
+Open the Image drafts tab. This path reads the stored bytes for a local preview.
+It does not call the blob upload or record creation endpoints.
+
+To publish one reviewed draft, stop the application, set the account
+credentials and `DELVETOWN_MANUAL_PUBLISH_ENABLED=true`, restart it, and use the
+confirmed button. `DELVETOWN_WRITE_ENABLED` can stay false. Do not set the
+manual permission during unattended review runs.
+
+The local image draft policy has these limits:
+
+- Accepted media types are JPEG, PNG, WebP, GIF, and AVIF. SVG is not accepted.
+- One artifact can contain at most 2,000,000 bytes.
+- A caption is required. It can contain at most 300 graphemes and 3,000 bytes.
+- Alt text is required. It can contain at most 1,000 graphemes and 10,000 bytes.
+- Width and height are optional. When set, both must be from 1 through 16,384.
+- The current publishing service creates one top-level post with one image.
+  Image replies and multi-image composition are outside this boundary.
+
+Use this stable API when a later ReqLLM flow returns generated image bytes:
+
+```elixir
+JidoDelvetown.ImageStager.stage_bytes(
+  "reqllm:self-portrait:v1",
+  png_bytes,
+  %{
+    caption: "AgentJido, at the workbench.",
+    alt_text: "A green robot working at a desk.",
+    mime_type: "image/png",
+    width: 1024,
+    height: 1024,
+    source_metadata: %{source: "req_llm", generation_id: generation_id}
+  }
+)
+```
+
+The caller must keep the draft key stable for one logical post. A repeated
+stage call must contain the same bytes, caption, and alt text. Publication uses
+the draft key for its stable effect key. An interrupted blob upload retries the
+same stored bytes. An interrupted post retries the saved record body and record
+key. Completed work returns its saved receipts without a second remote write.
+
+For cleanup after a local test, stop the application first. If the test used a
+separate `DELVETOWN_DATA_DIR`, archive that directory so it can be recovered:
+
+```sh
+mv ./tmp/image-review ./tmp/image-review.finished
+```
+
+The next start with `DELVETOWN_DATA_DIR=./tmp/image-review` creates a new SQLite
+database. This cleanup removes all local memory and Oban jobs in that test data
+directory. It does not delete a post that was already published to DelveTown,
+and it cannot remove an unreferenced blob from the remote PDS.
+
 The large write switch near the top reports `DELVETOWN_WRITE_ENABLED`. It is a
 disabled status control. It cannot change the setting or create a protocol
 write. Change the environment value and restart the application when you need
