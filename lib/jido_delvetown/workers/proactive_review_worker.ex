@@ -1,5 +1,7 @@
 defmodule JidoDelvetown.Workers.ProactiveReviewWorker do
-  @moduledoc "Runs one durable, proposal-only proactive participation review."
+  @moduledoc "Runs one durable proactive review or operator-requested simulation."
+
+  alias JidoDelvetown.Settings.Behavior
 
   use Oban.Worker,
     queue: :delvetown,
@@ -7,11 +9,22 @@ defmodule JidoDelvetown.Workers.ProactiveReviewWorker do
     unique: [period: :infinity, states: :incomplete, fields: [:worker]]
 
   @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"source" => "admin"}}), do: run_simulation()
   def perform(%Oban.Job{}), do: run_review()
 
-  defp run_review do
+  defp run_simulation do
+    case Behavior.action_disposition("normal") do
+      {:ok, :simulate} -> run_cycle(:run_proactive)
+      {:ok, disposition} -> {:discard, {:simulation_not_enabled, disposition}}
+      {:error, reason} -> {:discard, {:simulation_settings_unavailable, reason}}
+    end
+  end
+
+  defp run_review, do: run_cycle(:review_proactive)
+
+  defp run_cycle(operation) do
     cycle_runner()
-    |> apply(:review_proactive, [])
+    |> apply(operation, [])
     |> normalize_result()
   end
 

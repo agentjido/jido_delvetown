@@ -765,8 +765,7 @@ defmodule JidoDelvetown.CycleTest do
     refute_received {:create_record, _collection, _record, _rkey}
   end
 
-  test "a simulated outgoing like consumes only the like budget and is not selected twice" do
-    RuntimeSettings.update!(dry_run_mark_actioned: true)
+  test "a proposed like can become one simulated action and is not selected twice" do
     uri = "at://did:plc:author/town.delve.feed.post/like-once"
     indexed_at = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
@@ -808,8 +807,25 @@ defmodule JidoDelvetown.CycleTest do
       {:ok, %{action: "like", text: nil, topic: "OTP", reason: "Useful OTP discussion"}}
     )
 
+    assert {:ok, proposed} =
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "review"}, context())
+
+    assert proposed.last_run.status == "proposed"
+    assert proposed.budget.likes == 0
+
+    pending_event = Repo.get_by!(InteractionEvent, record_uri: uri)
+    assert pending_event.state == "pending"
+    assert pending_event.payload["cycle_status"] == "proposed"
+    assert Repo.aggregate(InteractionEvent, :count) == 1
+    assert_received {:decision, "join_useful_discussion", _payload}
+    refute_received {:create_record, _collection, _record, _rkey}
+
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+
     assert {:ok, state} =
-             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, context())
+             Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, %{
+               agent_state: proposed
+             })
 
     assert state.last_run.status == "simulated"
     assert state.last_run.action == "like"
@@ -819,12 +835,19 @@ defmodule JidoDelvetown.CycleTest do
     assert_received {:decision, "join_useful_discussion", _payload}
     refute_received {:create_record, _collection, _record, _rkey}
 
+    event = Repo.get_by!(InteractionEvent, record_uri: uri)
+    assert event.state == "completed"
+    assert event.payload["cycle_status"] == "simulated"
+    assert event.payload["action"] == "like"
+    assert Repo.aggregate(InteractionEvent, :count) == 1
+
     assert {:ok, repeated} =
              Jido.Exec.run(ProactiveParticipationCycle, %{mode: "normal"}, %{agent_state: state})
 
     assert repeated.last_run.status == "skipped"
     assert repeated.last_run.proposal.reason == "duplicate_candidate"
     assert repeated.budget.likes == 1
+    assert Repo.aggregate(InteractionEvent, :count) == 1
     refute_received {:decision, _intent, _payload}
     refute_received {:create_record, _collection, _record, _rkey}
   end

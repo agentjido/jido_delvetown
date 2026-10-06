@@ -103,7 +103,11 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     evaluated_posts =
       cycle.recent_posts
       |> Enum.map(&add_memory/1)
-      |> Enum.map(&attach_like_eligibility(&1, cycle.state, limits))
+      |> Enum.map(
+        &attach_like_eligibility(&1, cycle.state, limits,
+          allow_proposed?: simulation_promotion?(cycle)
+        )
+      )
 
     posts = Enum.filter(evaluated_posts, &like_eligible?/1)
 
@@ -282,8 +286,8 @@ defmodule JidoDelvetown.Actions.SelectIntent do
     }
   end
 
-  defp attach_like_eligibility(candidate, state, limits) do
-    case OutgoingLikePolicy.evaluate(candidate, state, limits: limits) do
+  defp attach_like_eligibility(candidate, state, limits, opts) do
+    case OutgoingLikePolicy.evaluate(candidate, state, Keyword.put(opts, :limits, limits)) do
       :ok ->
         Map.put(candidate, :like_eligibility, %{status: "eligible", reason: nil})
 
@@ -294,6 +298,11 @@ defmodule JidoDelvetown.Actions.SelectIntent do
 
   defp like_eligible?(candidate),
     do: get_in(candidate, [:like_eligibility, :status]) == "eligible"
+
+  defp simulation_promotion?(%{mode: "normal"}),
+    do: Behavior.action_disposition("normal") == {:ok, :simulate}
+
+  defp simulation_promotion?(_cycle), do: false
 
   defp discussion_actions(state, limits) do
     if state.budget.replies < limits.daily_reply_limit,

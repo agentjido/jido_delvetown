@@ -20,14 +20,23 @@ defmodule JidoDelvetown.Automation do
   @doc "Queues one manual reactive review without changing protocol-write settings."
   def enqueue_reactive_review, do: enqueue_review(@reactive_worker, :reactive)
 
-  @doc "Queues one manual proposal-only proactive review without changing write settings."
-  def enqueue_proactive_review, do: enqueue_review(@proactive_review_worker, :proactive)
+  @doc "Queues one manual proactive simulation when dry-run action memory is enabled."
+  def enqueue_proactive_review do
+    with :ok <- ensure_proactive_simulation() do
+      enqueue_review(@proactive_review_worker, :proactive)
+    end
+  end
 
   @doc "Returns the current or most recent manual reactive review state."
   def reactive_review_status, do: review_status(@reactive_worker, :reactive)
 
-  @doc "Returns the current or most recent manual proactive review state."
-  def proactive_review_status, do: review_status(@proactive_review_worker, :proactive)
+  @doc "Returns the current or most recent manual proactive simulation state."
+  def proactive_review_status do
+    case ensure_proactive_simulation() do
+      :ok -> review_status(@proactive_review_worker, :proactive)
+      {:error, :simulation_not_enabled} -> simulation_disabled_feedback()
+    end
+  end
 
   defp enqueue_review(worker, kind) do
     with :ok <- ensure_runtime_available(),
@@ -129,6 +138,13 @@ defmodule JidoDelvetown.Automation do
     end
   end
 
+  defp ensure_proactive_simulation do
+    case JidoDelvetown.Settings.Behavior.action_disposition("normal") do
+      {:ok, :simulate} -> :ok
+      _other -> {:error, :simulation_not_enabled}
+    end
+  end
+
   defp active_job(worker) do
     Repo.one(
       from(job in Oban.Job,
@@ -221,7 +237,7 @@ defmodule JidoDelvetown.Automation do
     do: "The manual review will run through the normal SQLite scan lease."
 
   defp queued_detail(%{args: %{"source" => @manual_source}}, :proactive),
-    do: "The manual review will use the timeline scan lease and save proposals only."
+    do: "The manual run will use the timeline scan lease and save one simulated action."
 
   defp queued_detail(_job, kind),
     do: "A scheduled #{kind} review is already queued. Manual review is disabled until it ends."
@@ -230,7 +246,7 @@ defmodule JidoDelvetown.Automation do
     do: "The dashboard now includes events and simulated replies from this review."
 
   defp completed_detail(:proactive),
-    do: "The dashboard now includes proposals from this timeline review."
+    do: "The dashboard now includes the simulated action from this timeline run."
 
   defp idle_feedback(:reactive) do
     %{
@@ -245,9 +261,19 @@ defmodule JidoDelvetown.Automation do
   defp idle_feedback(:proactive) do
     %{
       status: :idle,
-      label: "Ready for proactive review",
-      detail: "Queue one timeline review. It can save proposals but cannot publish them.",
+      label: "Ready to simulate",
+      detail: "Run one timeline cycle and save its action without publishing it.",
       disabled?: false,
+      job_id: nil
+    }
+  end
+
+  defp simulation_disabled_feedback do
+    %{
+      status: :disabled,
+      label: "Simulation disabled",
+      detail: "Use Observe mode and turn on Mark dry-run actions before you run a simulation.",
+      disabled?: true,
       job_id: nil
     }
   end

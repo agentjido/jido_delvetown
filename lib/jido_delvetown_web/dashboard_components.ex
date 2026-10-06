@@ -3417,7 +3417,7 @@ defmodule JidoDelvetownWeb.DashboardComponents do
     >
       <div>
         <h2>Manual controls</h2>
-        <p>Start a timeline review with the current dry-run and safety settings.</p>
+        <p>Run one timeline cycle and save its action as a local simulation.</p>
       </div>
       <div class="control-stack">
         <div
@@ -3435,10 +3435,10 @@ defmodule JidoDelvetownWeb.DashboardComponents do
             type="button"
             class="run-review-button"
             phx-click="run_proactive_review"
-            phx-disable-with="Queuing review…"
+            phx-disable-with="Queuing simulation…"
             disabled={map_value(@proactive_review, :disabled?, true)}
           >
-            Run proactive review
+            Run proactive simulation
           </button>
         </div>
       </div>

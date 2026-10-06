@@ -99,7 +99,9 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
   defp validate(cycle) do
     action = cycle.decision.action
-    like_eligibility = validate_like(action, cycle.candidate, cycle.state, cycle.limits)
+
+    like_eligibility =
+      validate_like(action, cycle.candidate, cycle.state, cycle.limits, cycle.mode)
 
     cond do
       action not in cycle.allowed_actions ->
@@ -237,14 +239,22 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
 
   defp valid_subject?(_candidate), do: false
 
-  defp validate_like("like", candidate, state, limits) do
-    case OutgoingLikePolicy.evaluate(candidate, state, limits: limits) do
+  defp validate_like("like", candidate, state, limits, mode) do
+    case OutgoingLikePolicy.evaluate(candidate, state,
+           limits: limits,
+           allow_proposed?: simulation_promotion?(mode)
+         ) do
       :ok -> :ok
       {:skip, reason} -> {:error, reason}
     end
   end
 
-  defp validate_like(_action, _candidate, _state, _limits), do: :ok
+  defp validate_like(_action, _candidate, _state, _limits, _mode), do: :ok
+
+  defp simulation_promotion?("normal"),
+    do: Behavior.action_disposition("normal") == {:ok, :simulate}
+
+  defp simulation_promotion?(_mode), do: false
 
   defp valid_actor?(%{author: %{did: did}}), do: is_binary(did) and did != ""
   defp valid_actor?(_candidate), do: false

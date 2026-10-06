@@ -605,6 +605,16 @@ defmodule JidoDelvetownWeb.DashboardLive do
     }
   end
 
+  defp review_error(:simulation_not_enabled, :proactive) do
+    %{
+      status: :disabled,
+      label: "Simulation disabled",
+      detail: "Use Observe mode and turn on Mark dry-run actions before you run a simulation.",
+      disabled?: true,
+      job_id: nil
+    }
+  end
+
   defp review_error({:enqueue_failed, _reason}, _kind) do
     %{
       status: :failed,

@@ -26,7 +26,7 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
          :ok <- valid_subject(candidate),
          :ok <- exclude_owned_post(candidate, opts),
          :ok <- exclude_already_liked(candidate, opts),
-         :ok <- exclude_duplicate(candidate, state),
+         :ok <- exclude_duplicate(candidate, state, opts),
          :ok <- exclude_opted_out_actor(candidate),
          :ok <- exclude_blocked_actor(candidate),
          :ok <- exclude_stale_candidate(candidate, now, limits, opts),
@@ -69,16 +69,24 @@ defmodule JidoDelvetown.OutgoingLikePolicy do
     if liked? or local_effect?, do: {:skip, "already_liked"}, else: :ok
   end
 
-  defp exclude_duplicate(candidate, state) do
+  defp exclude_duplicate(candidate, state, opts) do
     processed = get_in(state, [:notifications, :processed]) || %{}
     record = Map.get(processed, candidate.id) || Map.get(processed, candidate.uri)
 
     case record do
       %{status: "failed"} -> :ok
       %{"status" => "failed"} -> :ok
+      %{status: "proposed"} -> allow_proposed(opts)
+      %{"status" => "proposed"} -> allow_proposed(opts)
       nil -> :ok
       _record -> {:skip, "duplicate_candidate"}
     end
+  end
+
+  defp allow_proposed(opts) do
+    if Keyword.get(opts, :allow_proposed?, false),
+      do: :ok,
+      else: {:skip, "duplicate_candidate"}
   end
 
   defp exclude_opted_out_actor(candidate) do

@@ -338,6 +338,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
     refute html =~ "Approve human-in-the-loop post"
     assert html =~ ~s(id="run-proactive-review")
     assert html =~ ~s(phx-click="run_proactive_review")
+    assert html =~ "Run proactive simulation"
     assert html =~ ~s(id="proactive-review-feedback")
     assert html =~ "AgentJido profile"
     assert html =~ "Proposed thread"
@@ -650,6 +651,7 @@ defmodule JidoDelvetownWeb.DashboardLiveTest do
       {{:ok, review_feedback(:running)}, :running, "Review running", true},
       {{:ok, review_feedback(:completed)}, :completed, "Review completed", false},
       {{:ok, review_feedback(:skipped)}, :skipped, "Review already queued", true},
+      {{:error, :simulation_not_enabled}, :disabled, "Simulation disabled", true},
       {{:error, :runtime_unavailable}, :failed, "Runtime unavailable", true},
       {{:ok, review_feedback(:failed)}, :failed, "Review failed", true}
     ]

@@ -14,6 +14,7 @@ defmodule JidoDelvetown.WorkersTest do
 
   defmodule FakeCycleRunner do
     def run_reactive, do: run(:reactive)
+    def run_proactive, do: run(:proactive)
     def review_proactive, do: run(:proactive_review)
     def run_member_discovery, do: run(:member_discovery)
 
@@ -110,23 +111,25 @@ defmodule JidoDelvetown.WorkersTest do
     refute_receive {:cycle, :proactive}
   end
 
-  test "a manual proactive review runs through Oban without changing live-write settings" do
-    RuntimeSettings.update!(autonomy_mode: "autonomous")
+  test "a manual proactive review stages a simulation through Oban" do
+    RuntimeSettings.update!(autonomy_mode: "observe", dry_run_mark_actioned: true)
 
     assert {:ok, %{status: :queued, disabled?: true, job_id: job_id}} =
              Automation.enqueue_proactive_review()
 
     assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :delvetown)
-    assert_receive {:cycle, :proactive_review}
-    refute_receive {:cycle, :proactive}
+    assert_receive {:cycle, :proactive}
+    refute_receive {:cycle, :proactive_review}
 
     assert %{status: :completed, disabled?: false, job_id: ^job_id} =
              Automation.proactive_review_status()
 
-    assert Behavior.writes_enabled?()
+    refute Behavior.writes_enabled?()
   end
 
   test "repeated manual proactive reviews do not create concurrent jobs" do
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+
     assert {:ok, %{status: :queued, job_id: job_id}} =
              Automation.enqueue_proactive_review()
 
@@ -137,6 +140,8 @@ defmodule JidoDelvetown.WorkersTest do
   end
 
   test "manual proactive review reports an unavailable runtime without a job" do
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+
     Application.put_env(
       :jido_delvetown,
       :reactive_review_runtime,
@@ -152,6 +157,8 @@ defmodule JidoDelvetown.WorkersTest do
   end
 
   test "a failed manual proactive review shows its pending Oban retry" do
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+
     Application.put_env(
       :jido_delvetown,
       :cycle_result,
@@ -162,10 +169,37 @@ defmodule JidoDelvetown.WorkersTest do
              Automation.enqueue_proactive_review()
 
     assert %{success: 0, failure: 1} = Oban.drain_queue(queue: :delvetown)
-    assert_receive {:cycle, :proactive_review}
+    assert_receive {:cycle, :proactive}
 
     assert %{status: :failed, disabled?: true, job_id: ^job_id} =
              Automation.proactive_review_status()
+  end
+
+  test "manual proactive simulation is disabled unless dry-run actions are recorded" do
+    assert {:error, :simulation_not_enabled} = Automation.enqueue_proactive_review()
+
+    assert %{
+             status: :disabled,
+             label: "Simulation disabled",
+             disabled?: true,
+             job_id: nil
+           } = Automation.proactive_review_status()
+
+    assert Repo.aggregate(proactive_review_jobs_query(), :count) == 0
+    refute_receive {:cycle, _kind}
+  end
+
+  test "a queued manual simulation cannot run after its safety setting changes" do
+    RuntimeSettings.update!(dry_run_mark_actioned: true)
+    assert {:ok, %{job_id: job_id}} = Automation.enqueue_proactive_review()
+    job = Repo.get!(Oban.Job, job_id)
+
+    RuntimeSettings.update!(dry_run_mark_actioned: false)
+
+    assert {:discard, {:simulation_not_enabled, :propose}} =
+             ProactiveReviewWorker.perform(job)
+
+    refute_receive {:cycle, _kind}
   end
 
   test "a manual reactive review runs through Oban and records completion" do

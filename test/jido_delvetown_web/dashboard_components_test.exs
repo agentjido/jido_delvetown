@@ -49,6 +49,7 @@ defmodule JidoDelvetownWeb.DashboardComponentsTest do
 
     assert html =~ ~s(aria-label="Manual controls")
     assert html =~ ~s(phx-click="run_proactive_review")
+    assert html =~ "Run proactive simulation"
     refute html =~ ~s(phx-click="run_reactive_review")
     refute html =~ "Interaction memory"
   end

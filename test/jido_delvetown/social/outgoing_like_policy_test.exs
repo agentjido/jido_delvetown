@@ -21,6 +21,14 @@ defmodule JidoDelvetown.OutgoingLikePolicyTest do
     assert {:skip, "already_liked"} = evaluate(candidate(), state(), local_effect?: true)
   end
 
+  test "allows an existing proposal only for an explicit simulation promotion" do
+    proposed =
+      put_in(state(), [:notifications, :processed, candidate().id], %{status: "proposed"})
+
+    assert {:skip, "duplicate_candidate"} = evaluate(candidate(), proposed)
+    assert :ok = evaluate(candidate(), proposed, allow_proposed?: true)
+  end
+
   test "uses stable reasons for every eligibility exclusion" do
     stale = DateTime.add(@now, -49, :hour) |> DateTime.to_iso8601()
 
