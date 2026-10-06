@@ -4,7 +4,8 @@
     "jido_del-pic.1.4"
   ],
   "blocks": [
-    "jido_del-pic.1.12"
+    "jido_del-pic.1.12",
+    "jido_del-pic.2.3"
   ],
   "created": "2026-10-06T01:19:48Z",
   "description": "Move the DelveTown identifier, PDS URL, AppView DID, dashboard port, and dashboard enabled state to the runtime settings service.",
@@ -15,5 +16,5 @@
   "status": "open",
   "title": "Move connection and identity settings to SQLite",
   "type": "task",
-  "updated_at": "2026-10-06T01:20:10Z"
+  "updated_at": "2026-10-06T01:20:11Z"
 }
