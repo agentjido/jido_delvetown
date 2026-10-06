@@ -7,14 +7,15 @@
     "jido_del-nki.2",
     "jido_del-nki.3"
   ],
+  "closed_at": "2026-10-06T14:26:05Z",
   "created": "2026-10-06T01:49:52Z",
   "description": "Define the provider-neutral generator interface, supported inputs, output bytes, media metadata, usage data, errors, timeouts, and provenance. Use the verified OpenAI ReqLLM call as the first compatibility target.",
   "id": "jido_del-nki.1",
   "labels": [],
   "parent": "jido_del-nki",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Define the ReqLLM image generation contract",
   "type": "task",
-  "updated_at": "2026-10-06T14:22:03Z"
+  "updated_at": "2026-10-06T14:26:05Z"
 }
