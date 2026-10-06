@@ -7,14 +7,16 @@
     "jido_del-pic.1.12",
     "jido_del-pic.2.3"
   ],
+  "closed_at": "2026-10-06T12:20:35Z",
+  "close_reason": "Moved account identity, PDS, AppView, and dashboard startup reads to SQLite runtime settings, wired encrypted credentials into sessions, and added integration tests.",
   "created": "2026-10-06T01:19:48Z",
   "description": "Move the DelveTown identifier, PDS URL, AppView DID, dashboard port, and dashboard enabled state to the runtime settings service.",
   "id": "jido_del-pic.1.6",
   "labels": [],
   "parent": "jido_del-pic.1",
   "priority": 1,
-  "status": "in_progress",
+  "status": "closed",
   "title": "Move connection and identity settings to SQLite",
   "type": "task",
-  "updated_at": "2026-10-06T12:15:38Z"
+  "updated_at": "2026-10-06T12:20:35Z"
 }
