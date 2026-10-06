@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:19:48Z",
+  "description": "Show the action timeline, publication receipts, failures, Oban jobs, and configuration revisions with useful filters.",
+  "id": "jido_del-pic.2.8",
+  "labels": [],
+  "parent": "jido_del-pic.2",
+  "priority": 2,
+  "status": "open",
+  "title": "Build the Activity view",
+  "type": "task",
+  "updated_at": "2026-10-06T01:19:48Z"
+}
