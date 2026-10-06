@@ -2,7 +2,8 @@
   "assignee": "",
   "blocked_by": [],
   "blocks": [
-    "jido_del-3zq.2"
+    "jido_del-3zq.2",
+    "jido_del-3zq.4"
   ],
   "created": "2026-10-06T01:07:19Z",
   "description": "Create clear runtime, participation, persistence, social, publishing, and protocol directories. Move existing source files into those directories without renaming modules or changing public APIs. Keep JidoDelvetown.Application, JidoDelvetown.Agent, and JidoDelvetown.Config at the package root. Keep the existing Actions and Workers groups. Mirror the same subsystem shape in tests where it improves navigation. Acceptance: behavior is unchanged; the diff is primarily file renames; no new abstraction is introduced; mix precommit passes.",
