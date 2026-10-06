@@ -8,6 +8,7 @@ defmodule JidoDelvetown.Settings.BehaviorTest do
     scope = bootstrap_scope()
 
     refute Behavior.writes_enabled?(scope: scope)
+    assert {:ok, :propose} = Behavior.action_disposition("normal", scope: scope)
     refute Behavior.manual_publish_enabled?(scope: scope)
     assert {:ok, "openai:gpt-4o-mini"} = Behavior.decision_model(scope: scope)
     assert {:ok, 45_000} = Behavior.decision_timeout(scope: scope)
@@ -30,6 +31,8 @@ defmodule JidoDelvetown.Settings.BehaviorTest do
              )
 
     assert Behavior.writes_enabled?(scope: scope)
+    assert {:ok, :execute} = Behavior.action_disposition("normal", scope: scope)
+    assert {:ok, :propose} = Behavior.action_disposition("review", scope: scope)
     assert Behavior.manual_publish_enabled?(scope: scope)
     assert Behavior.dry_run_mark_actioned?(scope: scope)
     assert Behavior.mark_notifications_seen?(scope: scope)
@@ -39,6 +42,34 @@ defmodule JidoDelvetown.Settings.BehaviorTest do
 
     assert {:ok, ["like", "skip"]} =
              Behavior.filter_enabled_actions(["reply", "like", "skip"], scope: scope)
+  end
+
+  test "defines a safe action disposition for each autonomy mode" do
+    scope = bootstrap_scope()
+
+    assert {:ok, :propose} = Behavior.action_disposition("normal", scope: scope)
+
+    assert {:ok, _updated} =
+             Settings.update(%{dry_run_mark_actioned: true}, scope: scope)
+
+    assert {:ok, :simulate} = Behavior.action_disposition("normal", scope: scope)
+
+    assert {:ok, _updated} =
+             Settings.update(%{autonomy_mode: "review"}, scope: scope)
+
+    assert {:ok, :propose} = Behavior.action_disposition("normal", scope: scope)
+
+    assert {:ok, _updated} =
+             Settings.update(%{autonomy_mode: "autonomous"},
+               scope: scope,
+               confirmed: [:autonomy_mode]
+             )
+
+    assert {:ok, :execute} = Behavior.action_disposition("normal", scope: scope)
+    assert {:ok, :propose} = Behavior.action_disposition("review", scope: scope)
+
+    assert {:error, {:invalid_cycle_mode, "unknown"}} =
+             Behavior.action_disposition("unknown", scope: scope)
   end
 
   test "converts OpenAI model names to the ReqLLM model input" do

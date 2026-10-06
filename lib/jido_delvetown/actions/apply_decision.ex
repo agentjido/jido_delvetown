@@ -41,36 +41,50 @@ defmodule JidoDelvetown.Actions.ApplyDecision do
   defp apply(%{decision: %{action: "acknowledge"}} = cycle),
     do: Map.merge(cycle, %{status: "acknowledged", effects: 0, receipt: nil})
 
-  defp apply(%{mode: "review"} = cycle),
-    do: Map.merge(cycle, %{status: "proposed", effects: 0, receipt: nil})
+  defp apply(cycle) do
+    case Behavior.action_disposition(cycle.mode) do
+      {:ok, :propose} ->
+        complete_without_effect(cycle, "proposed")
 
-  defp apply(%{mode: "normal"} = cycle) do
-    if Behavior.writes_enabled?() do
-      case execute(cycle.decision, cycle.candidate) do
-        {:ok, receipt} ->
-          Map.merge(cycle, %{
-            status: "acted",
-            effects: effect_count(receipt),
-            receipt: receipt
-          })
+      {:ok, :simulate} ->
+        complete_without_effect(cycle, "simulated")
 
-        {:error, reason} ->
-          Map.merge(cycle, %{
-            status: "failed",
-            stage: "effect",
-            effects: 0,
-            receipt: nil,
-            errors: cycle.errors ++ [error_text(reason)]
-          })
-      end
-    else
-      dry_run(cycle)
+      {:ok, :execute} ->
+        execute_decision(cycle)
+
+      {:error, reason} ->
+        Map.merge(cycle, %{
+          status: "failed",
+          stage: "autonomy_policy",
+          effects: 0,
+          receipt: nil,
+          errors: cycle.errors ++ [error_text(reason)]
+        })
     end
   end
 
-  defp dry_run(cycle) do
-    status = if Behavior.dry_run_mark_actioned?(), do: "simulated", else: "proposed"
+  defp complete_without_effect(cycle, status) do
     Map.merge(cycle, %{status: status, effects: 0, receipt: nil})
+  end
+
+  defp execute_decision(cycle) do
+    case execute(cycle.decision, cycle.candidate) do
+      {:ok, receipt} ->
+        Map.merge(cycle, %{
+          status: "acted",
+          effects: effect_count(receipt),
+          receipt: receipt
+        })
+
+      {:error, reason} ->
+        Map.merge(cycle, %{
+          status: "failed",
+          stage: "effect",
+          effects: 0,
+          receipt: nil,
+          errors: cycle.errors ++ [error_text(reason)]
+        })
+    end
   end
 
   defp validate(cycle) do

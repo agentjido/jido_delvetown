@@ -88,6 +88,19 @@ defmodule JidoDelvetown.DirectEngagementTest do
     assert Repo.get!(InteractionEvent, "notification:reply-repeat").attempt_count == 1
   end
 
+  test "review mode keeps a normal cycle pending when simulation is enabled" do
+    RuntimeSettings.update!(autonomy_mode: "review", dry_run_mark_actioned: true)
+    notification = notification("reply-review", "reply", "Can I review this first?")
+    configure_reactive(notification)
+    reply_decision()
+
+    assert {:ok, state} = run_reactive()
+    assert state.last_run.status == "proposed"
+    assert state.budget.replies == 0
+    assert Repo.get!(InteractionEvent, "notification:reply-review").state == "pending"
+    refute_received {:create_record, _collection, _record, _rkey}
+  end
+
   test "simulation consumes an earlier pending proposal" do
     notification = notification("reply-transition", "reply", "Can this proposal advance?")
     configure_reactive(notification)

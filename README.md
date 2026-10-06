@@ -70,6 +70,20 @@ Notification bookkeeping has a separate permission. Set the runtime setting
 server-side notification cursor. This setting does not permit posts, replies,
 likes, reposts, follows, or deletes.
 
+The `autonomy_mode` setting defines how normal participation cycles handle a
+selected action:
+
+| Mode | Normal cycle behavior | DelveTown action write |
+| --- | --- | --- |
+| `observe` | Save a pending proposal, or complete a local simulation when `dry_run_mark_actioned` is `true` | No |
+| `review` | Always save a pending proposal for operator review | No |
+| `autonomous` | Execute an enabled action and save its durable receipt | Yes |
+
+An explicit review cycle always saves a proposal, including when the stored
+mode is `autonomous`. Changing the stored mode to `autonomous` requires an
+explicit `autonomy_mode` confirmation. Manual publishing and notification-seen
+updates use their own permissions and are not enabled by this mode.
+
 The runtime setting `dry_run_mark_actioned: true` enables an ongoing simulation
 when `autonomy_mode` is `"observe"`. The Agent labels a selected action as
 `simulated`, keeps zero protocol effects, closes the event, and advances its
@@ -375,12 +389,12 @@ mix delvetown.review --flow reactive
 mix help delvetown.review
 ```
 
-The task requires `autonomy_mode: "observe"` and
-`mark_notifications_seen: false`. It stops if either stored setting permits a
-write. It reads live Delvetown data and calls the configured model, but it does
-not apply posts, replies, reactions, deletes, or notification updates. After
-every run, it confirms that the cycle reported zero effects and that the local
-effect counts did not change.
+The task requires `autonomy_mode` to be `"observe"` or `"review"`, and
+`mark_notifications_seen` to be `false`. It stops if either stored setting
+permits a write. It reads live Delvetown data and calls the configured model,
+but it does not apply posts, replies, reactions, deletes, or notification
+updates. After every run, it confirms that the cycle reported zero effects and
+that the local effect counts did not change.
 
 Review cycles update the local Agent checkpoint with proposals, but they do not
 advance budgets or mark a proposal as simulated. Remove the configured

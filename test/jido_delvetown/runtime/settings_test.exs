@@ -217,6 +217,9 @@ defmodule JidoDelvetown.SettingsTest do
   test "requires explicit confirmation for protected values" do
     scope = bootstrap_scope()
 
+    assert {:ok, review} = Settings.update(%{autonomy_mode: "review"}, scope: scope)
+    assert review.values.autonomy_mode == "review"
+
     assert {:error, {:confirmation_required, :autonomy_mode, "autonomous"}} =
              Settings.update(%{autonomy_mode: "autonomous"}, scope: scope)
 
