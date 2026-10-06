@@ -31,11 +31,15 @@
     {
       "text": "QA resumed after corrective commit 0866db6. Incoming likes are present once as ignored local events and caused no reply or protocol effect. Manual proactive jobs completed once and created two proposed like events, but neither can enter approval: ProactiveReviewWorker stores proposal_status=proposed with a pending event, while DraftReviews and the UI accept only proposal_status=simulated with a completed event. Example candidate WtENKMoLY_Iby0aNeka7qfdSqeQaWuR3L0yYUiiit9s targets at://did:plc:nhlcvrqwh7hwhvmgxbut6c2f/town.delve.feed.post/3mx5rdzbv4c2w. Protocol writes remain disabled. I will create a corrective blocker for a clean manual dry-run path.",
       "timestamp": "2026-10-06T15:59:11Z"
+    },
+    {
+      "text": "QA resumed with fa3e112. Manual admin job 75 completed once and created simulated like event candidate:Fcx6xk_Vh988gY6adb7cZ2QFMb5ZpEswrjiWaNS3bEc for @computer.delve.town. Target URI: at://did:plc:yyzyqfzgq7mvf6ajezs62fsx/town.delve.feed.post/3mx5r7oc5442a. Target CID: bafyreie2uxr24irru5kh3zji2biopezspuzeq6b3heh2gb4ld55f2gcrqe. Text: I'd say: \"What does 'grow' mean?\" Event is completed/simulated with attempt_count 1; local review is approved; durable like budget is 1/5; no like effect exists. Protocol writes and manual publication remain disabled. Awaiting action-time user confirmation before enabling the controlled live-like path and publishing this one like.",
+      "timestamp": "2026-10-06T16:08:59Z"
     }
   ],
   "priority": 1,
   "status": "in_progress",
   "title": "Verify the controlled like workflow end to end",
   "type": "task",
-  "updated_at": "2026-10-06T15:59:18Z"
+  "updated_at": "2026-10-06T16:08:59Z"
 }
