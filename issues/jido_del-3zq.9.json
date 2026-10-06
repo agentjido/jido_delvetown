@@ -1,0 +1,15 @@
+{
+  "assignee": "",
+  "blocked_by": [],
+  "blocks": [],
+  "created": "2026-10-06T01:07:20Z",
+  "description": "Move effect reservation, attempt, completion, permanent failure, lookup, and counts into a focused Ecto context. Use immediate transactions and database constraints to preserve idempotency under concurrency. Add a direct concurrent reservation test before removing the Store GenServer from the supervision tree. Preserve deterministic record keys, reconciliation, receipt reuse, legal transitions, and dependency injection used by protocol tests. Acceptance: concurrent callers obtain one effect identity; duplicate external writes remain impossible; effect recovery tests pass; no state-free Store process remains.",
+  "id": "jido_del-3zq.9",
+  "labels": [],
+  "parent": "jido_del-3zq",
+  "priority": 2,
+  "status": "open",
+  "title": "Extract effect persistence and retire the Store process",
+  "type": "task",
+  "updated_at": "2026-10-06T01:07:20Z"
+}
