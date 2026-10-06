@@ -1,5 +1,5 @@
 {
-  "assignee": "",
+  "assignee": "Mike Hostetler",
   "blocked_by": [],
   "blocks": [
     "jido_del-322.7"
@@ -10,8 +10,8 @@
   "labels": [],
   "parent": "jido_del-322",
   "priority": 1,
-  "status": "open",
+  "status": "in_progress",
   "title": "Drain observed notification events before advancing the scan cursor",
   "type": "bug",
-  "updated_at": "2026-10-06T15:39:14Z"
+  "updated_at": "2026-10-06T15:41:58Z"
 }
